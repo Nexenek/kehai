@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import '../../../../domain/activity_mapper.dart';
 import '../presence_service.dart';
 import 'android_presence_channel.dart';
 import 'android_presence_mapper.dart';
@@ -49,9 +50,49 @@ class AndroidPresenceService implements PresenceService {
   /// media sessions, rather than just claiming the toggle is on.
   AndroidPresenceSnapshot get snapshot => _snapshot;
 
+  /// The `shareFocusedApp` per-device opt-in (kb/features.md "Focused-app
+  /// status"). Off by default; setting it pushes the same value down to the
+  /// native side via [AndroidPresenceChannel.setForegroundAppEnabled] so
+  /// "off" means `UsageStatsManager` is never even polled, not just that
+  /// Dart ignores `foreground_package`. Set by `AppController` from
+  /// `PrefsService` on launch and again whenever the phone-superpowers
+  /// screen's toggle changes.
+  bool get shareFocusedApp => _shareFocusedApp;
+  bool _shareFocusedApp = false;
+
+  set shareFocusedApp(bool value) {
+    if (_shareFocusedApp == value) return;
+    final before = current;
+    _shareFocusedApp = value;
+    unawaited(_channel.setForegroundAppEnabled(value));
+    _notifyIfChanged(before);
+  }
+
+  /// The `shareUnknownApps` opt-in: an app with no `ActivityMapper` entry
+  /// still gets a cleaned-up guess instead of staying silent. Meaningless —
+  /// and never consulted — while [shareFocusedApp] is off. Purely a Dart
+  /// concern, so unlike [shareFocusedApp] this never touches the channel.
+  bool get shareUnknownApps => _shareUnknownApps;
+  bool _shareUnknownApps = false;
+
+  set shareUnknownApps(bool value) {
+    if (_shareUnknownApps == value) return;
+    final before = current;
+    _shareUnknownApps = value;
+    _notifyIfChanged(before);
+  }
+
   @override
-  DevicePresence get current =>
-      _hasReading ? _snapshot.toPresence(now: _now()) : DevicePresence.empty;
+  DevicePresence get current {
+    if (!_hasReading) return DevicePresence.empty;
+    final activity = _shareFocusedApp
+        ? ActivityMapper.mapAndroidPackage(
+            _snapshot.foregroundPackage,
+            shareUnknown: _shareUnknownApps,
+          )
+        : null;
+    return _snapshot.toPresence(now: _now(), activity: activity);
+  }
 
   @override
   Stream<DevicePresence> get onChange => _controller.stream;
@@ -81,6 +122,17 @@ class AndroidPresenceService implements PresenceService {
     final before = current;
     _snapshot = next;
     _hasReading = true;
+    _notifyIfChanged(before);
+  }
+
+  /// Pushes [current] to [onChange] iff it differs from [before] — shared by
+  /// [_applySnapshot] and the [shareFocusedApp]/[shareUnknownApps] setters,
+  /// none of which should invent a reading: on a service with no
+  /// [_hasReading] yet, [current] stays [DevicePresence.empty] on both sides
+  /// of the comparison, so flipping a toggle before the first native
+  /// snapshot arrives is a no-op here, same as it would be for any other
+  /// field.
+  void _notifyIfChanged(DevicePresence before) {
     final after = current;
     if (after != before && !_controller.isClosed) _controller.add(after);
   }

@@ -1,0 +1,266 @@
+import 'package:flutter/material.dart';
+
+import '../../../../data/services/desktop_window_service.dart';
+import '../../../../domain/models/ambient_line.dart';
+import '../../../../domain/models/mood.dart';
+import '../../../../domain/models/partner_status.dart';
+import '../../../core/strings/app_strings.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
+import '../../../core/widgets/marquee_text.dart';
+import 'device_indicator.dart';
+
+/// The little always-there window: the whole app, shrunk to a glanceable
+/// card (kb/platform-desktop.md's mini state).
+///
+/// It shows exactly what you'd want from the corner of your eye — how
+/// they're feeling, what they're up to, whether they're around — and nothing
+/// else. Click it to open the panel; drag it anywhere.
+class MiniPartnerWindow extends StatefulWidget {
+  const MiniPartnerWindow({
+    super.key,
+    required this.partnerName,
+    required this.status,
+    required this.phoneOnline,
+    required this.desktopOnline,
+    this.ambientLine,
+    this.onExpand,
+    this.onDragStart,
+    this.transparentCorners = false,
+  });
+
+  final String partnerName;
+  final PartnerStatus? status;
+  final bool phoneOnline;
+  final bool desktopOnline;
+  final AmbientLine? ambientLine;
+
+  /// Clicking the card opens the full panel.
+  final VoidCallback? onExpand;
+
+  /// Dragging it moves the OS window (the card has no title bar of its own).
+  final VoidCallback? onDragStart;
+
+  /// True when the window behind us is actually transparent, in which case
+  /// the corner notches read as pixel-stepped corners. Where transparency
+  /// isn't available they'd just show the window's own background, so we
+  /// leave the card square instead.
+  final bool transparentCorners;
+
+  @override
+  State<MiniPartnerWindow> createState() => _MiniPartnerWindowState();
+}
+
+class _MiniPartnerWindowState extends State<MiniPartnerWindow> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final mood = widget.status != null
+        ? MoodCatalog.byId(widget.status!.moodId)
+        : null;
+    final line = widget.ambientLine;
+
+    final card = Container(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border.all(
+          color: _hovered ? colors.accent : colors.ink,
+          width: 2,
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  widget.partnerName.isEmpty
+                      ? AppStrings.partnerCardTitleFallback
+                      : widget.partnerName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.caption.copyWith(
+                    color: colors.chromeAlt,
+                  ),
+                ),
+              ),
+              DeviceIndicator(
+                phoneOnline: widget.phoneOnline,
+                desktopOnline: widget.desktopOnline,
+              ),
+            ],
+          ),
+          Expanded(child: PartnerPortrait(mood: mood)),
+          SizedBox(
+            height: 18,
+            child: line != null
+                ? MarqueeText(
+                    text: line.text,
+                    style: AppTextStyles.caption.copyWith(
+                      color: line.kind == AmbientLineKind.nowPlaying
+                          ? colors.accent2
+                          : colors.ink,
+                      fontStyle: line.kind == AmbientLineKind.away
+                          ? FontStyle.italic
+                          : FontStyle.normal,
+                    ),
+                  )
+                : Text(
+                    mood?.label ?? AppStrings.miniNobodyYet,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.caption.copyWith(
+                      color: colors.chromeAlt,
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+
+    return Tooltip(
+      message: AppStrings.miniExpandTooltip,
+      waitDuration: const Duration(milliseconds: 600),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onExpand,
+          onPanStart: (_) => widget.onDragStart?.call(),
+          child: Semantics(
+            button: true,
+            label: AppStrings.miniExpandTooltip,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: widget.transparentCorners
+                      ? ClipPath(
+                          clipper: const _PixelCornerClipper(),
+                          child: card,
+                        )
+                      : card,
+                ),
+                // The click affordance: a corner arrow that lights up under
+                // the pointer rather than a button competing with the art.
+                Positioned(
+                  right: 4,
+                  bottom: 2,
+                  child: Text(
+                    '⤢',
+                    style: AppTextStyles.caption.copyWith(
+                      color: _hovered ? colors.accent : colors.chrome,
+                      height: 1,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Knocks a 2px step out of each corner, so the card reads as a rounded
+/// *pixel* shape rather than a chamfered vector one. Only used where the
+/// window behind is genuinely transparent — otherwise the steps would just
+/// expose the window's own background colour.
+class _PixelCornerClipper extends CustomClipper<Path> {
+  const _PixelCornerClipper();
+
+  /// One pixel step, at the 2px scale the rest of our chrome uses.
+  static const double step = 2;
+
+  @override
+  Path getClip(Size size) {
+    final w = size.width;
+    final h = size.height;
+    return Path()
+      ..moveTo(step, 0)
+      ..lineTo(w - step, 0)
+      ..lineTo(w - step, step)
+      ..lineTo(w, step)
+      ..lineTo(w, h - step)
+      ..lineTo(w - step, h - step)
+      ..lineTo(w - step, h)
+      ..lineTo(step, h)
+      ..lineTo(step, h - step)
+      ..lineTo(0, h - step)
+      ..lineTo(0, step)
+      ..lineTo(step, step)
+      ..close();
+  }
+
+  @override
+  bool shouldReclip(_PixelCornerClipper oldClipper) => false;
+}
+
+/// The partner, as art.
+///
+/// Today that's their mood kaomoji at display size. This widget exists as
+/// its own thing — with its own fixed, centred slot — so the paper-doll
+/// character sprite from design-language.md's "signature element" can take
+/// over later without the card around it moving a pixel: swap the [Text] for
+/// an [Image]/sprite-sheet frame and nothing else changes.
+class PartnerPortrait extends StatelessWidget {
+  const PartnerPortrait({super.key, required this.mood});
+
+  final Mood? mood;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Center(
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          mood?.kaomoji ?? '(. .)',
+          maxLines: 1,
+          style: AppTextStyles.kaomojiLarge.copyWith(
+            color: mood?.colorOf(colors) ?? colors.ink,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Wires [MiniPartnerWindow] to the real window: tap expands, drag moves.
+class MiniWindowHost extends StatelessWidget {
+  const MiniWindowHost({
+    super.key,
+    required this.partnerName,
+    required this.status,
+    required this.phoneOnline,
+    required this.desktopOnline,
+    this.ambientLine,
+  });
+
+  final String partnerName;
+  final PartnerStatus? status;
+  final bool phoneOnline;
+  final bool desktopOnline;
+  final AmbientLine? ambientLine;
+
+  @override
+  Widget build(BuildContext context) {
+    final service = DesktopWindowService.instance;
+    return MiniPartnerWindow(
+      partnerName: partnerName,
+      status: status,
+      phoneOnline: phoneOnline,
+      desktopOnline: desktopOnline,
+      ambientLine: ambientLine,
+      transparentCorners: DesktopWindowService.wantsTransparentMini,
+      onExpand: service.windowMode.expand,
+      onDragStart: service.startDragging,
+    );
+  }
+}

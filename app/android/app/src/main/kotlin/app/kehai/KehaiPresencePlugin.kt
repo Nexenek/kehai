@@ -70,6 +70,16 @@ class KehaiPresencePlugin :
                 result.success(monitor?.isNotificationListenerEnabled() ?: false)
             "openNotificationListenerSettings" ->
                 result.success(openNotificationListenerSettings())
+            "hasUsageAccess" -> result.success(monitor?.hasUsageAccess() ?: false)
+            "openUsageAccessSettings" -> result.success(openUsageAccessSettings())
+            "setForegroundAppEnabled" -> {
+                val enabled = call.argument<Boolean>("enabled") ?: false
+                // Mirrors "getSnapshot": make sure the monitor is actually
+                // running before asking it to change what it polls.
+                monitor?.start()
+                monitor?.setForegroundAppEnabled(enabled)
+                result.success(null)
+            }
             else -> result.notImplemented()
         }
     }
@@ -104,6 +114,20 @@ class KehaiPresencePlugin :
     private fun openNotificationListenerSettings(): Boolean {
         val context = appContext ?: return false
         val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return runCatching { context.startActivity(intent) }.isSuccess
+    }
+
+    /**
+     * Deep-link to Settings > Apps > Special app access > Usage access —
+     * the grant `PresenceMonitor.hasUsageAccess` checks for the
+     * "focused-app status" feature (kb/platform-android.md's "Foreground
+     * app" row). Same false-on-hidden-ROM-screen contract as
+     * [openNotificationListenerSettings].
+     */
+    private fun openUsageAccessSettings(): Boolean {
+        val context = appContext ?: return false
+        val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         return runCatching { context.startActivity(intent) }.isSuccess
     }

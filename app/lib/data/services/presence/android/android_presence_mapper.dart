@@ -25,6 +25,7 @@ class AndroidPresenceSnapshot {
     this.screenOffSinceMillis,
     this.mediaListenerEnabled = false,
     this.sessions = const [],
+    this.foregroundPackage,
   });
 
   static const empty = AndroidPresenceSnapshot();
@@ -53,6 +54,18 @@ class AndroidPresenceSnapshot {
   /// not guaranteed — [pickSession] does the choosing.
   final List<MediaSessionSnapshot> sessions;
 
+  /// The most-recently-foregrounded app's package id, from
+  /// `PresenceMonitor.queryForegroundPackage`'s `UsageStatsManager` read
+  /// over the trailing ~60s window (kb/platform-android.md's "Foreground
+  /// app" row). Already gated on the Usage Access grant *and* our own
+  /// `setForegroundAppEnabled` toggle on the native side — a package here
+  /// means both are true. Turning either off degrades this to null, never
+  /// an error. Mapping to a friendly `activity` label
+  /// (`ActivityMapper.mapAndroidPackage`) happens in
+  /// `AndroidPresenceService.current`, not here, since that also needs the
+  /// `shareUnknownApps` opt-in this snapshot has no reason to know about.
+  final String? foregroundPackage;
+
   /// Tolerant parse of the map the platform channel sends. Anything
   /// missing or of an unexpected type degrades to "no signal" rather than
   /// throwing — a presence source that goes quiet must never take the
@@ -77,6 +90,7 @@ class AndroidPresenceSnapshot {
       screenOffSinceMillis: _asInt(map['screen_off_since_millis']),
       mediaListenerEnabled: map['media_listener_enabled'] == true,
       sessions: sessions,
+      foregroundPackage: _asNonEmptyString(map['foreground_package']),
     );
   }
 
@@ -109,13 +123,19 @@ class AndroidPresenceSnapshot {
     return bestPaused;
   }
 
-  /// The full presence reading this snapshot implies, at [now].
-  DevicePresence toPresence({required DateTime now}) => DevicePresence(
-    nowPlaying: nowPlaying(),
-    idleSeconds: idleSeconds(now: now),
-    battery: battery,
-    charging: charging,
-  );
+  /// The full presence reading this snapshot implies, at [now]. [activity]
+  /// is threaded in by the caller ([AndroidPresenceService.current]) rather
+  /// than computed here, since turning [foregroundPackage] into a label
+  /// needs the `shareFocusedApp`/`shareUnknownApps` opt-ins this pure,
+  /// channel-driven class deliberately has no knowledge of.
+  DevicePresence toPresence({required DateTime now, String? activity}) =>
+      DevicePresence(
+        nowPlaying: nowPlaying(),
+        idleSeconds: idleSeconds(now: now),
+        battery: battery,
+        charging: charging,
+        activity: activity,
+      );
 
   static double? _asDouble(Object? value) {
     if (value is num) return value.toDouble();
@@ -126,6 +146,9 @@ class AndroidPresenceSnapshot {
     if (value is num) return value.toInt();
     return null;
   }
+
+  static String? _asNonEmptyString(Object? value) =>
+      value is String && value.isNotEmpty ? value : null;
 }
 
 /// One `MediaController`'s worth of metadata, straight off the channel.

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:couples_app/app_controller.dart';
+import 'package:couples_app/data/services/prefs_service.dart';
 import 'package:couples_app/ui/core/strings/app_strings.dart';
 import 'package:couples_app/ui/core/theme/app_theme.dart';
 import 'package:couples_app/ui/core/widgets/always_on_top_pin.dart';
@@ -10,7 +12,15 @@ import 'package:couples_app/ui/core/widgets/kehai_title_bar.dart';
 void main() {
   late AppController controller;
 
-  setUp(() => controller = AppController());
+  setUp(() async {
+    // The ✧ sharing button reads `controller.prefs` whenever the log-out
+    // row is visible (both are gated on "we're home"), so tests that flip
+    // straight to AppStage.home without going through the real init() flow
+    // need a seeded prefs instance too.
+    SharedPreferences.setMockInitialValues({});
+    controller = AppController();
+    controller.prefs = await PrefsService.create();
+  });
   tearDown(() => controller.dispose());
 
   Future<void> pumpBar(
@@ -122,5 +132,50 @@ void main() {
     controller.notifyListeners();
     await tester.pump();
     expect(find.text(AppStrings.logOut), findsOneWidget);
+  });
+
+  testWidgets('the ✧ sharing button only appears once home, opens the sharing '
+      'window, and reflects the toggle live', (tester) async {
+    await pumpBar(tester, pin: null);
+    expect(find.text('✧'), findsNothing);
+
+    controller.stage = AppStage.home;
+    controller.notifyListeners();
+    await tester.pump();
+    expect(find.text('✧'), findsOneWidget);
+    expect(
+      find.byTooltip(AppStrings.sharingSettingsTooltipOff),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('✧'));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.sharingSettingsTitle), findsOneWidget);
+    expect(find.text(AppStrings.shareFocusedAppTitle), findsOneWidget);
+
+    // Both toggle rows read "turn on" while off, so scope the tap to the
+    // focused-app row specifically.
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const Key('sharing-focused-app-toggle')),
+        matching: find.text(AppStrings.shareFocusedAppTurnOn),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(controller.shareFocusedApp, isTrue);
+
+    // The toggle grew the window's content (the "on" label + the second
+    // row's body), so scroll "done" into view before tapping it — mirrors
+    // how a real short window would need to scroll too.
+    await tester.ensureVisible(find.text(AppStrings.sharingSettingsDone));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.sharingSettingsDone));
+    await tester.pumpAndSettle();
+
+    // The window actually closed...
+    expect(find.text(AppStrings.sharingSettingsTitle), findsNothing);
+    // ...and reflects live state without needing to reopen it (the
+    // "visible sharing state" the feature promises).
+    expect(find.byTooltip(AppStrings.sharingSettingsTooltipOn), findsOneWidget);
   });
 }

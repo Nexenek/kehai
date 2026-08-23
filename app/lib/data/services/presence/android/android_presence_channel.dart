@@ -34,6 +34,35 @@ class AndroidPresenceChannel {
   Future<bool> openNotificationListenerSettings() async =>
       await _invoke<bool>('openNotificationListenerSettings') ?? false;
 
+  /// Whether the user has granted Kehai the Usage Access special access
+  /// (`AppOpsManager` op `GET_USAGE_STATS`) — the grant
+  /// `PresenceMonitor.queryForegroundPackage` needs before it can read
+  /// `UsageStatsManager` at all (kb/platform-android.md "Foreground app").
+  Future<bool> hasUsageAccess() async =>
+      await _invoke<bool>('hasUsageAccess') ?? false;
+
+  /// Deep-links to Settings > Apps > Special app access > Usage access.
+  /// Returns false if the screen doesn't exist on this ROM.
+  Future<bool> openUsageAccessSettings() async =>
+      await _invoke<bool>('openUsageAccessSettings') ?? false;
+
+  /// Tells the native side whether it's allowed to poll
+  /// `UsageStatsManager` for the foreground app at all — the
+  /// `shareFocusedApp` opt-in, pushed down so "off" means the OS is never
+  /// even asked, not just that Dart discards the answer. Swallowed on
+  /// failure like every other call here: a missed toggle just means the
+  /// next one (or the next app launch) catches it up.
+  Future<void> setForegroundAppEnabled(bool enabled) async {
+    try {
+      await _methods.invokeMethod<void>('setForegroundAppEnabled', {
+        'enabled': enabled,
+      });
+    } catch (_) {
+      // No channel (tests, non-Android) or a native-side hiccup — the next
+      // toggle flip retries.
+    }
+  }
+
   /// Every call is swallowed on failure: on a device where a signal isn't
   /// available (or the plugin isn't attached to this engine yet) the
   /// answer is "no reading", never an exception bubbling into the

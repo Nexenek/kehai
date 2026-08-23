@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 
+import '../../../domain/activity_mapper.dart';
 import '../../../domain/models/now_playing.dart';
 import 'presence_service.dart';
 import 'windows_foreground_app_mapper.dart';
@@ -38,6 +39,20 @@ class WindowsPresenceService implements PresenceService {
   Timer? _timer;
   bool _polling = false;
 
+  /// The `shareFocusedApp` per-device opt-in (kb/features.md "Focused-app
+  /// status"). Off by default and off means *never even asked*: when this
+  /// is false [_poll] skips the native `getForegroundApp` call entirely
+  /// rather than reading it and merely discarding the result — the app
+  /// genuinely doesn't look unless the user turned this on. Set by
+  /// `AppController` from `PrefsService` on launch and again the instant the
+  /// sharing-settings toggle changes.
+  bool shareFocusedApp = false;
+
+  /// The `shareUnknownApps` opt-in: when true, an exe with no entry in
+  /// `ActivityMapper`'s table still gets a cleaned-up guess instead of
+  /// staying silent. Meaningless while [shareFocusedApp] is off.
+  bool shareUnknownApps = false;
+
   static const _callTimeout = Duration(seconds: 3);
 
   @override
@@ -59,9 +74,11 @@ class WindowsPresenceService implements PresenceService {
     try {
       final nowPlaying = await _pollNowPlaying();
       final idleSeconds = await _pollIdleSeconds();
+      final activity = await _pollActivity();
       final next = DevicePresence(
         nowPlaying: nowPlaying,
         idleSeconds: idleSeconds,
+        activity: activity,
       );
       if (next != _current) {
         _current = next;
@@ -101,13 +118,24 @@ class WindowsPresenceService implements PresenceService {
     }
   }
 
+  /// [shareFocusedApp]-gated foreground-app read, mapped through
+  /// [ActivityMapper] into the `activity` value [_poll] puts on
+  /// [DevicePresence]. Returns null immediately (no channel call at all)
+  /// when the opt-in is off.
+  Future<String?> _pollActivity() async {
+    if (!shareFocusedApp) return null;
+    final foreground = await getForegroundApp();
+    return ActivityMapper.mapWindowsExe(
+      foreground?.exe,
+      shareUnknown: shareUnknownApps,
+    );
+  }
+
   /// Raw passthrough of the native `getForegroundApp` result — the
-  /// currently-focused window's process name + title. Not wired into
-  /// [current]/[onChange]/the heartbeat: this is deliberately just the
-  /// native read, ungated by any privacy opt-in and with no
-  /// friendly-name/allowlist mapping applied yet — both land in a later
-  /// pass. Callers that want this today (e.g. an opt-in settings preview)
-  /// call it directly.
+  /// currently-focused window's process name + title. Ungated by
+  /// [shareFocusedApp] and with no friendly-name mapping applied — that's
+  /// [_pollActivity]'s job. Exposed publicly for a settings-screen preview
+  /// of "here's what we'd share" ahead of turning the toggle on.
   Future<ForegroundApp?> getForegroundApp() async {
     try {
       final result = await _channel

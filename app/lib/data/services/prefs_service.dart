@@ -1,4 +1,4 @@
-import 'dart:ui' show Rect;
+import 'dart:ui' show Offset, Rect;
 
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -15,6 +15,9 @@ class PrefsService {
   static const _windowBoundsKey = 'window_bounds';
   static const _windowMaximizedKey = 'window_maximized';
   static const _windowAlwaysOnTopKey = 'window_always_on_top';
+  static const _miniWindowPositionKey = 'mini_window_position';
+  static const _shareFocusedAppKey = 'share_focused_app';
+  static const _shareUnknownAppsKey = 'share_unknown_apps';
 
   final SharedPreferences _prefs;
 
@@ -72,8 +75,42 @@ class PrefsService {
   Future<void> setWindowMaximized(bool value) =>
       _prefs.setBool(_windowMaximizedKey, value);
 
+  /// Where the little always-there card was last left, kept apart from
+  /// [windowBounds] so the card and the panel each stay where they were put.
+  /// Size isn't stored — the card is a fixed 240×150.
+  Offset? get miniWindowPosition {
+    final raw = _prefs.getString(_miniWindowPositionKey);
+    if (raw == null) return null;
+    final parts = raw.split(',').map(double.tryParse).toList();
+    if (parts.length != 2 || parts.any((v) => v == null || !v.isFinite)) {
+      return null;
+    }
+    return Offset(parts[0]!, parts[1]!);
+  }
+
+  Future<void> setMiniWindowPosition(Offset position) =>
+      _prefs.setString(_miniWindowPositionKey, '${position.dx},${position.dy}');
+
   bool get windowAlwaysOnTop => _prefs.getBool(_windowAlwaysOnTopKey) ?? false;
 
   Future<void> setWindowAlwaysOnTop(bool value) =>
       _prefs.setBool(_windowAlwaysOnTopKey, value);
+
+  /// Per-device opt-in for the "focused-app status" feature
+  /// (kb/features.md): share a friendly-mapped label of whichever app has
+  /// focus (Windows) or is in the foreground (Android). Off by default —
+  /// this is the one that reads the most like activity tracking, so it
+  /// never turns itself on.
+  bool get shareFocusedApp => _prefs.getBool(_shareFocusedAppKey) ?? false;
+
+  Future<void> setShareFocusedApp(bool value) =>
+      _prefs.setBool(_shareFocusedAppKey, value);
+
+  /// Whether an app with no entry in `ActivityMapper`'s table still gets a
+  /// cleaned-up guess instead of staying silent. Meaningless — and never
+  /// consulted — while [shareFocusedApp] itself is off.
+  bool get shareUnknownApps => _prefs.getBool(_shareUnknownAppsKey) ?? false;
+
+  Future<void> setShareUnknownApps(bool value) =>
+      _prefs.setBool(_shareUnknownAppsKey, value);
 }

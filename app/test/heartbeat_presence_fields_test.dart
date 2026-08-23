@@ -138,6 +138,46 @@ void main() {
     expect(repository.sent.length, beforeCount);
   });
 
+  test('an activity reading is sent under the activity key', () async {
+    presence.emit(const DevicePresence(idleSeconds: 0, activity: 'coding ⌨'));
+    await heartbeat.pingNow();
+
+    expect(repository.sent.single['activity'], 'coding ⌨');
+  });
+
+  test('no activity signal at all writes no activity key', () async {
+    presence.emit(const DevicePresence(idleSeconds: 0));
+    await heartbeat.pingNow();
+
+    expect(repository.sent.single.containsKey('activity'), isFalse);
+  });
+
+  test('activity going away (opt-in turned off) is cleared with an explicit '
+      'null, mirroring now_playing', () async {
+    presence.emit(const DevicePresence(activity: 'gaming 🎮'));
+    await heartbeat.pingNow();
+
+    presence.emit(DevicePresence.empty);
+    await heartbeat.pingNow();
+
+    final second = repository.sent.last;
+    expect(second.containsKey('activity'), isTrue);
+    expect(second['activity'], isNull);
+  });
+
+  test('activity alone changing does not trigger an out-of-band heartbeat '
+      '(alt-tabbing would otherwise spam beats)', () async {
+    heartbeat.start();
+    presence.emit(const DevicePresence(activity: 'coding ⌨'));
+    await pumpEventQueue();
+    final beforeCount = repository.sent.length;
+
+    presence.emit(const DevicePresence(activity: 'gaming 🎮'));
+    await pumpEventQueue();
+
+    expect(repository.sent.length, beforeCount);
+  });
+
   test('a track change still triggers one', () async {
     heartbeat.start();
     await pumpEventQueue();

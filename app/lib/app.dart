@@ -43,10 +43,15 @@ class CouplesApp extends StatelessWidget {
   }
 }
 
-/// Our replacement for the native frame: the [KehaiTitleBar] strip, a 2px ink
-/// border so the undecorated window still has an edge, and invisible
-/// drag-to-resize margins (a frameless window has no resize borders of its
-/// own).
+/// Our replacement for the native frame, in both window states.
+///
+/// Expanded: the [KehaiTitleBar] strip, a 2px ink border so the undecorated
+/// window still has an edge, and invisible drag-to-resize margins (a
+/// frameless window has no resize borders of its own).
+///
+/// Mini: none of that. The little card paints its own frame, is not
+/// resizable, and drags itself — so the chrome gets out of the way entirely
+/// and lets [MiniPartnerWindow] fill the window.
 class _DesktopWindowChrome extends StatelessWidget {
   const _DesktopWindowChrome({required this.child});
 
@@ -55,20 +60,28 @@ class _DesktopWindowChrome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return DragToResizeArea(
-      child: Container(
-        decoration: BoxDecoration(
-          color: colors.bg,
-          border: Border.all(color: colors.ink, width: 2),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const KehaiTitleBar(),
-            Expanded(child: child),
-          ],
-        ),
-      ),
+    return ListenableBuilder(
+      listenable: DesktopWindowService.instance.windowMode,
+      builder: (context, _) {
+        if (DesktopWindowService.instance.windowMode.isMini) {
+          return child;
+        }
+        return DragToResizeArea(
+          child: Container(
+            decoration: BoxDecoration(
+              color: colors.bg,
+              border: Border.all(color: colors.ink, width: 2),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const KehaiTitleBar(),
+                Expanded(child: child),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -81,6 +94,15 @@ class _RootSwitcher extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = AppScope.of(context);
+    // Onboarding needs room to type. If we somehow end up on one of those
+    // screens while shrunk (logging out from the panel, say), grow back.
+    if (controller.stage != AppStage.home &&
+        DesktopWindowService.isSupported &&
+        DesktopWindowService.instance.windowMode.isMini) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => DesktopWindowService.instance.windowMode.expand(),
+      );
+    }
     return switch (controller.stage) {
       AppStage.loading => const _LoadingScreen(),
       AppStage.serverSetup => const ServerUrlScreen(),

@@ -18,6 +18,7 @@ import '../view_models/home_view_model.dart';
 import '../view_models/notes_view_model.dart';
 import 'countdowns_window.dart';
 import 'home_layout.dart';
+import 'mini_partner_window.dart';
 import 'my_mood_window.dart';
 import 'notes_window.dart';
 import 'partner_card.dart';
@@ -160,33 +161,54 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// The little always-there card. Same view models, same live data — only
+  /// the amount of it on screen changes.
+  Widget _buildMini() => MiniWindowHost(
+    partnerName: _viewModel.partner?.name ?? '',
+    status: _viewModel.partnerStatus,
+    phoneOnline: _viewModel.partnerPhoneOnline,
+    desktopOnline: _viewModel.partnerDesktopOnline,
+    ambientLine: _viewModel.partnerAmbientLine,
+  );
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return Scaffold(
-      backgroundColor: colors.bg,
-      body: SafeArea(
-        child: ListenableBuilder(
-          listenable: _viewModel,
-          builder: (context, _) {
-            if (_viewModel.isLoading) {
-              return Center(
-                child: Text(
-                  AppStrings.loading,
-                  style: AppTextStyles.body1.copyWith(color: colors.ink),
-                ),
-              );
-            }
-            return ListenableBuilder(
-              listenable: _doodleViewModel,
-              builder: (context, _) => HomeBody(
-                sections: _buildSections(context),
-                desktop: DesktopWindowService.isSupported,
-              ),
-            );
-          },
-        ),
-      ),
+    final windowMode = DesktopWindowService.instance.windowMode;
+
+    return ListenableBuilder(
+      listenable: windowMode,
+      builder: (context, _) {
+        final mini = DesktopWindowService.isSupported && windowMode.isMini;
+        return Scaffold(
+          // The card paints its own frame edge to edge; a Scaffold colour
+          // under it would fill the pixel corners back in.
+          backgroundColor: mini ? Colors.transparent : colors.bg,
+          body: SafeArea(
+            child: ListenableBuilder(
+              listenable: _viewModel,
+              builder: (context, _) {
+                if (_viewModel.isLoading) {
+                  return Center(
+                    child: Text(
+                      AppStrings.loading,
+                      style: AppTextStyles.body1.copyWith(color: colors.ink),
+                    ),
+                  );
+                }
+                if (mini) return _buildMini();
+                return ListenableBuilder(
+                  listenable: _doodleViewModel,
+                  builder: (context, _) => HomeBody(
+                    sections: _buildSections(context),
+                    desktop: DesktopWindowService.isSupported,
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      },
     );
   }
 }

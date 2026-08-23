@@ -19,6 +19,7 @@ class DevicePresence {
     this.idleSeconds,
     this.battery,
     this.charging,
+    this.activity,
   });
 
   static const empty = DevicePresence();
@@ -32,21 +33,31 @@ class DevicePresence {
   /// Whether the device is plugged in, or null if unknown.
   final bool? charging;
 
+  /// The friendly "what app they're focused on" label (kb/features.md
+  /// "Focused-app status"), already run through `ActivityMapper` — null
+  /// means either the per-device `shareFocusedApp` opt-in is off, or the
+  /// current foreground app has no signal/mapping to report. Feeds the
+  /// `activity` telemetry key, one rung below `now_playing` in the ambient
+  /// line's precedence.
+  final String? activity;
+
   @override
   bool operator ==(Object other) =>
       other is DevicePresence &&
       other.nowPlaying == nowPlaying &&
       other.idleSeconds == idleSeconds &&
       other.battery == battery &&
-      other.charging == charging;
+      other.charging == charging &&
+      other.activity == activity;
 
   @override
-  int get hashCode => Object.hash(nowPlaying, idleSeconds, battery, charging);
+  int get hashCode =>
+      Object.hash(nowPlaying, idleSeconds, battery, charging, activity);
 
   @override
   String toString() =>
       'DevicePresence(nowPlaying: $nowPlaying, idleSeconds: $idleSeconds, '
-      'battery: $battery, charging: $charging)';
+      'battery: $battery, charging: $charging, activity: $activity)';
 }
 
 /// Observes device presence for the heartbeat. Implementations must

@@ -48,6 +48,7 @@ class HeartbeatService {
   int? _lastSentIdleSeconds;
   double? _lastSentBattery;
   bool? _lastSentCharging;
+  String? _lastSentActivity;
 
   void start() {
     pingNow();
@@ -63,6 +64,11 @@ class HeartbeatService {
   }
 
   void _onPresenceChanged(DevicePresence presence) {
+    // `activity` deliberately does NOT get an out-of-band beat: alt-tabbing
+    // or switching windows can change it many times a minute, and unlike a
+    // track/away/charging flip that's genuinely no more urgent than the
+    // regular 30s cadence already covers — mirrors "a battery level ticking
+    // down alone does not [trigger one]" below.
     final trackChanged = presence.nowPlaying != _lastObservedNowPlaying;
     final away = (presence.idleSeconds ?? 0) >= _awayThresholdSeconds;
     final awayCrossed =
@@ -96,6 +102,7 @@ class HeartbeatService {
       _lastSentIdleSeconds = presence.idleSeconds;
       _lastSentBattery = presence.battery;
       _lastSentCharging = presence.charging;
+      _lastSentActivity = presence.activity;
     } catch (_) {
       // Best-effort — next timer tick (or the next resume) will retry.
     }
@@ -130,6 +137,16 @@ class HeartbeatService {
       fields['charging'] = presence.charging;
     } else if (_lastSentCharging != null) {
       fields['charging'] = null;
+    }
+
+    // `activity` — same only-present-keys/explicit-null-clears shape as
+    // now_playing above. Absent means either the shareFocusedApp opt-in is
+    // off or the mapper had nothing to say about the foreground app; either
+    // way a previously-reported value needs the explicit null to clear.
+    if (presence.activity != null) {
+      fields['activity'] = presence.activity;
+    } else if (_lastSentActivity != null) {
+      fields['activity'] = null;
     }
 
     return fields;

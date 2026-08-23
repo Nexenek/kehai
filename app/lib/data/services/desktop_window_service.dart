@@ -7,6 +7,7 @@ import 'package:window_manager/window_manager.dart';
 
 import '../../ui/core/strings/app_strings.dart';
 import 'prefs_service.dart';
+import 'window_mode.dart';
 
 /// Owns the desktop window itself (Windows/Linux only) — the companion-pane
 /// geometry from kb/platform-desktop.md's "Desktop companion layout":
@@ -16,7 +17,7 @@ import 'prefs_service.dart';
 /// Every member is a no-op off desktop so callers (main.dart, the home
 /// screen's pin button) can stay platform-agnostic — Android never sees any
 /// of this, exactly like [KehaiForegroundTask] is a no-op off Android.
-class DesktopWindowService with WindowListener {
+class DesktopWindowService with WindowListener implements WindowModeEffects {
   DesktopWindowService._();
 
   static final DesktopWindowService instance = DesktopWindowService._();
@@ -26,9 +27,29 @@ class DesktopWindowService with WindowListener {
   static const Size defaultSize = Size(400, 640);
   static const Size minimumSize = Size(360, 480);
 
+  /// The little always-there card (kb/platform-desktop.md). Fixed size —
+  /// it's a glanceable object, not a pane you arrange.
+  static const Size miniSize = Size(240, 150);
+
   /// Breathing room between the window and the corner of the work area, so
   /// it reads as "docked next to things" rather than jammed into the corner.
   static const double screenMargin = 24;
+
+  /// Whether the window behind the mini card is genuinely see-through, in
+  /// which case the card gets pixel-stepped corners.
+  ///
+  /// Currently false on both platforms, and measured rather than assumed:
+  /// asking window_manager for a transparent background on Windows left the
+  /// window without WS_EX_LAYERED (checked with GetWindowLong on a real
+  /// build), so nothing would have shown through — and on Linux a
+  /// transparent background without an RGBA visual paints solid black. Both
+  /// need runner-side C++ (a layered/composited window), so until that
+  /// exists we ship the opaque pastel card with our 2px ink border, which is
+  /// the degrade kb/platform-desktop.md allows for exactly this case.
+  ///
+  /// Flip this to true once the runner supports it: [MiniPartnerWindow]
+  /// already draws the stepped corners behind this flag.
+  static const bool wantsTransparentMini = false;
 
   /// Test seam: widget tests run on the Linux VM, where the real check would
   /// say "yes, desktop" and then blow up on the missing method channel.
@@ -40,7 +61,16 @@ class DesktopWindowService with WindowListener {
 
   /// Whether the window is currently pinned above other windows. Listened to
   /// by the pin button; kept in sync with the platform after every toggle.
+  ///
+  /// The mini card is always on top regardless — being glanceable is the
+  /// whole job — so this only governs the expanded panel.
   final ValueNotifier<bool> alwaysOnTop = ValueNotifier<bool>(false);
+
+  /// Which of the two window shapes we're wearing. The UI listens to this;
+  /// this service is the [WindowModeEffects] behind it.
+  late final WindowModeController windowMode = WindowModeController(
+    effects: this,
+  );
 
   PrefsService? _prefs;
   Timer? _persistDebounce;
@@ -80,6 +110,10 @@ class DesktopWindowService with WindowListener {
         await windowManager.setAlwaysOnTop(true);
         alwaysOnTop.value = true;
       }
+      // Kehai lives in the tray, in both window states — the taskbar button
+      // would be a second, redundant handle on a window you summon from the
+      // little heart instead.
+      await windowManager.setSkipTaskbar(true);
       await windowManager.show();
       await windowManager.focus();
       if (prefs.windowMaximized) await windowManager.maximize();
@@ -88,6 +122,107 @@ class DesktopWindowService with WindowListener {
       windowManager.addListener(this);
     } catch (error, stack) {
       debugPrint('window setup skipped: $error\n$stack');
+    }
+  }
+
+  /// Called once the app knows whether it has a partner to show: a paired
+  /// user's window tucks itself into the little card, everyone else stays on
+  /// the panel they're onboarding in.
+  Future<void> settleInitialMode({required bool paired}) =>
+      windowMode.setMode(initialWindowMode(paired: paired));
+
+  /// Runs just before the process exits (tray teardown). Set by [KehaiTray].
+  Future<void> Function()? beforeQuit;
+
+  /// Shrinks to the little always-there card, anchored on the corner the
+  /// panel already occupies so it looks like the window folded into it.
+  @override
+  Future<void> applyMini() => _guard(() async {
+    final panel = await windowManager.getBounds();
+    if (!await windowManager.isMaximized()) {
+      await _prefs?.setWindowBounds(panel);
+    } else {
+      await windowManager.unmaximize();
+    }
+
+    final saved = _prefs?.miniWindowPosition;
+    final target =
+        saved ??
+        anchorResize(
+          from: panel,
+          to: miniSize,
+          workArea: await _workArea(miniSize),
+        ).topLeft;
+
+    // Order matters: the size limits have to make room for a 240×150 window
+    // before we ask for one, or the resize is clamped to the panel minimum.
+    await windowManager.setMinimumSize(miniSize);
+    await windowManager.setMaximumSize(miniSize);
+    await windowManager.setResizable(false);
+    await windowManager.setBounds(null, position: target, size: miniSize);
+    // The card is always on top whatever the pin says — a glanceable thing
+    // you have to dig for isn't glanceable.
+    await windowManager.setAlwaysOnTop(true);
+    await windowManager.setSkipTaskbar(true);
+    await windowManager.show();
+  });
+
+  /// Grows back into the companion panel from the card's corner.
+  @override
+  Future<void> applyExpanded() => _guard(() async {
+    final card = await windowManager.getBounds();
+    await _prefs?.setMiniWindowPosition(card.topLeft);
+
+    final size = _sanitize(_prefs?.windowBounds)?.size ?? defaultSize;
+    final target = anchorResize(
+      from: card,
+      to: size,
+      workArea: await _workArea(size),
+    ).topLeft;
+
+    await windowManager.setMaximumSize(_noMaximum);
+    await windowManager.setMinimumSize(minimumSize);
+    await windowManager.setResizable(true);
+    await windowManager.setBounds(null, position: target, size: size);
+    await windowManager.setAlwaysOnTop(alwaysOnTop.value);
+    await windowManager.setSkipTaskbar(true);
+    await windowManager.show();
+    await windowManager.focus();
+  });
+
+  /// "quit for real". Everything else in the app collapses instead.
+  @override
+  Future<void> applyQuit() => _guard(() async {
+    _persistDebounce?.cancel();
+    await _persistBounds();
+    await beforeQuit?.call();
+    await windowManager.destroy();
+  });
+
+  /// window_manager has no "clear the maximum" call, so hand it something
+  /// bigger than any display the user is plausibly sitting in front of.
+  static const Size _noMaximum = Size(10000, 10000);
+
+  /// The usable desktop rectangle (screen minus panels/taskbar), derived
+  /// from where window_manager would place a window of [probe] at two
+  /// opposite corners. Falls back to "effectively unbounded", which makes
+  /// [anchorResize] skip clamping rather than guess wrong.
+  Future<Rect> _workArea(Size probe) async {
+    try {
+      final topLeft = await calcWindowPosition(probe, Alignment.topLeft);
+      final bottomRight = await calcWindowPosition(
+        probe,
+        Alignment.bottomRight,
+      );
+      return Rect.fromLTRB(
+        topLeft.dx,
+        topLeft.dy,
+        bottomRight.dx + probe.width,
+        bottomRight.dy + probe.height,
+      );
+    } catch (error) {
+      debugPrint('work area unknown ($error) — placing without clamping');
+      return const Rect.fromLTWH(-100000, -100000, 200000, 200000);
     }
   }
 
@@ -169,7 +304,14 @@ class DesktopWindowService with WindowListener {
       // pane size — remember the flag instead (see onWindowMaximize) so the
       // restored-down size survives.
       if (await windowManager.isMaximized()) return;
-      await prefs.setWindowBounds(await windowManager.getBounds());
+      final bounds = await windowManager.getBounds();
+      // The card and the panel remember their own spots: dragging the little
+      // window to a corner shouldn't move the panel there too.
+      if (windowMode.isMini) {
+        await prefs.setMiniWindowPosition(bounds.topLeft);
+      } else {
+        await prefs.setWindowBounds(bounds);
+      }
     } catch (error) {
       debugPrint('window bounds not saved: $error');
     }

@@ -15,9 +15,26 @@ import '../../../core/strings/app_strings.dart';
 class PhoneSuperpowersViewModel extends ChangeNotifier {
   PhoneSuperpowersViewModel({
     AndroidPresenceChannel presenceChannel = const AndroidPresenceChannel(),
-  }) : _presenceChannel = presenceChannel;
+    required bool initialShareFocusedApp,
+    required bool initialShareUnknownApps,
+    required Future<void> Function(bool value) onSetShareFocusedApp,
+    required Future<void> Function(bool value) onSetShareUnknownApps,
+  }) : _presenceChannel = presenceChannel,
+       _onSetShareFocusedApp = onSetShareFocusedApp,
+       _onSetShareUnknownApps = onSetShareUnknownApps {
+    shareFocusedApp = initialShareFocusedApp;
+    shareUnknownApps = initialShareUnknownApps;
+  }
 
   final AndroidPresenceChannel _presenceChannel;
+
+  /// Persistence + pushing the value into the live presence service both
+  /// live on `AppController` (the one place that owns the presence
+  /// service), so this class stays a thin, easily-fake-able callback
+  /// wrapper rather than duplicating that logic — same shape as
+  /// [SharingSettingsViewModel] on desktop.
+  final Future<void> Function(bool value) _onSetShareFocusedApp;
+  final Future<void> Function(bool value) _onSetShareUnknownApps;
 
   bool get isSupported => KehaiForegroundTask.isSupported;
 
@@ -26,6 +43,14 @@ class PhoneSuperpowersViewModel extends ChangeNotifier {
   bool batteryExempt = false;
   bool listenerEnabled = false;
   bool serviceRunning = false;
+  bool usageAccessGranted = false;
+
+  /// The `shareFocusedApp`/`shareUnknownApps` opt-ins (kb/features.md
+  /// "Focused-app status") — plain preference state, not a live grant, so
+  /// unlike the rows above these aren't re-read in [refresh]; they only
+  /// change when the user taps their own toggle.
+  bool shareFocusedApp = false;
+  bool shareUnknownApps = false;
 
   /// A transient one-liner for the rare "your ROM hides that screen" case.
   String? message;
@@ -42,12 +67,14 @@ class PhoneSuperpowersViewModel extends ChangeNotifier {
       KehaiForegroundTask.isIgnoringBatteryOptimizations,
       _presenceChannel.isNotificationListenerEnabled(),
       KehaiForegroundTask.isRunning,
+      _presenceChannel.hasUsageAccess(),
     ]);
 
     notificationsGranted = results[0];
     batteryExempt = results[1];
     listenerEnabled = results[2];
     serviceRunning = results[3];
+    usageAccessGranted = results[4];
     isLoading = false;
     notifyListeners();
   }
@@ -71,6 +98,28 @@ class PhoneSuperpowersViewModel extends ChangeNotifier {
       message = AppStrings.superpowersOpenSettingsFailed;
       notifyListeners();
     }
+  }
+
+  /// Same "walk to a special-access screen, re-check on resume" shape as
+  /// [openListenerSettings] — Usage Access can't be requested in-app either.
+  Future<void> openUsageAccessSettings() async {
+    final opened = await _presenceChannel.openUsageAccessSettings();
+    if (!opened) {
+      message = AppStrings.superpowersOpenSettingsFailed;
+      notifyListeners();
+    }
+  }
+
+  Future<void> setShareFocusedApp(bool value) async {
+    shareFocusedApp = value;
+    await _onSetShareFocusedApp(value);
+    notifyListeners();
+  }
+
+  Future<void> setShareUnknownApps(bool value) async {
+    shareUnknownApps = value;
+    await _onSetShareUnknownApps(value);
+    notifyListeners();
   }
 
   Future<void> toggleService() async {

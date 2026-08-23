@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../app_controller.dart';
 import '../../../data/services/desktop_window_service.dart';
+import '../../features/settings/views/sharing_settings_dialog.dart';
 import '../strings/app_strings.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
@@ -13,9 +14,11 @@ import 'win_glyph_button.dart';
 ///
 /// The whole app is one Win95-parody window (design-language.md), so the
 /// frame around it should be ours too: chrome-pink strip, pixel title, and
-/// real controls — ★ minimizes, ♥ closes, ✦ pins on top. Dragging the strip
-/// moves the window; double-clicking it maximizes/restores, like every
-/// title bar since 1995.
+/// real controls — ✦ pins on top, and both ★ and ♥ fold the panel back into
+/// the little always-there card. Neither one quits: Kehai lives in the tray,
+/// and "quit for real" is in the tray menu (see [WindowModeController]).
+/// Dragging the strip moves the window; double-clicking it
+/// maximizes/restores, like every title bar since 1995.
 ///
 /// Desktop only — Android never sees this.
 class KehaiTitleBar extends StatelessWidget {
@@ -30,6 +33,7 @@ class KehaiTitleBar extends StatelessWidget {
   });
 
   /// Window controls. All default to the real window; tests pass their own.
+  /// [onMinimize] and [onClose] both collapse to the mini card.
   final VoidCallback? onMinimize;
   final VoidCallback? onClose;
   final VoidCallback? onToggleMaximize;
@@ -78,19 +82,42 @@ class KehaiTitleBar extends StatelessWidget {
             ),
             const SizedBox(width: 8),
           ],
+          if (logOutVisible) ...[
+            WinGlyphButton(
+              glyph: '✧',
+              tooltip: controller.shareFocusedApp
+                  ? AppStrings.sharingSettingsTooltipOn
+                  : AppStrings.sharingSettingsTooltipOff,
+              // The one visible-state indicator the feature promises
+              // (kb/features.md "Focused-app status": "visible sharing
+              // state") — sunken + accent-filled exactly like the ✦ pin's
+              // "on" look, so a glance at the chrome says whether we're
+              // sharing without opening the window.
+              active: controller.shareFocusedApp,
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              onTap: () => showSharingSettingsDialog(
+                context,
+                initialShareFocusedApp: controller.shareFocusedApp,
+                initialShareUnknownApps: controller.shareUnknownApps,
+                onSetShareFocusedApp: controller.setShareFocusedApp,
+                onSetShareUnknownApps: controller.setShareUnknownApps,
+              ),
+            ),
+            const SizedBox(width: 6),
+          ],
           if (pin != null) ...[pin!, const SizedBox(width: 6)],
           WinGlyphButton(
             glyph: '★',
             tooltip: AppStrings.minimizeTooltip,
             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-            onTap: onMinimize ?? service.minimize,
+            onTap: onMinimize ?? service.windowMode.minimizeToMini,
           ),
           const SizedBox(width: 6),
           WinGlyphButton(
             glyph: '♥',
             tooltip: AppStrings.closeWindowTooltip,
             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-            onTap: onClose ?? service.close,
+            onTap: onClose ?? service.windowMode.closeToMini,
           ),
         ],
       ),

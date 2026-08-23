@@ -1,5 +1,8 @@
 package app.kehai
 
+import android.app.AppOpsManager
+import android.app.usage.UsageEvents
+import android.app.usage.UsageStatsManager
 import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
@@ -13,6 +16,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import android.os.Process
 import android.provider.Settings
 
 /**
@@ -30,10 +34,19 @@ import android.provider.Settings
  *  - now-playing: MediaSessionManager.getActiveSessions, which requires our
  *    NotificationListenerService to be enabled by the user. Without the
  *    grant it throws SecurityException and we simply report no sessions.
+ *  - foreground app: UsageStatsManager.queryEvents over the trailing ~60s
+ *    window, requires the Usage Access special-access grant (checked via
+ *    AppOpsManager, since queryEvents itself just silently returns nothing
+ *    rather than throwing without it — unlike the media-session path above,
+ *    so we check explicitly instead of inferring the grant from an empty
+ *    result). Additionally gated on [setForegroundAppEnabled], the
+ *    `shareFocusedApp` opt-in pushed down from Dart: "off" here means the
+ *    poll loop doesn't run at all, not just that the result goes unused.
  *
  * ON-DEVICE VERIFICATION NEEDED: broadcast delivery, the notification
- * listener grant, and per-player MediaSession behaviour (Spotify/YouTube
- * are each a little different) can only be confirmed on real hardware.
+ * listener grant, the Usage Access grant + queryEvents behaviour, and
+ * per-player MediaSession behaviour (Spotify/YouTube are each a little
+ * different) can only be confirmed on real hardware.
  */
 class PresenceMonitor(
     private val context: Context,
@@ -51,6 +64,21 @@ class PresenceMonitor(
     private var started = false
     private var mediaSessionManager: MediaSessionManager? = null
     private var controllers: List<MediaController> = emptyList()
+
+    /** The `shareFocusedApp` opt-in, pushed down via [setForegroundAppEnabled]. */
+    private var foregroundAppEnabled = false
+    private var foregroundPackage: String? = null
+
+    private val foregroundAppPollIntervalMs = 30_000L
+    private val foregroundAppLookbackMs = 60_000L
+
+    private val foregroundAppRunnable = object : Runnable {
+        override fun run() {
+            if (!foregroundAppEnabled) return
+            refreshForegroundApp()
+            handler.postDelayed(this, foregroundAppPollIntervalMs)
+        }
+    }
 
     private val listenerComponent =
         ComponentName(context, KehaiNotificationListenerService::class.java)
@@ -117,6 +145,9 @@ class PresenceMonitor(
         screenOffSince = null
 
         startMediaSessions()
+
+        handler.removeCallbacks(foregroundAppRunnable)
+        if (foregroundAppEnabled) handler.post(foregroundAppRunnable)
     }
 
     fun stop() {
@@ -129,7 +160,96 @@ class PresenceMonitor(
         }
         bindControllers(emptyList())
         mediaSessionManager = null
+        handler.removeCallbacks(foregroundAppRunnable)
     }
+
+    /**
+     * The `shareFocusedApp` opt-in, pushed down from
+     * `AndroidPresenceChannel.setForegroundAppEnabled`. Turning this on
+     * starts the ~30s `UsageStatsManager` poll loop (immediately, plus a
+     * fresh read right away); turning it off stops the loop AND clears any
+     * previously-reported package, mirroring "off means we never look" —
+     * the loop genuinely doesn't run, this isn't just Dart discarding a
+     * value we kept reading anyway.
+     */
+    fun setForegroundAppEnabled(enabled: Boolean) {
+        if (enabled == foregroundAppEnabled) return
+        foregroundAppEnabled = enabled
+        handler.removeCallbacks(foregroundAppRunnable)
+        if (enabled) {
+            handler.post(foregroundAppRunnable)
+        } else if (foregroundPackage != null) {
+            foregroundPackage = null
+            onChange()
+        }
+    }
+
+    private fun refreshForegroundApp() {
+        val next = queryForegroundPackage()
+        if (next == foregroundPackage) return
+        foregroundPackage = next
+        onChange()
+    }
+
+    /**
+     * The latest MOVE_TO_FOREGROUND event in the trailing
+     * [foregroundAppLookbackMs] window, or null if there's no Usage Access
+     * grant (checked explicitly — `queryEvents` doesn't throw without the
+     * grant, it just returns an empty iterator, so an empty result here is
+     * ambiguous with "nothing changed foreground recently" unless we check
+     * the grant ourselves first) or nothing was foregrounded in that
+     * window.
+     */
+    private fun queryForegroundPackage(): String? {
+        if (!hasUsageAccess()) return null
+        return runCatching {
+            val usm =
+                context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+            val end = System.currentTimeMillis()
+            val begin = end - foregroundAppLookbackMs
+            val events = usm.queryEvents(begin, end)
+            val event = UsageEvents.Event()
+            var latestPackage: String? = null
+            var latestTime = Long.MIN_VALUE
+            while (events.hasNextEvent()) {
+                events.getNextEvent(event)
+                if (event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND &&
+                    event.timeStamp >= latestTime
+                ) {
+                    latestTime = event.timeStamp
+                    latestPackage = event.packageName
+                }
+            }
+            latestPackage
+        }.getOrNull()
+    }
+
+    /**
+     * Whether the user has granted Kehai the Usage Access special access
+     * (Settings > Apps > Special app access > Usage access), via the
+     * `AppOpsManager` op backing it rather than a manifest permission —
+     * `PACKAGE_USAGE_STATS` is a signature/privileged permission normal
+     * apps can't hold, the OS instead tracks the grant as an app op the
+     * user flips in that settings screen.
+     */
+    fun hasUsageAccess(): Boolean = runCatching {
+        val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+        val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            appOps.unsafeCheckOpNoThrow(
+                AppOpsManager.OPSTR_GET_USAGE_STATS,
+                Process.myUid(),
+                context.packageName,
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            appOps.checkOpNoThrow(
+                AppOpsManager.OPSTR_GET_USAGE_STATS,
+                Process.myUid(),
+                context.packageName,
+            )
+        }
+        mode == AppOpsManager.MODE_ALLOWED
+    }.getOrDefault(false)
 
     /** The payload `AndroidPresenceSnapshot.fromChannel` parses. */
     fun snapshot(): Map<String, Any?> = mapOf(
@@ -139,6 +259,7 @@ class PresenceMonitor(
         "screen_off_since_millis" to screenOffSince,
         "media_listener_enabled" to isNotificationListenerEnabled(),
         "sessions" to sessionSnapshots(),
+        "foreground_package" to foregroundPackage,
     )
 
     fun isNotificationListenerEnabled(): Boolean {

@@ -13,8 +13,10 @@ import 'data/services/background/kehai_foreground_task.dart';
 import 'data/services/device_info_service.dart';
 import 'data/services/heartbeat_service.dart';
 import 'data/services/pocketbase_client.dart';
+import 'data/services/presence/android/android_presence_service.dart';
 import 'data/services/presence/presence_service.dart';
 import 'data/services/presence/presence_service_factory.dart';
+import 'data/services/presence/windows_presence_service.dart';
 import 'data/services/prefs_service.dart';
 
 /// Which screen the app should currently show. This is intentionally a
@@ -55,6 +57,7 @@ class AppController extends ChangeNotifier {
 
   Future<void> init() async {
     prefs = await PrefsService.create();
+    _applyActivitySharingPrefs();
     final savedUrl = prefs.serverUrl;
     if (savedUrl == null || savedUrl.isEmpty) {
       stage = AppStage.serverSetup;
@@ -130,6 +133,45 @@ class AppController extends ChangeNotifier {
       return;
     }
     stage = auth.coupleId == null ? AppStage.coupleSetup : AppStage.home;
+  }
+
+  /// The `shareFocusedApp`/`shareUnknownApps` opt-ins (kb/features.md
+  /// "Focused-app status"), read straight from [prefs] so the desktop
+  /// sharing-settings window and the Android phone-superpowers screen
+  /// always show the persisted value rather than a copy that could drift.
+  bool get shareFocusedApp => prefs.shareFocusedApp;
+  bool get shareUnknownApps => prefs.shareUnknownApps;
+
+  /// Persists the toggle and pushes it straight into the live
+  /// [presenceService] so the very next poll honours it — no restart
+  /// needed, and turning it off means the next poll (Windows) or the
+  /// native poll loop (Android) genuinely stops looking rather than just
+  /// discarding what it already read.
+  Future<void> setShareFocusedApp(bool value) async {
+    await prefs.setShareFocusedApp(value);
+    _applyActivitySharingPrefs();
+    notifyListeners();
+  }
+
+  Future<void> setShareUnknownApps(bool value) async {
+    await prefs.setShareUnknownApps(value);
+    _applyActivitySharingPrefs();
+    notifyListeners();
+  }
+
+  /// Pushes the persisted opt-ins onto whichever concrete [presenceService]
+  /// this platform has — a no-op on Linux/stub, since neither wires
+  /// activity detection up yet (kb/features.md defers Linux to a later
+  /// pass).
+  void _applyActivitySharingPrefs() {
+    final service = presenceService;
+    if (service is WindowsPresenceService) {
+      service.shareFocusedApp = prefs.shareFocusedApp;
+      service.shareUnknownApps = prefs.shareUnknownApps;
+    } else if (service is AndroidPresenceService) {
+      service.shareFocusedApp = prefs.shareFocusedApp;
+      service.shareUnknownApps = prefs.shareUnknownApps;
+    }
   }
 
   /// Called after a successful login/register.

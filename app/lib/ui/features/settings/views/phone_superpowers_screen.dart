@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../app_controller.dart';
 import '../../../core/strings/app_strings.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -25,11 +26,18 @@ class PhoneSuperpowersScreen extends StatefulWidget {
 
 class _PhoneSuperpowersScreenState extends State<PhoneSuperpowersScreen>
     with WidgetsBindingObserver {
-  final _viewModel = PhoneSuperpowersViewModel();
+  late final PhoneSuperpowersViewModel _viewModel;
 
   @override
   void initState() {
     super.initState();
+    final controller = AppScope.of(context, listen: false);
+    _viewModel = PhoneSuperpowersViewModel(
+      initialShareFocusedApp: controller.shareFocusedApp,
+      initialShareUnknownApps: controller.shareUnknownApps,
+      onSetShareFocusedApp: controller.setShareFocusedApp,
+      onSetShareUnknownApps: controller.setShareUnknownApps,
+    );
     WidgetsBinding.instance.addObserver(this);
     _viewModel.refresh();
   }
@@ -130,6 +138,47 @@ class _PhoneSuperpowersScreenState extends State<PhoneSuperpowersScreen>
                           // user is allowed to want.
                           alwaysActionable: true,
                           onAction: _viewModel.toggleService,
+                        ),
+                        const SizedBox(height: 16),
+                        _SuperpowerWindow(
+                          title: AppStrings.superpowerUsageAccessTitle,
+                          body: AppStrings.superpowerUsageAccessBody,
+                          granted: _viewModel.usageAccessGranted,
+                          actionLabel: AppStrings.superpowersGrant,
+                          onAction: _viewModel.openUsageAccessSettings,
+                        ),
+                        const SizedBox(height: 16),
+                        _SuperpowerWindow(
+                          title: AppStrings.shareFocusedAppTitle,
+                          body: AppStrings.shareFocusedAppBody,
+                          granted: _viewModel.shareFocusedApp,
+                          grantedLabel: AppStrings.shareFocusedAppOn,
+                          pendingLabel: AppStrings.shareFocusedAppOff,
+                          actionLabel: _viewModel.shareFocusedApp
+                              ? AppStrings.shareFocusedAppTurnOff
+                              : AppStrings.shareFocusedAppTurnOn,
+                          // A plain on/off preference, not a one-way OS
+                          // grant — the action stays live either way so the
+                          // user can flip it straight back off.
+                          alwaysActionable: true,
+                          onAction: () => _viewModel.setShareFocusedApp(
+                            !_viewModel.shareFocusedApp,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        _SuperpowerWindow(
+                          title: AppStrings.shareUnknownAppsTitle,
+                          body: AppStrings.shareUnknownAppsBody,
+                          granted: _viewModel.shareUnknownApps,
+                          grantedLabel: AppStrings.shareFocusedAppOn,
+                          pendingLabel: AppStrings.shareFocusedAppOff,
+                          actionLabel: _viewModel.shareUnknownApps
+                              ? AppStrings.shareFocusedAppTurnOff
+                              : AppStrings.shareFocusedAppTurnOn,
+                          alwaysActionable: true,
+                          onAction: () => _viewModel.setShareUnknownApps(
+                            !_viewModel.shareUnknownApps,
+                          ),
                         ),
                         const SizedBox(height: 18),
                         Align(

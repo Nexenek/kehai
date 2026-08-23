@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- The app talks to a self-hosted PocketBase server (HTTP + realtime
          WebSocket) over the couple's Tailscale tailnet or LAN. -->
     <uses-permission android:name="android.permission.INTERNET"/>
@@ -27,6 +28,16 @@
     <!-- Only ever fired from the "phone superpowers" explainer screen,
          never unprompted. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+
+    <!-- "Focused-app status" (kb/features.md) — UsageStatsManager reads for
+         the foreground-app signal. This permission is declared for
+         documentation only: it's a signature/privileged permission normal
+         apps can never hold, so the manifest entry grants nothing by
+         itself. The real gate is the Usage Access special-access app op the
+         user flips in Settings (ACTION_USAGE_ACCESS_SETTINGS), checked at
+         runtime via AppOpsManager — see PresenceMonitor.hasUsageAccess. -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions"/>
 
     <application
         android:label="Kehai"

@@ -95,8 +95,21 @@ class AppStrings {
   static String trayOpenTooltip(String section) => 'open $section';
 
   // Desktop window chrome — our own title bar in place of the OS one.
+  // Neither control ends the app: Kehai lives in the tray, so ★ and ♥ both
+  // fold the window back into the little always-there card.
   static const minimizeTooltip = 'tuck us away ★';
-  static const closeWindowTooltip = 'close ♥';
+  static const closeWindowTooltip = 'back to the little window ♥';
+
+  // Desktop tray — the pixel heart that's always there.
+  static const trayTooltip = 'Kehai — czuję, że tam jesteś';
+  static const trayOpen = 'open kehai ♡';
+  static const trayMini = 'just the little one';
+  static const trayQuit = 'quit for real';
+
+  // The little window (mini state).
+  static const miniExpandTooltip = 'open the big window ♡';
+  static const miniDragHint = 'drag me anywhere';
+  static const miniNobodyYet = 'nobody here yet (｡•ᴗ•｡)';
 
   // Home — always-on-top pin. Honest about Wayland: we can ask, but the
   // compositor decides (see kb/platform-desktop.md).
@@ -230,6 +243,41 @@ class AppStrings {
   static const superpowerServiceStop = 'stop';
   static const superpowersOpenSettingsFailed =
       "couldn't find that settings screen (・_・;) — your phone may hide it.";
+
+  static const superpowerUsageAccessTitle = 'share what app you\'re in';
+  static const superpowerUsageAccessBody =
+      "android calls this \"usage access\". it lets Kehai see which app is "
+      "in front right now, so your person's card can say something like "
+      "\"coding ⌨\" or \"gaming 🎮\" instead of just \"on their phone\". we "
+      "only ever read the current app's name — never anything on screen — "
+      "and you can revoke it in settings any second.";
+
+  static const shareFocusedAppTitle = 'share what app you\'re focused on';
+  static const shareFocusedAppBody =
+      "tells them what app you're focused on, like \"coding ⌨\" or "
+      "\"gaming 🎮\" — off means we never look. it sits one rung below "
+      "now-playing, so if you're mid-song it says that instead.";
+  static const shareFocusedAppOn = 'sharing ✓';
+  static const shareFocusedAppOff = 'off';
+  static const shareFocusedAppTurnOn = 'turn on';
+  static const shareFocusedAppTurnOff = 'turn off';
+
+  static const shareUnknownAppsTitle = 'guess at apps we don\'t know';
+  static const shareUnknownAppsBody =
+      "we only recognize a couple dozen apps by name. turn this on and an "
+      "app we don't know still shows a cleaned-up guess at its name — off, "
+      "and an unrecognized app just says nothing at all.";
+
+  // Desktop sharing settings (the ✧ in the title bar).
+  static const sharingSettingsTitle = 'sharing ✧';
+  static const sharingSettingsTooltipOff =
+      'sharing settings — nothing extra on';
+  static const sharingSettingsTooltipOn =
+      'sharing settings — telling them what app you\'re in ✧';
+  static const sharingSettingsIntro =
+      "controls what your devices tell your person, beyond the basics. "
+      "everything here is off by default.";
+  static const sharingSettingsDone = 'done';
 
   // Generic
   static const loading = 'one sec… (｡•ᴗ•｡)';

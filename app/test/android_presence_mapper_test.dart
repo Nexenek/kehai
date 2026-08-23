@@ -11,6 +11,7 @@ Map<Object?, Object?> _snapshot({
   Object? screenOffSinceMillis,
   Object? mediaListenerEnabled = false,
   List<Object?>? sessions,
+  Object? foregroundPackage,
 }) {
   return {
     'battery': battery,
@@ -19,6 +20,7 @@ Map<Object?, Object?> _snapshot({
     'screen_off_since_millis': screenOffSinceMillis,
     'media_listener_enabled': mediaListenerEnabled,
     'sessions': sessions ?? const [],
+    'foreground_package': foregroundPackage,
   };
 }
 
@@ -292,6 +294,44 @@ void main() {
       expect(presence.charging, isFalse);
       expect(presence.idleSeconds, 0);
       expect(presence.nowPlaying?.title, 'Marigold');
+    });
+
+    test('threads the caller-supplied activity straight through', () {
+      final now = DateTime.fromMillisecondsSinceEpoch(2000000);
+      final presence = AndroidPresenceSnapshot.fromChannel(_snapshot())
+          .toPresence(now: now, activity: 'gaming 🎮');
+      expect(presence.activity, 'gaming 🎮');
+    });
+
+    test('a null activity (opt-in off, or nothing mapped) stays null', () {
+      final now = DateTime.fromMillisecondsSinceEpoch(2000000);
+      final presence = AndroidPresenceSnapshot.fromChannel(_snapshot())
+          .toPresence(now: now);
+      expect(presence.activity, isNull);
+    });
+  });
+
+  group('foregroundPackage parsing', () {
+    test('parses a present foreground_package', () {
+      final snapshot = AndroidPresenceSnapshot.fromChannel(
+        _snapshot(foregroundPackage: 'com.instagram.android'),
+      );
+      expect(snapshot.foregroundPackage, 'com.instagram.android');
+    });
+
+    test(
+      'a missing/null foreground_package (opt-in off, or no grant) is null',
+      () {
+        final snapshot = AndroidPresenceSnapshot.fromChannel(_snapshot());
+        expect(snapshot.foregroundPackage, isNull);
+      },
+    );
+
+    test('an empty-string foreground_package is treated as absent', () {
+      final snapshot = AndroidPresenceSnapshot.fromChannel(
+        _snapshot(foregroundPackage: ''),
+      );
+      expect(snapshot.foregroundPackage, isNull);
     });
   });
 }
