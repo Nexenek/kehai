@@ -104,6 +104,7 @@ void main() {
 
     expect(drawerOffset(tester), Offset.zero);
     expect(find.byKey(const Key('tray-grid-countdowns')), findsOneWidget);
+    expect(find.byKey(const Key('tray-grid-calendar')), findsOneWidget);
     expect(find.byKey(const Key('tray-grid-notes')), findsOneWidget);
     expect(find.byKey(const Key('tray-grid-instants')), findsOneWidget);
     expect(find.byKey(const Key('tray-grid-map')), findsOneWidget);
@@ -122,6 +123,18 @@ void main() {
     expect(drawerOffset(tester), Offset.zero);
     expect(find.text(stubMapText), findsOneWidget);
     // Five buttons still fit the pane without an overflow.
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the calendar grid tile opens the calendar section', (
+    tester,
+  ) async {
+    await pumpTray(tester);
+
+    await openGridSection(tester, 'calendar');
+
+    expect(drawerOffset(tester), Offset.zero);
+    expect(find.text(stubCalendarText), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

@@ -80,6 +80,136 @@ This is deliberately a generic summary — if you're the project's
 maintainer, your local knowledgebase has the fuller stack/security
 write-up this repo doesn't otherwise carry.
 
+## Webhooks (smart home)
+
+The server can fire outbound webhooks on couple events — the "smart-lamp /
+power-user API" from `kb/features.md`. It's off by default and needs zero
+setup to stay off: no config, no cost, no code path even runs.
+
+### Config
+
+| Env var | Required | Effect |
+|---|---|---|
+| `KEHAI_WEBHOOK_URLS` | no (default: unset) | Comma-separated list of URLs to `POST` to. Empty/unset = feature off. |
+| `KEHAI_WEBHOOK_SECRET` | no | When set, every request carries `X-Kehai-Signature: hex(hmac-sha256(secret, body))` so your receiver can verify it actually came from your server. |
+
+```sh
+# docker-compose.yml, server service:
+environment:
+  KEHAI_WEBHOOK_URLS: "http://homeassistant.local:8123/api/webhook/kehai-mood,https://ntfy.example.ts.net/kehai"
+  KEHAI_WEBHOOK_SECRET: "a long random string, e.g. openssl rand -hex 32"
+```
+
+Multiple URLs all get the same event, delivered independently — one goroutine
+per URL, 5s timeout, no retries. A dead or slow URL never slows down the API:
+the record save that triggered the event has already returned to the client
+before delivery is attempted.
+
+### Events
+
+**`mood_changed`** — fires on every `statuses` record create/update (mood
+picker, note edit):
+
+```json
+{
+  "event": "mood_changed",
+  "user": "u_abc123",
+  "user_name": "Kasia",
+  "mood": "content_kitten",
+  "note": "good day, miss you",
+  "at": "2026-08-23T14:02:11Z"
+}
+```
+
+**`presence_changed`** — fires on a `devices` update where `activity` or
+`now_playing` actually changed (a bare heartbeat with nothing new stays
+silent). Debounced to at most once per user per 10 seconds, since heartbeats
+can arrive every few seconds:
+
+```json
+{
+  "event": "presence_changed",
+  "user": "u_abc123",
+  "user_name": "Kasia",
+  "kind": "desktop",
+  "activity": "🎮 gaming",
+  "now_playing": { "title": "...", "artist": "...", "album_art": "..." },
+  "at": "2026-08-23T14:02:11Z"
+}
+```
+
+`now_playing` is `null` when nothing's playing.
+
+### Home Assistant recipe
+
+Create a [webhook trigger automation](https://www.home-assistant.io/docs/automation/trigger/#webhook-trigger)
+that changes a light's color based on mood. In HA: **Settings → Automations
+→ Create Automation → Skip (start with an empty automation)**, then switch to
+YAML mode and paste:
+
+```yaml
+alias: Kehai mood lamp
+description: Turn the bedroom lamp a color matching the partner's mood.
+triggers:
+  - trigger: webhook
+    webhook_id: kehai-mood
+    allowed_methods: [POST]
+    local_only: true
+conditions:
+  - condition: template
+    value_template: "{{ trigger.json.event == 'mood_changed' }}"
+actions:
+  - variables:
+      mood: "{{ trigger.json.mood }}"
+      color_map:
+        content_kitten: [255, 200, 80]
+        sleepy: [80, 60, 160]
+        excited: [255, 60, 120]
+        chill: [60, 160, 255]
+  - action: light.turn_on
+    target:
+      entity_id: light.bedroom_lamp
+    data:
+      rgb_color: "{{ color_map.get(mood, [255, 255, 255]) }}"
+      brightness_pct: 60
+mode: single
+```
+
+The webhook URL to give `KEHAI_WEBHOOK_URLS` is
+`http://<homeassistant-host>:8123/api/webhook/kehai-mood` (the id in
+`webhook_id:` above is the last path segment — `local_only: true` keeps it
+reachable only from inside the tailnet/LAN, matching this stack's no-exposed-
+ports default). Home Assistant webhook triggers don't verify a shared secret
+out of the box, so if you also set `KEHAI_WEBHOOK_SECRET`, add a
+`condition: template` checking
+`trigger.json.event` alongside a header check via a
+[REST-based verification](https://www.home-assistant.io/integrations/rest/)
+if you want to be stricter than "webhook URL is the secret."
+
+### ntfy example
+
+For a plain push notification instead of (or in addition to) a HA
+automation, point a URL at your `ntfy` topic and use `curl` to confirm it
+works the same way ntfy itself would receive it:
+
+```sh
+curl -s http://ntfy.example.ts.net/kehai-presence \
+  -H "Title: Kehai" \
+  -d "presence_changed"
+```
+
+Since ntfy expects its own simple payload format rather than raw Kehai JSON,
+the practical pattern is a tiny relay: point `KEHAI_WEBHOOK_URLS` at a small
+script/HA automation (webhook → REST command) that reshapes the event into
+an ntfy-friendly `POST`, e.g.:
+
+```sh
+# what that relay ends up running, given a mood_changed payload:
+curl -s -H "Title: Mood update" -H "Tags: mood" \
+  -d "Kasia is feeling content_kitten: good day, miss you" \
+  https://ntfy.example.ts.net/kehai
+```
+
 ## Verifying the stack
 
 ```sh

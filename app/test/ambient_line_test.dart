@@ -13,6 +13,7 @@ DeviceStatus _device({
   String? activity,
   double? battery,
   bool? charging,
+  String? timezone,
 }) {
   return DeviceStatus(
     id: '$kind-${sinceLastSeen.inSeconds}-${identityHashCode(nowPlaying)}',
@@ -23,6 +24,7 @@ DeviceStatus _device({
     nowPlaying: nowPlaying,
     idleSeconds: idleSeconds,
     activity: activity,
+    timezone: timezone,
     battery: battery,
     charging: charging,
   );
@@ -157,6 +159,51 @@ void main() {
       ];
       final line = resolveAmbientLine(devices);
       expect(line!.kind, AmbientLineKind.onPhone);
+    });
+  });
+
+  group('asleep inference', () {
+    // A UTC "now" pinned to 02:30 at UTC+02:00 (night there) / 00:30 UTC.
+    final nightUtc = DateTime.utc(2026, 8, 24, 0, 30);
+    // 14:30 their-local: broad daylight.
+    final dayUtc = DateTime.utc(2026, 8, 24, 12, 30);
+
+    test('long-idle phone at their night -> probably asleep', () {
+      final devices = [
+        _device(kind: 'phone', idleSeconds: 50 * 60, timezone: 'UTC+02:00'),
+      ];
+      final line = resolveAmbientLine(devices, nowUtc: nightUtc);
+      expect(line!.kind, AmbientLineKind.asleep);
+    });
+
+    test('same idle in their daytime stays plain away', () {
+      final devices = [
+        _device(kind: 'phone', idleSeconds: 50 * 60, timezone: 'UTC+02:00'),
+      ];
+      final line = resolveAmbientLine(devices, nowUtc: dayUtc);
+      expect(line!.kind, AmbientLineKind.away);
+    });
+
+    test('night but idle below the 45min threshold stays away', () {
+      final devices = [
+        _device(kind: 'phone', idleSeconds: 20 * 60, timezone: 'UTC+02:00'),
+      ];
+      final line = resolveAmbientLine(devices, nowUtc: nightUtc);
+      expect(line!.kind, AmbientLineKind.away);
+    });
+
+    test('no timezone reported -> never claims asleep', () {
+      final devices = [_device(kind: 'phone', idleSeconds: 50 * 60)];
+      final line = resolveAmbientLine(devices, nowUtc: nightUtc);
+      expect(line!.kind, AmbientLineKind.away);
+    });
+
+    test('an idle desktop alone (no phone) stays away at night', () {
+      final devices = [
+        _device(kind: 'desktop', idleSeconds: 50 * 60, timezone: 'UTC+02:00'),
+      ];
+      final line = resolveAmbientLine(devices, nowUtc: nightUtc);
+      expect(line!.kind, AmbientLineKind.away);
     });
   });
 

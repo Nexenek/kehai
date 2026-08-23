@@ -1,14 +1,16 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../ui/core/strings/app_strings.dart';
 import 'device_status.dart';
+import 'utc_offset.dart';
 import 'now_playing.dart';
 
 /// Which rung of the partner-card ambient-line precedence produced this
 /// line — kb/platform-desktop.md's "Telemetry contract (Phase 2a)":
 /// "now_playing ♪ > activity > 'at their computer'/'on their phone'
 /// (recent last_seen, low idle) > 'away' (idle > 5 min) > nothing recent."
-enum AmbientLineKind { nowPlaying, activity, atComputer, onPhone, away }
+enum AmbientLineKind { nowPlaying, activity, atComputer, onPhone, asleep, away }
 
 @immutable
 class AmbientLine {
@@ -39,7 +41,30 @@ const awayIdleThreshold = Duration(minutes: 5);
 /// last_seen" clause); returns null when nothing in the chain applies,
 /// which is the signal for the caller to fall back to its existing offline
 /// state.
-AmbientLine? resolveAmbientLine(List<DeviceStatus> devices) {
+/// How long a phone must sit untouched, during their night, before "away"
+/// softens into "probably asleep".
+const asleepIdleThreshold = Duration(minutes: 45);
+
+/// Their-local hours treated as night for the asleep inference (>= 22:00 or
+/// < 08:00 — generous on purpose; "probably" carries the uncertainty).
+bool _isNightHour(int hour) => hour >= 22 || hour < 8;
+
+bool _probablyAsleep(List<DeviceStatus> online, DateTime nowUtc) {
+  final offset = resolvePartnerUtcOffset(online);
+  if (offset == null) return false;
+  final theirHour = nowUtc.add(Duration(minutes: offset.minutes)).hour;
+  if (!_isNightHour(theirHour)) return false;
+  return online.any(
+    (d) =>
+        d.kind == 'phone' &&
+        (d.idleSeconds ?? 0) >= asleepIdleThreshold.inSeconds,
+  );
+}
+
+AmbientLine? resolveAmbientLine(
+  List<DeviceStatus> devices, {
+  DateTime? nowUtc,
+}) {
   final online = devices.where((d) => d.isOnline).toList();
   if (online.isEmpty) return null;
 
@@ -84,7 +109,17 @@ AmbientLine? resolveAmbientLine(List<DeviceStatus> devices) {
     }
   }
 
-  // Every online device is idle >= 5 min.
+  // Every online device is idle >= 5 min. If it's the middle of the night
+  // where THEY are and their phone has been untouched for a long while,
+  // "away" is almost certainly "asleep" — say the warmer thing. Derived
+  // entirely from telemetry we already have (phone idle + the timezone the
+  // dual-clock feature sends); "probably" keeps it honest.
+  if (_probablyAsleep(online, nowUtc ?? clock.now().toUtc())) {
+    return const AmbientLine(
+      kind: AmbientLineKind.asleep,
+      text: AppStrings.ambientAsleep,
+    );
+  }
   return const AmbientLine(
     kind: AmbientLineKind.away,
     text: AppStrings.ambientAway,

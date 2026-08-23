@@ -10,9 +10,12 @@ const stubMoodText = 'mood-section';
 const stubPetText = 'pet-section';
 const stubThumbKissText = 'thumbkiss-section';
 const stubCountdownsText = 'countdowns-section';
+const stubCalendarText = 'calendar-section';
 const stubNotesText = 'notes-section';
 const stubMapText = 'map-section';
 const stubInstantsText = 'instants-section';
+const stubArtText = 'art-section';
+const stubFilesText = 'files-section';
 const stubBoardText = 'board-section';
 const stubQuestionText = 'question-section';
 
@@ -38,11 +41,14 @@ HomeSections stubSections({SectionTaps? taps, HomeSectionBuilder? mood}) {
     pet: (context, onClose) => section(stubPetText, onClose),
     thumbkiss: (context, onClose) => section(stubThumbKissText, onClose),
     countdowns: (context, onClose) => section(stubCountdownsText, onClose),
+    calendar: (context, onClose) => section(stubCalendarText, onClose),
     notes: (context, onClose) => section(stubNotesText, onClose),
     map: (context, onClose) => section(stubMapText, onClose),
     instants: (context, onClose) => section(stubInstantsText, onClose),
     board: (context, onClose) => section(stubBoardText, onClose),
     question: (context, onClose) => section(stubQuestionText, onClose),
+    art: (context, onClose) => section(stubArtText, onClose),
+    files: (context, onClose) => section(stubFilesText, onClose),
     onOpenDoodle: () => recorded.doodle++,
     onLogOut: () => recorded.logOut++,
   );

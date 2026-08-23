@@ -3,12 +3,15 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/widgets.dart';
 
+import 'data/repositories/art_repository.dart';
 import 'data/repositories/auth_repository.dart';
 import 'data/repositories/board_repository.dart';
 import 'data/repositories/countdown_repository.dart';
 import 'data/repositories/couple_repository.dart';
 import 'data/repositories/device_repository.dart';
 import 'data/repositories/doodle_repository.dart';
+import 'data/repositories/shared_file_repository.dart';
+import 'data/repositories/event_repository.dart';
 import 'data/repositories/instant_repository.dart';
 import 'data/repositories/location_repository.dart';
 import 'data/repositories/note_repository.dart';
@@ -66,6 +69,9 @@ class AppController extends ChangeNotifier {
   TouchRepository? touchRepository;
   BoardRepository? boardRepository;
   QuestionRepository? questionRepository;
+  ArtRepository? artRepository;
+  SharedFileRepository? sharedFileRepository;
+  EventRepository? eventRepository;
   HeartbeatService? heartbeatService;
 
   /// The app's own OwnTracks-compatible tracker (kb/contracts.md
@@ -146,6 +152,9 @@ class AppController extends ChangeNotifier {
       touchRepository = TouchRepository(pb);
       boardRepository = BoardRepository(pb);
       questionRepository = QuestionRepository(pb);
+      artRepository = ArtRepository(pb);
+      sharedFileRepository = SharedFileRepository(pb);
+      eventRepository = EventRepository(pb);
       heartbeatService = HeartbeatService(
         deviceRepository!,
         deviceInfoService,

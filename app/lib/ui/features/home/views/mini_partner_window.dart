@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../data/services/desktop_window_service.dart';
+import '../../../../domain/art_scene.dart';
 import '../../../../domain/models/ambient_line.dart';
 import '../../../../domain/models/mood.dart';
 import '../../../../domain/models/partner_status.dart';
@@ -8,6 +9,7 @@ import '../../../core/strings/app_strings.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/marquee_text.dart';
+import '../../art/art_scene_view.dart';
 import 'device_indicator.dart';
 
 /// The little always-there window: the whole app, shrunk to a glanceable
@@ -24,6 +26,7 @@ class MiniPartnerWindow extends StatefulWidget {
     required this.phoneOnline,
     required this.desktopOnline,
     this.ambientLine,
+    this.artScene = const [],
     this.onExpand,
     this.onDragStart,
     this.transparentCorners = false,
@@ -34,6 +37,12 @@ class MiniPartnerWindow extends StatefulWidget {
   final bool phoneOnline;
   final bool desktopOnline;
   final AmbientLine? ambientLine;
+
+  /// The partner's composited paper-doll scene, already resolved for their
+  /// current mood + ambient state ([resolveArtScene]). Empty — the default
+  /// — means the couple has no art that fits right now, and the portrait
+  /// keeps its kaomoji.
+  final List<ArtLayer> artScene;
 
   /// Clicking the card opens the full panel.
   final VoidCallback? onExpand;
@@ -103,7 +112,13 @@ class _MiniPartnerWindowState extends State<MiniPartnerWindow> {
               ),
             ],
           ),
-          Expanded(child: PartnerPortrait(mood: mood, legible: transparent)),
+          Expanded(
+            child: PartnerPortrait(
+              mood: mood,
+              scene: widget.artScene,
+              legible: transparent,
+            ),
+          ),
           SizedBox(
             height: 18,
             child: line != null
@@ -224,17 +239,26 @@ const List<Shadow> _legibilityHalo = [
   Shadow(color: Color(0xCCFFFFFF), blurRadius: 6),
 ];
 
-/// The partner, as art.
+/// The partner, as art — design-language.md's signature element.
 ///
-/// Today that's their mood kaomoji at display size. This widget exists as
-/// its own thing — with its own fixed, centred slot — so the paper-doll
-/// character sprite from design-language.md's "signature element" can take
-/// over later without the card around it moving a pixel: swap the [Text] for
-/// an [Image]/sprite-sheet frame and nothing else changes.
+/// The slot this widget always was: hand it a composited [scene] (ADR-13's
+/// paper-doll layers, resolved by [resolveArtScene]) and it draws the art;
+/// hand it nothing and it draws their mood kaomoji at display size, exactly
+/// as before. The card around it never moves a pixel either way, which is
+/// why the fallback is a real feature rather than a placeholder: a couple
+/// who never draws anything still has a complete partner window.
 class PartnerPortrait extends StatelessWidget {
-  const PartnerPortrait({super.key, required this.mood, this.legible = false});
+  const PartnerPortrait({
+    super.key,
+    required this.mood,
+    this.scene = const [],
+    this.legible = false,
+  });
 
   final Mood? mood;
+
+  /// Already-resolved layers, bottom first. Empty = no scene right now.
+  final List<ArtLayer> scene;
 
   /// True when this portrait may be sitting directly over an unknown
   /// desktop background (the mini card is transparent) rather than our own
@@ -244,6 +268,8 @@ class PartnerPortrait extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    if (scene.isNotEmpty) return ArtSceneView(scene: scene);
+
     var style = AppTextStyles.kaomojiLarge.copyWith(
       color: mood?.colorOf(colors) ?? colors.ink,
     );
@@ -266,6 +292,7 @@ class MiniWindowHost extends StatelessWidget {
     required this.phoneOnline,
     required this.desktopOnline,
     this.ambientLine,
+    this.artScene = const [],
   });
 
   final String partnerName;
@@ -273,6 +300,7 @@ class MiniWindowHost extends StatelessWidget {
   final bool phoneOnline;
   final bool desktopOnline;
   final AmbientLine? ambientLine;
+  final List<ArtLayer> artScene;
 
   @override
   Widget build(BuildContext context) {
@@ -289,6 +317,7 @@ class MiniWindowHost extends StatelessWidget {
         phoneOnline: phoneOnline,
         desktopOnline: desktopOnline,
         ambientLine: ambientLine,
+        artScene: artScene,
         transparentCorners: transparent,
         onExpand: service.windowMode.expand,
         onDragStart: service.startDragging,

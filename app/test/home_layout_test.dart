@@ -111,6 +111,7 @@ void main() {
       expect(find.text(stubPetText), findsOneWidget);
       expect(find.text(stubThumbKissText), findsOneWidget);
       expect(find.text(stubCountdownsText), findsOneWidget);
+      expect(find.text(stubCalendarText), findsOneWidget);
       expect(find.text(stubNotesText), findsOneWidget);
       expect(find.text(stubBoardText), findsOneWidget);
       expect(find.text(stubQuestionText), findsOneWidget);
@@ -150,6 +151,7 @@ void main() {
       expect(find.text(stubPetText), findsOneWidget);
       expect(find.text(stubThumbKissText), findsOneWidget);
       expect(find.text(stubCountdownsText), findsOneWidget);
+      expect(find.text(stubCalendarText), findsOneWidget);
       expect(find.text(stubNotesText), findsOneWidget);
       expect(find.text(stubBoardText), findsOneWidget);
       expect(find.text(stubQuestionText), findsOneWidget);

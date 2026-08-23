@@ -39,6 +39,11 @@ func newInviteCode() (string, error) {
 // so it can be exercised against a tests.TestApp in routes_test.go without booting
 // a real PocketBase instance.
 func bindRoutes(app core.App) {
+	// Outbound webhooks (server/webhooks.go) — registered directly on the
+	// app rather than inside OnServe since they're plain record hooks, not
+	// HTTP routes. No-op when KEHAI_WEBHOOK_URLS is unset.
+	bindWebhooks(app)
+
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
 		g := se.Router.Group("/api/couple")
 		g.Bind(apis.RequireAuth("users"))

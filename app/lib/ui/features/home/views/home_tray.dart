@@ -5,6 +5,7 @@ import '../../../core/strings/app_strings.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/bevel_box.dart';
+import '../../../core/widgets/pixel_calendar_glyph.dart';
 import '../../../core/widgets/pixel_hourglass.dart';
 import '../../../core/widgets/pixel_map_pin.dart';
 import '../../pet/pet_painter.dart' show petSpriteFor, petGridSize;
@@ -19,11 +20,14 @@ enum TraySection {
   pet,
   thumbkiss,
   countdowns,
+  calendar,
   notes,
   instants,
   map,
   board,
   question,
+  art,
+  files,
 }
 
 /// Sections that get their own primary tray button. Anything not in here
@@ -125,11 +129,14 @@ class _CompanionHomeState extends State<CompanionHome> {
     TraySection.pet => widget.sections.pet,
     TraySection.thumbkiss => widget.sections.thumbkiss,
     TraySection.countdowns => widget.sections.countdowns,
+    TraySection.calendar => widget.sections.calendar,
     TraySection.notes => widget.sections.notes,
     TraySection.instants => widget.sections.instants,
     TraySection.map => widget.sections.map,
     TraySection.board => widget.sections.board,
     TraySection.question => widget.sections.question,
+    TraySection.art => widget.sections.art,
+    TraySection.files => widget.sections.files,
   };
 
   Widget _drawerContent(BuildContext context) {
@@ -356,6 +363,12 @@ final List<_GridEntry> _gridEntries = [
     label: AppStrings.trayCountdowns,
   ),
   _GridEntry(
+    section: TraySection.calendar,
+    keySuffix: 'calendar',
+    glyph: (color) => PixelCalendarGlyph(color: color),
+    label: AppStrings.trayCalendar,
+  ),
+  _GridEntry(
     section: TraySection.notes,
     keySuffix: 'notes',
     glyph: _textGlyph('≡'),
@@ -386,6 +399,18 @@ final List<_GridEntry> _gridEntries = [
     keySuffix: 'question',
     glyph: _textGlyph('✉'),
     label: AppStrings.trayQuestion,
+  ),
+  _GridEntry(
+    section: TraySection.art,
+    keySuffix: 'art',
+    glyph: _textGlyph('✿'),
+    label: AppStrings.trayArt,
+  ),
+  _GridEntry(
+    section: TraySection.files,
+    keySuffix: 'files',
+    glyph: _textGlyph('▤'),
+    label: AppStrings.trayFiles,
   ),
 ];
 

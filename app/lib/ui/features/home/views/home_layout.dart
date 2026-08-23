@@ -58,11 +58,14 @@ class HomeSections {
     required this.pet,
     required this.thumbkiss,
     required this.countdowns,
+    required this.calendar,
     required this.notes,
     required this.map,
     required this.instants,
     required this.board,
     required this.question,
+    required this.art,
+    required this.files,
     required this.onOpenDoodle,
     required this.onLogOut,
     this.extras = const <Widget>[],
@@ -81,6 +84,12 @@ class HomeSections {
   final HomeSectionBuilder thumbkiss;
 
   final HomeSectionBuilder countdowns;
+
+  /// The shared calendar (kb/decisions.md ADR-7's v1 deviation: a
+  /// kehai-native `calendar_events` collection instead of CalDAV — see
+  /// server/migrations/11_calendar.go).
+  final HomeSectionBuilder calendar;
+
   final HomeSectionBuilder notes;
 
   /// "where we are" — the map, distance-apart line and my ghost switch
@@ -95,6 +104,12 @@ class HomeSections {
 
   /// The daily question, blind reveal (kb/features.md "Daily question").
   final HomeSectionBuilder question;
+
+  /// "our art ✎" — the paper-doll layer manager (kb ADR-13).
+  final HomeSectionBuilder art;
+
+  /// The shared file shelf (kb/features.md "Shared file storage").
+  final HomeSectionBuilder files;
 
   /// Doodles have no drawer: the tray's ✎ opens the canvas dialog directly.
   final VoidCallback onOpenDoodle;
@@ -197,11 +212,17 @@ class HomeColumn extends StatelessWidget {
               const SizedBox(height: 20),
               sections.countdowns(context, null),
               const SizedBox(height: 20),
+              sections.calendar(context, null),
+              const SizedBox(height: 20),
               sections.notes(context, null),
               const SizedBox(height: 20),
               sections.instants(context, null),
               const SizedBox(height: 20),
+              sections.files(context, null),
+              const SizedBox(height: 20),
               sections.board(context, null),
+              const SizedBox(height: 20),
+              sections.art(context, null),
               const SizedBox(height: 20),
               sections.map(context, null),
             ],
@@ -256,6 +277,8 @@ class HomeSpread extends StatelessWidget {
                 children: [
                   sections.countdowns(context, null),
                   const SizedBox(height: 16),
+                  sections.calendar(context, null),
+                  const SizedBox(height: 16),
                   sections.question(context, null),
                 ],
               ),
@@ -272,6 +295,8 @@ class HomeSpread extends StatelessWidget {
                   sections.thumbkiss(context, null),
                   const SizedBox(height: 16),
                   sections.board(context, null),
+                  const SizedBox(height: 16),
+                  sections.art(context, null),
                 ],
               ),
             ),
@@ -287,6 +312,8 @@ class HomeSpread extends StatelessWidget {
                   sections.map(context, null),
                   const SizedBox(height: 16),
                   sections.instants(context, null),
+                  const SizedBox(height: 16),
+                  sections.files(context, null),
                 ],
               ),
             ),

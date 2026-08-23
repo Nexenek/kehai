@@ -12,7 +12,13 @@ import '../../../core/widgets/pixel_button.dart';
 import '../../../core/widgets/retro_window.dart';
 import '../../board/board_view_model.dart';
 import '../../board/board_window.dart';
+import '../../calendar/calendar_view_model.dart';
+import '../../calendar/calendar_window.dart';
 import '../../doodle/doodle_canvas_dialog.dart';
+import '../../art/art_view_model.dart';
+import '../../art/art_window.dart';
+import '../../files/files_view_model.dart';
+import '../../files/files_window.dart';
 import '../../instants/instants_view_model.dart';
 import '../../instants/instants_window.dart';
 import '../../location/view_models/location_view_model.dart';
@@ -48,6 +54,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   late final HomeViewModel _viewModel;
   late final CountdownsViewModel _countdownsViewModel;
+  late final CalendarViewModel _calendarViewModel;
   late final NotesViewModel _notesViewModel;
   late final DoodleViewModel _doodleViewModel;
   late final LocationViewModel _locationViewModel;
@@ -56,6 +63,8 @@ class _HomeScreenState extends State<HomeScreen> {
   late final ThumbKissViewModel _thumbKissViewModel;
   late final BoardViewModel _boardViewModel;
   late final QuestionsViewModel _questionsViewModel;
+  late final ArtViewModel _artViewModel;
+  late final FilesViewModel _filesViewModel;
   final _noteController = TextEditingController();
   String _lastSyncedNote = '';
 
@@ -72,6 +81,7 @@ class _HomeScreenState extends State<HomeScreen> {
       deviceInfoService: controller.deviceInfoService,
       prefs: controller.prefs,
       handOffPresenceToBackground: controller.handOffPresenceToBackground,
+      artRepository: controller.artRepository,
     );
     _viewModel.addListener(_syncFromHomeViewModel);
     _viewModel.init();
@@ -80,6 +90,11 @@ class _HomeScreenState extends State<HomeScreen> {
       authRepository: controller.authRepository!,
       coupleRepository: controller.coupleRepository!,
       countdownRepository: controller.countdownRepository!,
+    )..init();
+
+    _calendarViewModel = CalendarViewModel(
+      authRepository: controller.authRepository!,
+      eventRepository: controller.eventRepository!,
     )..init();
 
     _notesViewModel = NotesViewModel(
@@ -120,6 +135,16 @@ class _HomeScreenState extends State<HomeScreen> {
     _questionsViewModel = QuestionsViewModel(
       questionRepository: controller.questionRepository!,
     )..init();
+
+    _artViewModel = ArtViewModel(
+      authRepository: controller.authRepository!,
+      artRepository: controller.artRepository!,
+    )..init();
+
+    _filesViewModel = FilesViewModel(
+      authRepository: controller.authRepository!,
+      fileRepository: controller.sharedFileRepository!,
+    )..init();
   }
 
   void _syncFromHomeViewModel() {
@@ -143,6 +168,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _noteController.dispose();
     _viewModel.dispose();
     _countdownsViewModel.dispose();
+    _calendarViewModel.dispose();
     _notesViewModel.dispose();
     _doodleViewModel.dispose();
     _locationViewModel.dispose();
@@ -151,6 +177,8 @@ class _HomeScreenState extends State<HomeScreen> {
     _thumbKissViewModel.dispose();
     _boardViewModel.dispose();
     _questionsViewModel.dispose();
+    _artViewModel.dispose();
+    _filesViewModel.dispose();
     super.dispose();
   }
 
@@ -167,6 +195,7 @@ class _HomeScreenState extends State<HomeScreen> {
               desktopOnline: _viewModel.partnerDesktopOnline,
               ambientLine: _viewModel.partnerAmbientLine,
               batteryInfo: _viewModel.partnerBatteryInfo,
+              artScene: _viewModel.partnerArtScene,
               distanceLine: _locationViewModel.distanceLine,
               partnerDoodle: _doodleViewModel.partnerDoodle,
               onSendDoodle: _openDoodleCanvas,
@@ -196,6 +225,11 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         },
       ),
+      // CalendarWindow wraps itself in a ListenableBuilder over its view
+      // model already (same as PetWindow/BoardWindow/DailyQuestionWindow
+      // below) — no need to double it here.
+      calendar: (context, onClose) =>
+          CalendarWindow(viewModel: _calendarViewModel, onClose: onClose),
       notes: (context, onClose) => ListenableBuilder(
         listenable: _notesViewModel,
         builder: (context, _) {
@@ -238,6 +272,10 @@ class _HomeScreenState extends State<HomeScreen> {
           BoardWindow(viewModel: _boardViewModel, onClose: onClose),
       question: (context, onClose) =>
           DailyQuestionWindow(viewModel: _questionsViewModel, onClose: onClose),
+      art: (context, onClose) =>
+          ArtWindow(viewModel: _artViewModel, onClose: onClose),
+      files: (context, onClose) =>
+          FilesWindow(viewModel: _filesViewModel, onClose: onClose),
       onOpenDoodle: _openDoodleCanvas,
       onLogOut: () => AppScope.of(context, listen: false).logOut(),
       extras: [
@@ -262,6 +300,7 @@ class _HomeScreenState extends State<HomeScreen> {
     phoneOnline: _viewModel.partnerPhoneOnline,
     desktopOnline: _viewModel.partnerDesktopOnline,
     ambientLine: _viewModel.partnerAmbientLine,
+    artScene: _viewModel.partnerArtScene,
   );
 
   @override

@@ -81,6 +81,7 @@ class AppStrings {
   static const ambientAtComputer = onDesktopTooltip;
   static const ambientOnPhone = onPhoneTooltip;
   static const ambientAway = 'away (￣～￣;)';
+  static const ambientAsleep = 'probably asleep ( ᴗ˳ᴗ ) zzZ';
   static const batteryLowTooltip = 'battery low';
   static const chargingTooltip = 'charging';
 
@@ -242,6 +243,8 @@ class AppStrings {
   // Tray button for the map section.
   static const trayInstants = 'photos';
   static const trayMap = 'map';
+  static const trayArt = 'our art';
+  static const trayFiles = 'files';
 
   // Ongoing notification (Android) — the pocket version of the partner
   // window. Composed in Dart (see buildPartnerNotification) and handed to
@@ -519,4 +522,185 @@ class AppStrings {
   static const boardPhotoDialogTitle = 'pin a photo';
   static const boardStickerDialogTitle = 'pick a sticker';
   static const boardDeleteItemTooltip = 'remove this from the board';
+
+  // Art system (ADR-13 paper-doll layers, kb/features.md "Status art
+  // system"). Written for the artist, who is not a programmer: no "assets",
+  // no "z-index", no "conditions" — just drawings, slots, and "show it
+  // when". Not wired into the home tray/layout in this batch — see the
+  // top-of-file note in ui/features/art/art_window.dart.
+  static const artTitle = 'our art ✎';
+  static const artLoading = 'looking for your drawings… (｡•ᴗ•｡)';
+  static const artEmpty =
+      "no drawings yet. draw them a little you, and they'll see it in "
+      "their window ♡\uFE0E";
+
+  // Slots — the artist's words for the paint order.
+  static const artSlotBackground = 'background';
+  static const artSlotBase = 'body';
+  static const artSlotOutfit = 'outfit';
+  static const artSlotExpression = 'face';
+  static const artSlotProp = 'prop';
+  static const artSlotBackgroundHint = 'the room behind them';
+  static const artSlotBaseHint = 'the pose everything else sits on';
+  static const artSlotOutfitHint = 'what they are wearing';
+  static const artSlotExpressionHint = 'eyes and mouth';
+  static const artSlotPropHint = 'a mug, headphones, the cat';
+  static const artSlotEmpty = 'nothing here yet';
+  static const artBaseMissing =
+      "add one drawing to \"body\" and the scene switches on — until then "
+      "their window keeps the kaomoji (´｡• ᵕ •｡`)";
+
+  // Adding a layer.
+  // Short, because it sits inline next to each slot's name; the dialog it
+  // opens carries the full sentence.
+  static const artAddLayer = 'add';
+  static const artAddDialogTitle = 'add a drawing';
+  static const artChooseFile = 'choose a PNG';
+  static const artChangeFile = 'pick a different one';
+  static const artPickFailed = "couldn't open that file (・_・;) — try again?";
+  static const artNotPng =
+      "that isn't a PNG. layers have to be see-through, and only PNG can "
+      "be — a JPG would cover everything under it";
+  static const artTooBig =
+      'that file is over 2 MB — big for a drawing this small. try saving '
+      'it again at 512×512?';
+  static const artEmptyFile = "that file came back empty (・_・;)";
+  static const artUploadFailed = "that didn't upload (・_・;) — try again?";
+  static const artUploading = 'sending…';
+  static String artNotSquareWarning(String size) =>
+      "heads up: this one is $size, not square — it'll be squeezed to fit "
+      'the same canvas as the others';
+
+  // Layer editor.
+  static const artLayerDialogTitle = 'this drawing';
+  static const artNameLabel = 'call it something';
+  static const artNameHint = 'e.g. "sleepy eyes"';
+  static const artWhenMoodsLabel = 'show it when they feel…';
+  static const artWhenAmbientLabel = 'and when they are…';
+  static const artAnyHint = 'nothing ticked = any time';
+  static const artDefaultToggle = 'fall back to this one';
+  static const artDefaultHint =
+      'used when nothing more specific fits — one per slot is plenty';
+  static const artSave = 'save';
+  static const artDelete = 'delete';
+  static const artDeleteTooltip = 'delete this drawing';
+  static const artMoveUpTooltip = 'move up (picked first on a tie)';
+  static const artMoveDownTooltip = 'move down';
+  static const artEditTooltip = 'edit this drawing';
+
+  // Ambient states, in the artist's words.
+  static const artAmbientMusic = 'listening to music';
+  static const artAmbientAway = 'away';
+  static const artAmbientPhone = 'on their phone';
+  static const artAmbientComputer = 'at their computer';
+  static const artAmbientActivity = 'busy in an app';
+  static String artAmbientLabel(String kind) => switch (kind) {
+    'music' => artAmbientMusic,
+    'away' => artAmbientAway,
+    'phone' => artAmbientPhone,
+    'computer' => artAmbientComputer,
+    'activity' => artAmbientActivity,
+    _ => kind,
+  };
+
+  // Live preview — the artist's feedback loop.
+  static const artPreviewTitle = 'preview';
+  static const artPreviewMoodLabel = 'if they felt…';
+  static const artPreviewAmbientLabel = 'and they were…';
+  static const artPreviewAmbientAny = 'nothing in particular';
+  static const artPreviewNoScene =
+      "nothing fits this one yet — their window would show the kaomoji";
+
+  // How-to, for the non-technical half of the couple.
+  static const artHowToTitle = 'how the layers work';
+  static const artHowToBody =
+      'draw everything on the same square canvas — 512×512 is a good size '
+      '— and save each piece as its own see-through (transparent) PNG.\n\n'
+      'the app stacks them in this order, every time:\n'
+      'background → body → outfit → face → prop\n\n'
+      'only one drawing per slot is on screen at once. you tell each one '
+      'when to show up (a mood, what they are doing, or nothing at all for '
+      '"any time"), and the app picks the one that fits them right now — '
+      'most specific wins, then whatever is highest in the list.\n\n'
+      'Pixelorama is free and open source, runs in a browser, and exports '
+      'exactly these PNGs ♡\uFE0E';
+
+  // Home — calendar (Phase 4b, kb/decisions.md ADR-7 deviation: a
+  // kehai-native `calendar_events` collection for v1 instead of CalDAV —
+  // see server/migrations/11_calendar.go). Tray glyph is
+  // [PixelCalendarGlyph] (grid + heart), not '▦' — that text glyph is
+  // already the board section's.
+  static const trayCalendar = 'calendar';
+  static const calendarTitle = 'calendar';
+  static const calendarTodayButton = 'today';
+  static const calendarPrevMonthTooltip = 'previous month';
+  static const calendarNextMonthTooltip = 'next month';
+
+  // Weekday header, Monday-first (Polish convention).
+  static const calendarWeekdayMon = 'Mo';
+  static const calendarWeekdayTue = 'Tu';
+  static const calendarWeekdayWed = 'We';
+  static const calendarWeekdayThu = 'Th';
+  static const calendarWeekdayFri = 'Fr';
+  static const calendarWeekdaySat = 'Sa';
+  static const calendarWeekdaySun = 'Su';
+  static const calendarWeekdayHeaders = [
+    calendarWeekdayMon,
+    calendarWeekdayTue,
+    calendarWeekdayWed,
+    calendarWeekdayThu,
+    calendarWeekdayFri,
+    calendarWeekdaySat,
+    calendarWeekdaySun,
+  ];
+
+  // The upcoming strip under the grid: "in 3 days · dinner date ♡".
+  static const calendarUpcomingEmpty =
+      "nothing coming up yet… plan a little something? (｡•ᴗ•｡)";
+  static String calendarUpcomingRow(String dayLabel, String title) =>
+      '$dayLabel · $title ♡\uFE0E';
+
+  // Tapping a day opens its event list.
+  static const calendarDayEmpty =
+      "nothing planned this day yet… add something? ( ・ᴗ・ )";
+  static const calendarAllDayChip = 'all day';
+
+  // Add/edit dialog.
+  static const calendarNewEventTitle = 'new event';
+  static const calendarEditEventTitle = 'edit event';
+  static const calendarEventTitleLabel = "what's happening?";
+  static const calendarEventTitleHint = 'e.g. "dinner date"';
+  static const calendarAllDayLabel = 'all day';
+  static const calendarStartsLabel = 'starts';
+  static const calendarEndsToggle = 'add an end';
+  static const calendarEndsLabel = 'ends';
+  static const calendarNotesLabel = 'notes';
+  static const calendarNotesHint = 'anything to remember… (optional)';
+  static const calendarColorLabel = 'color';
+  static const calendarAddEvent = 'add';
+  static const calendarSaveEvent = 'save';
+  static const calendarDeleteEvent = 'delete';
+
+  // Home — shared file storage (kb/features.md "Shared file storage": a
+  // simple shared drive backed by a Protected PocketBase file field —
+  // server/migrations/12_files.go). Not wired into the home tray/layout in
+  // this batch — see the top-of-file note in ui/features/files/files_window.dart.
+  static const filesTitle = 'our files';
+  static const filesEmpty = "a little shelf for the two of you (´｡• ᵕ •｡`)";
+  static const filesUpload = 'add a file';
+  static const filesUploading = 'sending…';
+  static const filesLoadMore = 'more';
+  static const filesUploadFailed = "that didn't send (・_・;) — try again?";
+  static const filesTooBig =
+      "that file's too big — kehai keeps shared files to 100MB or less";
+  static const filesPickFailed = "couldn't read that file (・_・;) — try again?";
+  static const filesOpenFailed = "couldn't open that file (・_・;) — try again?";
+  static const filesDeleteTooltip = 'remove this file';
+  static const filesDeleteConfirmTitle = 'delete this file?';
+  static String filesDeleteConfirmBody(String label) =>
+      'remove "$label" for both of you? this can\'t be undone.';
+  static const filesDeleteConfirmCancel = 'cancel';
+  static const filesDeleteConfirmDelete = 'delete';
+  static String filesYouCaption(String relative) => 'you · $relative';
+  static String filesThemCaption(String relative) => 'them · $relative';
 }

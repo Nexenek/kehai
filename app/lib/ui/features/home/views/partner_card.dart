@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../../domain/art_scene.dart';
 import '../../../../domain/models/ambient_line.dart';
 import '../../../../domain/models/device_status.dart';
 import '../../../../domain/models/doodle.dart';
@@ -16,6 +17,7 @@ import '../../../core/widgets/battery_glyph.dart';
 import '../../../core/widgets/bevel_box.dart';
 import '../../../core/widgets/pixel_button.dart';
 import '../../../core/widgets/retro_window.dart';
+import '../../art/art_scene_view.dart';
 import 'device_indicator.dart';
 
 /// The signature partner window: mood kaomoji, note, "updated X ago", the
@@ -29,6 +31,7 @@ class PartnerCard extends StatefulWidget {
     required this.phoneOnline,
     required this.desktopOnline,
     this.ambientLine,
+    this.artScene = const [],
     this.batteryInfo = BatteryGlyphInfo.none,
     this.distanceLine,
     this.partnerDoodle,
@@ -45,6 +48,12 @@ class PartnerCard extends StatefulWidget {
   /// — see [resolveAmbientLine]. Null falls back to the existing offline
   /// state (no extra row).
   final AmbientLine? ambientLine;
+
+  /// The partner's composited paper-doll scene (ADR-13), already resolved
+  /// for their current mood + ambient state by [resolveArtScene]. Empty —
+  /// the default — keeps the kaomoji, which is the honest fallback for a
+  /// couple who hasn't drawn anything (or a state nothing was drawn for).
+  final List<ArtLayer> artScene;
 
   /// Partner's phone low-battery/charging glyph — see [resolvePhoneBattery].
   final BatteryGlyphInfo batteryInfo;
@@ -72,6 +81,10 @@ class PartnerCard extends StatefulWidget {
   @override
   State<PartnerCard> createState() => _PartnerCardState();
 }
+
+/// Side of the composited scene in the big card. Sized so a 512×512 layer
+/// lands on a clean 1:4 nearest-neighbour reduction — no half-pixel seams.
+const double _artPortraitSize = 128;
 
 class _PartnerCardState extends State<PartnerCard> {
   Timer? _clockTicker;
@@ -125,12 +138,24 @@ class _PartnerCardState extends State<PartnerCard> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Text(
-                  mood?.kaomoji ?? '(. .)',
-                  style: AppTextStyles.kaomojiLarge.copyWith(
-                    color: mood?.colorOf(colors) ?? colors.ink,
-                  ),
-                ),
+                child: widget.artScene.isNotEmpty
+                    // Left-aligned so the glyph row (battery, devices,
+                    // doodle) keeps its place: the art replaces the
+                    // kaomoji in the same corner rather than re-laying
+                    // out the card's header.
+                    ? Align(
+                        alignment: Alignment.centerLeft,
+                        child: ArtSceneView(
+                          scene: widget.artScene,
+                          size: _artPortraitSize,
+                        ),
+                      )
+                    : Text(
+                        mood?.kaomoji ?? '(. .)',
+                        style: AppTextStyles.kaomojiLarge.copyWith(
+                          color: mood?.colorOf(colors) ?? colors.ink,
+                        ),
+                      ),
               ),
               if (batteryInfo.kind != BatteryGlyphKind.none) ...[
                 BatteryGlyph(

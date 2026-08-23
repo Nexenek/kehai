@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:pocketbase/pocketbase.dart';
 
+import '../../../../data/repositories/art_repository.dart';
 import '../../../../data/repositories/auth_repository.dart';
 import '../../../../data/repositories/couple_repository.dart';
 import '../../../../data/repositories/device_repository.dart';
@@ -11,6 +12,7 @@ import '../../../../data/services/background/partner_widget.dart';
 import '../../../../data/services/device_info_service.dart';
 import '../../../../data/services/heartbeat_service.dart';
 import '../../../../data/services/prefs_service.dart';
+import '../../../../domain/art_scene.dart';
 import '../../../../domain/models/ambient_line.dart';
 import '../../../../domain/models/couple_info.dart';
 import '../../../../domain/models/device_status.dart';
@@ -29,8 +31,10 @@ class HomeViewModel extends ChangeNotifier with WidgetsBindingObserver {
     required HeartbeatService heartbeatService,
     required DeviceInfoService deviceInfoService,
     required PrefsService prefs,
+    ArtRepository? artRepository,
     Future<bool> Function()? handOffPresenceToBackground,
-  }) : _handOffPresenceToBackground = handOffPresenceToBackground,
+  }) : _artRepository = artRepository,
+       _handOffPresenceToBackground = handOffPresenceToBackground,
        _authRepository = authRepository,
        _coupleRepository = coupleRepository,
        _statusRepository = statusRepository,
@@ -47,6 +51,11 @@ class HomeViewModel extends ChangeNotifier with WidgetsBindingObserver {
   final DeviceInfoService _deviceInfoService;
   final PrefsService _prefs;
 
+  /// The couple's paper-doll art (ADR-13). Optional so every existing
+  /// caller (and every existing test) keeps compiling unchanged: null
+  /// simply means no art is loaded and both portraits stay on the kaomoji.
+  final ArtRepository? _artRepository;
+
   /// Android's "start the foreground service" hook (see
   /// [AppController.handOffPresenceToBackground]). Null on desktop and in
   /// tests, which is the same as "nobody else is heartbeating".
@@ -62,12 +71,19 @@ class HomeViewModel extends ChangeNotifier with WidgetsBindingObserver {
   PartnerStatus? partnerStatus;
   List<DeviceStatus> partnerDevices = const [];
 
+  /// Every art layer the couple has drawn, unfiltered — the compositor
+  /// picks from these on every rebuild rather than us caching a resolved
+  /// scene, so a mood change reaches the portrait in the same frame the
+  /// status does.
+  List<ArtLayer> artLayers = const [];
+
   String myMoodId = 'happy';
   String myNote = '';
   bool isSavingMood = false;
 
   UnsubscribeFunc? _statusUnsub;
   UnsubscribeFunc? _deviceUnsub;
+  UnsubscribeFunc? _artUnsub;
   Timer? _tickTimer;
 
   String get myName => _authRepository.currentUser?.get<String>('name') ?? '';
@@ -87,6 +103,16 @@ class HomeViewModel extends ChangeNotifier with WidgetsBindingObserver {
   /// Partner's phone low-battery/charging glyph — see [resolvePhoneBattery].
   BatteryGlyphInfo get partnerBatteryInfo =>
       resolvePhoneBattery(partnerDevices);
+
+  /// The partner's composited status scene (ADR-13), resolved fresh from
+  /// their current mood + ambient state. Empty means "no art fits right
+  /// now" — the portraits then show the mood kaomoji, which is always a
+  /// complete answer rather than a placeholder.
+  List<ArtLayer> get partnerArtScene => resolveArtScene(
+    artLayers,
+    moodId: partnerStatus?.moodId,
+    ambientKind: artAmbientKindFor(partnerAmbientLine),
+  );
 
   Future<void> init() async {
     WidgetsBinding.instance.addObserver(this);
@@ -136,8 +162,35 @@ class HomeViewModel extends ChangeNotifier with WidgetsBindingObserver {
       }
     });
 
+    await _initArt();
+
     isLoading = false;
     notifyListeners();
+  }
+
+  /// Loads the couple's art and stays subscribed, so a layer uploaded on
+  /// the artist's machine appears in the other partner's window without a
+  /// restart — the "draw it and watch it land" moment the feature exists
+  /// for. Every failure here is silent by design: no art simply means the
+  /// kaomoji portrait, which is a perfectly good partner window.
+  Future<void> _initArt() async {
+    final art = _artRepository;
+    if (art == null) return;
+    final coupleId = _authRepository.coupleId;
+    if (coupleId != null) {
+      try {
+        artLayers = await art.fetchAll(coupleId);
+      } catch (_) {
+        // Server without migration 10 yet, or offline — keep the kaomoji.
+      }
+    }
+    _artUnsub = await art.subscribe((action, layer) {
+      if (layer.coupleId != _authRepository.coupleId) return;
+      artLayers = action == 'delete'
+          ? artLayers.where((l) => l.id != layer.id).toList()
+          : [...artLayers.where((l) => l.id != layer.id), layer];
+      notifyListeners();
+    });
   }
 
   Future<void> _refreshPartner() async {
@@ -212,6 +265,7 @@ class HomeViewModel extends ChangeNotifier with WidgetsBindingObserver {
     _tickTimer?.cancel();
     _statusUnsub?.call();
     _deviceUnsub?.call();
+    _artUnsub?.call();
     // Deliberately not stopping the foreground service here: surviving
     // this screen going away is the whole point of it.
     if (_ownsHeartbeat) _heartbeatService.stop();
