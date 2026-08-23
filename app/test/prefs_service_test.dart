@@ -54,4 +54,41 @@ void main() {
       expect(reloaded.shareFocusedApp, isFalse);
     });
   });
+
+  group('PrefsService — shareLocation opt-in', () {
+    test('defaults to off', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await PrefsService.create();
+      expect(prefs.shareLocation, isFalse);
+    });
+
+    test('setShareLocation persists across a fresh PrefsService', () async {
+      SharedPreferences.setMockInitialValues({});
+      final first = await PrefsService.create();
+      await first.setShareLocation(true);
+
+      final reloaded = await PrefsService.create();
+      expect(reloaded.shareLocation, isTrue);
+    });
+
+    test('turning it back off persists too', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await PrefsService.create();
+      await prefs.setShareLocation(true);
+      await prefs.setShareLocation(false);
+
+      final reloaded = await PrefsService.create();
+      expect(reloaded.shareLocation, isFalse);
+    });
+
+    test('independent of the focused-app opt-ins', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await PrefsService.create();
+      await prefs.setShareLocation(true);
+
+      expect(prefs.shareLocation, isTrue);
+      expect(prefs.shareFocusedApp, isFalse);
+      expect(prefs.shareUnknownApps, isFalse);
+    });
+  });
 }

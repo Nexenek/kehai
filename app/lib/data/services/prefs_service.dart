@@ -18,6 +18,7 @@ class PrefsService {
   static const _miniWindowPositionKey = 'mini_window_position';
   static const _shareFocusedAppKey = 'share_focused_app';
   static const _shareUnknownAppsKey = 'share_unknown_apps';
+  static const _shareLocationKey = 'share_location';
 
   final SharedPreferences _prefs;
 
@@ -113,4 +114,16 @@ class PrefsService {
 
   Future<void> setShareUnknownApps(bool value) =>
       _prefs.setBool(_shareUnknownAppsKey, value);
+
+  /// Whether the app itself should act as its own OwnTracks-compatible
+  /// tracker (kb/contracts.md "Location": "The app itself MAY also post its
+  /// own location later via the same route with the same auth") — this is
+  /// that "later". Off by default, same as every other sharing opt-in: a
+  /// couples app never starts reporting a dot on the map without being
+  /// asked. OwnTracks itself remains a fully supported alternative; turning
+  /// this on doesn't require turning that off, and vice versa.
+  bool get shareLocation => _prefs.getBool(_shareLocationKey) ?? false;
+
+  Future<void> setShareLocation(bool value) =>
+      _prefs.setBool(_shareLocationKey, value);
 }

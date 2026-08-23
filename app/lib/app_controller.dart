@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/widgets.dart';
 
@@ -12,6 +13,7 @@ import 'data/repositories/location_repository.dart';
 import 'data/repositories/note_repository.dart';
 import 'data/repositories/status_repository.dart';
 import 'data/services/background/kehai_foreground_task.dart';
+import 'data/services/background/location_publisher.dart';
 import 'data/services/device_info_service.dart';
 import 'data/services/heartbeat_service.dart';
 import 'data/services/pocketbase_client.dart';
@@ -57,6 +59,19 @@ class AppController extends ChangeNotifier {
   InstantRepository? instantRepository;
   LocationRepository? locationRepository;
   HeartbeatService? heartbeatService;
+
+  /// The app's own OwnTracks-compatible tracker (kb/contracts.md
+  /// "Location"). Android-only — see [LocationPublisher]'s doc comment;
+  /// null everywhere else, which every call site below already treats the
+  /// same as "not running".
+  LocationPublisher? locationPublisher;
+
+  /// Whether *this* (UI) isolate currently owns presence/location duty —
+  /// mirrors [HomeViewModel]'s private `_ownsHeartbeat`, but has to live
+  /// here because [handOffPresenceToBackground] (the one place the
+  /// hand-off decision is made) is the only hook [HomeViewModel] calls.
+  /// True until that decision runs, so nothing here fires early.
+  bool _uiOwnsLocation = true;
 
   String get serverUrl => prefs.serverUrl ?? '';
 
@@ -124,6 +139,16 @@ class AppController extends ChangeNotifier {
         deviceInfoService,
         presenceService: presenceService,
       );
+      // Desktop location is out of scope for now (geolocator_linux/windows
+      // exist but nothing consumes them yet) — only build the publisher on
+      // Android, so every other platform's `locationPublisher` stays null
+      // and every call below is naturally a no-op.
+      locationPublisher = Platform.isAndroid
+          ? LocationPublisher(
+              pb: pb,
+              batteryLevel: () => presenceService.current.battery,
+            )
+          : null;
       connectionError = null;
       return true;
     } catch (_) {
@@ -219,11 +244,39 @@ class AppController extends ChangeNotifier {
       await KehaiForegroundTask.requestNotificationPermission();
     }
 
-    return KehaiForegroundTask.start();
+    final handedOff = await KehaiForegroundTask.start();
+    // Same single-writer rule as the heartbeat/device row: only whichever
+    // isolate actually won presence duty runs the location publisher. When
+    // the background service took it, KehaiTaskHandler re-applies
+    // `shareLocation` on its own tick instead (kb/platform-android.md).
+    _uiOwnsLocation = !handedOff;
+    if (_uiOwnsLocation) {
+      unawaited(locationPublisher?.setEnabled(prefs.shareLocation));
+    }
+    return handedOff;
+  }
+
+  /// The "share my location" opt-in (kb/contracts.md "Location"). Read
+  /// straight from [prefs] like [shareFocusedApp] above, so the superpowers
+  /// screen always shows the persisted value.
+  bool get shareLocation => prefs.shareLocation;
+
+  /// Persists the toggle and, if this isolate is the one currently doing
+  /// presence duty, applies it to the live [locationPublisher] immediately
+  /// — no restart needed. When the background service owns presence
+  /// instead, its next tick picks the new value up on its own (within a
+  /// minute; see [KehaiTaskHandler.onRepeatEvent]).
+  Future<void> setShareLocation(bool value) async {
+    await prefs.setShareLocation(value);
+    if (_uiOwnsLocation) {
+      await locationPublisher?.setEnabled(value);
+    }
+    notifyListeners();
   }
 
   void logOut() {
     heartbeatService?.stop();
+    locationPublisher?.stop();
     // The background isolate holds this user's session; stop it before the
     // token goes away rather than leaving a notification about a partner
     // we're no longer logged in to see.

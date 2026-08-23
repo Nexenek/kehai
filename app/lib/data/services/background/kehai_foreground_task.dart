@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../../../ui/core/strings/app_strings.dart';
 import 'kehai_task_handler.dart';
@@ -132,13 +133,41 @@ class KehaiForegroundTask {
       if (await FlutterForegroundTask.isRunningService) return true;
       final result = await FlutterForegroundTask.startService(
         serviceId: serviceId,
-        serviceTypes: const [ForegroundServiceTypes.specialUse],
+        // `location` is declared alongside `specialUse` in the manifest
+        // (`specialUse|location`) so LocationPublisher's background fixes
+        // are allowed while the service is up — but Android 14+ throws a
+        // SecurityException if a foreground service *starts* claiming the
+        // `location` type without ACCESS_COARSE/FINE_LOCATION already
+        // granted, so it's only requested here when that's already true.
+        // Most installs never grant it (shareLocation defaults off), which
+        // is exactly the case this guards.
+        //
+        // ON-DEVICE VERIFICATION NEEDED: if location permission is granted
+        // *after* this service is already running, the running instance
+        // keeps its original type set until restarted — the superpowers
+        // screen's "stop"/"start" service row is the manual workaround;
+        // confirm on a real device whether that's needed in practice or
+        // whether geolocator calls still succeed regardless.
+        serviceTypes: [
+          ForegroundServiceTypes.specialUse,
+          if (await _hasLocationPermission) ForegroundServiceTypes.location,
+        ],
         notificationTitle: AppStrings.notificationStartingTitle,
         notificationText: AppStrings.notificationStartingText,
         notificationInitialRoute: '/',
         callback: kehaiTaskCallback,
       );
       return result is ServiceRequestSuccess;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> get _hasLocationPermission async {
+    try {
+      final permission = await Geolocator.checkPermission();
+      return permission == LocationPermission.always ||
+          permission == LocationPermission.whileInUse;
     } catch (_) {
       return false;
     }

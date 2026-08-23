@@ -18,6 +18,7 @@ import '../prefs_service.dart';
 import '../presence/presence_service.dart';
 import '../presence/presence_service_factory.dart';
 import 'kehai_foreground_task.dart';
+import 'location_publisher.dart';
 import 'partner_notification.dart';
 import 'partner_widget.dart';
 
@@ -37,8 +38,10 @@ void kehaiTaskCallback() {
 ///    UI isolate persists server URL + auth token into,
 /// 2. runs the same [HeartbeatService] + [PresenceService] pair the UI
 ///    isolate runs (battery, charging, screen-derived idle, now-playing),
-/// 3. subscribes to the partner's `statuses` + `devices` records, and
-/// 4. pushes rendered notification strings down to the service.
+/// 3. subscribes to the partner's `statuses` + `devices` records,
+/// 4. pushes rendered notification strings down to the service, and
+/// 5. — when `shareLocation` is on — runs [LocationPublisher], the app's
+///    own OwnTracks-compatible tracker (kb/contracts.md "Location").
 ///
 /// Note the deliberate asymmetry: this isolate *computes* every string
 /// (mood kaomoji, ambient-line precedence, device indicator) and Kotlin
@@ -56,6 +59,7 @@ class KehaiTaskHandler extends TaskHandler {
   DeviceRepository? _deviceRepository;
   HeartbeatService? _heartbeatService;
   PresenceService? _presenceService;
+  LocationPublisher? _locationPublisher;
 
   UnsubscribeFunc? _statusUnsub;
   UnsubscribeFunc? _deviceUnsub;
@@ -88,7 +92,15 @@ class KehaiTaskHandler extends TaskHandler {
   }
 
   Future<void> _connect() async {
-    if (_pb != null) return;
+    if (_pb != null) {
+      // Already connected — still worth re-applying `shareLocation` every
+      // tick, since this is the only isolate-side hook a toggle flipped
+      // from the superpowers screen while this service owns presence has
+      // to reach the location publisher (see `AppController.setShareLocation`
+      // doc comment on the UI-isolate half of this).
+      await _applyLocationPrefs();
+      return;
+    }
 
     final prefs = await PrefsService.create();
     final serverUrl = prefs.serverUrl;
@@ -111,9 +123,32 @@ class KehaiTaskHandler extends TaskHandler {
       presenceService: presence,
     )..start();
 
+    // Same single-writer rule as the heartbeat above: this background
+    // isolate only exists while it owns presence duty, so it's always safe
+    // for it to run the location publisher too — see
+    // `AppController.locationPublisher`'s doc comment for the UI-isolate
+    // half of the hand-off.
+    _locationPublisher = LocationPublisher(
+      pb: pb,
+      batteryLevel: () => presence.current.battery,
+    );
+    await _applyLocationPrefs(prefs);
+
     await _refreshPartner();
     await _subscribe();
     await _render();
+  }
+
+  /// Re-reads `shareLocation` and applies it to [_locationPublisher] —
+  /// cheap (SharedPreferences' instance is cached) and safe to call every
+  /// tick, which is exactly what [onRepeatEvent] does: `flutter_foreground_task`
+  /// has no live push channel wired up for this today, so a prefs re-read on
+  /// the existing 60s tick is the same mechanism the rest of this class
+  /// already relies on to notice a saved-server/login that happened while it
+  /// was idle.
+  Future<void> _applyLocationPrefs([PrefsService? loaded]) async {
+    final prefs = loaded ?? await PrefsService.create();
+    await _locationPublisher?.setEnabled(prefs.shareLocation);
   }
 
   Future<void> _refreshPartner() async {
@@ -192,6 +227,8 @@ class KehaiTaskHandler extends TaskHandler {
     _statusUnsub = null;
     _deviceUnsub = null;
     _heartbeatService?.stop();
+    await _locationPublisher?.stop();
+    _locationPublisher = null;
     await _presenceService?.dispose();
     _presenceService = null;
     _pb = null;

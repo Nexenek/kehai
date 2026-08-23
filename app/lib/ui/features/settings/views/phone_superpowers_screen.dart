@@ -35,8 +35,10 @@ class _PhoneSuperpowersScreenState extends State<PhoneSuperpowersScreen>
     _viewModel = PhoneSuperpowersViewModel(
       initialShareFocusedApp: controller.shareFocusedApp,
       initialShareUnknownApps: controller.shareUnknownApps,
+      initialShareLocation: controller.shareLocation,
       onSetShareFocusedApp: controller.setShareFocusedApp,
       onSetShareUnknownApps: controller.setShareUnknownApps,
+      onSetShareLocation: controller.setShareLocation,
     );
     WidgetsBinding.instance.addObserver(this);
     _viewModel.refresh();
@@ -148,6 +150,27 @@ class _PhoneSuperpowersScreenState extends State<PhoneSuperpowersScreen>
                           onAction: _viewModel.openUsageAccessSettings,
                         ),
                         const SizedBox(height: 16),
+                        // The honest two-step location flow: "granted"
+                        // means the full "all the time" grant, and while
+                        // only "while using" is held the status/action pair
+                        // walks the user to the second step instead of
+                        // claiming they're done.
+                        _SuperpowerWindow(
+                          title: AppStrings.superpowerLocationPermissionTitle,
+                          body: AppStrings.superpowerLocationPermissionBody,
+                          granted: _viewModel.locationAlwaysGranted,
+                          pendingLabel: _viewModel.locationWhileInUseGranted
+                              ? AppStrings
+                                    .superpowerLocationPermissionWhileInUseOnly
+                              : AppStrings.superpowerLocationPermissionOff,
+                          actionLabel: _viewModel.locationWhileInUseGranted
+                              ? AppStrings.superpowerLocationGrantAlways
+                              : AppStrings.superpowerLocationGrantWhileInUse,
+                          onAction: _viewModel.locationWhileInUseGranted
+                              ? _viewModel.openLocationAlwaysSettings
+                              : _viewModel.requestLocationWhileInUse,
+                        ),
+                        const SizedBox(height: 16),
                         _SuperpowerWindow(
                           title: AppStrings.shareFocusedAppTitle,
                           body: AppStrings.shareFocusedAppBody,
@@ -178,6 +201,21 @@ class _PhoneSuperpowersScreenState extends State<PhoneSuperpowersScreen>
                           alwaysActionable: true,
                           onAction: () => _viewModel.setShareUnknownApps(
                             !_viewModel.shareUnknownApps,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        _SuperpowerWindow(
+                          title: AppStrings.shareLocationTitle,
+                          body: AppStrings.shareLocationBody,
+                          granted: _viewModel.shareLocation,
+                          grantedLabel: AppStrings.shareFocusedAppOn,
+                          pendingLabel: AppStrings.shareFocusedAppOff,
+                          actionLabel: _viewModel.shareLocation
+                              ? AppStrings.shareFocusedAppTurnOff
+                              : AppStrings.shareFocusedAppTurnOn,
+                          alwaysActionable: true,
+                          onAction: () => _viewModel.setShareLocation(
+                            !_viewModel.shareLocation,
                           ),
                         ),
                         const SizedBox(height: 18),

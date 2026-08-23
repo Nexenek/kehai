@@ -313,6 +313,27 @@ class AppStrings {
   static const shareFocusedAppTurnOn = 'turn on';
   static const shareFocusedAppTurnOff = 'turn off';
 
+  static const superpowerLocationPermissionTitle = 'allow location access';
+  static const superpowerLocationPermissionBody =
+      "android makes us ask this in two steps, on purpose. first \"while "
+      "using the app\" — that alone only reports while Kehai is on screen. "
+      "then, if you want your dot to keep updating in the background too, "
+      "a separate \"allow all the time\" step that opens your phone's own "
+      "settings. skip step two and location just goes quiet the moment you "
+      "leave Kehai.";
+  static const superpowerLocationPermissionWhileInUseOnly = 'while using only';
+  static const superpowerLocationPermissionOff = 'off';
+  static const superpowerLocationGrantWhileInUse = 'allow while using';
+  static const superpowerLocationGrantAlways = 'allow all the time';
+
+  static const shareLocationTitle = 'share my location ♡';
+  static const shareLocationBody =
+      "puts a little dot for you on the couple map — the same "
+      "\"/api/owntracks\" route the separate OwnTracks app already uses, so "
+      "you never have to run both. pausing it is called ghost mode and "
+      "lives in the map window, not here; turning this off just means we "
+      "stop asking your phone for a fix at all.";
+
   static const shareUnknownAppsTitle = 'guess at apps we don\'t know';
   static const shareUnknownAppsBody =
       "we only recognize a couple dozen apps by name. turn this on and an "

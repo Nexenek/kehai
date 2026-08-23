@@ -29,6 +29,20 @@
          never unprompted. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
 
+    <!-- "Share my location" (kb/contracts.md "Location") — the app's own
+         OwnTracks-compatible tracker, an alternative to running the
+         separate OwnTracks app (which stays fully supported). Two-step
+         honest grant: FINE/COARSE first via the normal runtime prompt,
+         BACKGROUND_LOCATION as a separate later step opening system
+         settings — same two-step shape as every other special-access grant
+         on the superpowers screen. FOREGROUND_SERVICE_LOCATION lets the
+         existing foreground service add the `location` type below so
+         position updates keep flowing while the app is backgrounded. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+
     <!-- "Focused-app status" (kb/features.md) — UsageStatsManager reads for
          the foreground-app signal. This permission is declared for
          documentation only: it's a signature/privileged permission normal
@@ -67,10 +81,19 @@
             </intent-filter>
         </activity>
         <!-- flutter_foreground_task's service. Name is fixed by the
-             package — do not rename. -->
+             package — do not rename.
+
+             `location` is added alongside `specialUse` (multiple types are
+             `|`-separated) so the background isolate's LocationPublisher
+             can keep reporting fixes while backgrounded, when the user has
+             opted into "share my location" and granted background
+             location. specialUse still covers everything else this
+             service does; location only applies while shareLocation is on
+             (the publisher itself no-ops without it), so declaring the
+             type doesn't change behaviour for anyone who leaves it off. -->
         <service
             android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
-            android:foregroundServiceType="specialUse"
+            android:foregroundServiceType="specialUse|location"
             android:exported="false">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
