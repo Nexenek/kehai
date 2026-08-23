@@ -7,6 +7,7 @@ import '../../../../data/repositories/auth_repository.dart';
 import '../../../../data/repositories/couple_repository.dart';
 import '../../../../data/repositories/device_repository.dart';
 import '../../../../data/repositories/status_repository.dart';
+import '../../../../data/services/background/partner_widget.dart';
 import '../../../../data/services/device_info_service.dart';
 import '../../../../data/services/heartbeat_service.dart';
 import '../../../../data/services/prefs_service.dart';
@@ -90,8 +91,7 @@ class HomeViewModel extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> init() async {
     WidgetsBinding.instance.addObserver(this);
 
-    final handedOff =
-        await _handOffPresenceToBackground?.call() ?? false;
+    final handedOff = await _handOffPresenceToBackground?.call() ?? false;
     _ownsHeartbeat = !handedOff;
     if (_ownsHeartbeat) _heartbeatService.start();
 
@@ -116,6 +116,7 @@ class HomeViewModel extends ChangeNotifier with WidgetsBindingObserver {
       if (partner != null && status.userId == partner!.id) {
         partnerStatus = status;
         notifyListeners();
+        unawaited(_syncWidget());
       } else if (status.userId == _authRepository.currentUserId) {
         // Reflect edits made from another of my own devices.
         myMoodId = status.moodId.isEmpty ? myMoodId : status.moodId;
@@ -131,6 +132,7 @@ class HomeViewModel extends ChangeNotifier with WidgetsBindingObserver {
           device,
         ];
         notifyListeners();
+        unawaited(_syncWidget());
       }
     });
 
@@ -146,7 +148,18 @@ class HomeViewModel extends ChangeNotifier with WidgetsBindingObserver {
         partner!.id,
       );
     }
+    unawaited(_syncWidget());
   }
+
+  /// Keeps the home-screen widget's SharedPreferences in sync with the
+  /// partner's name/status/devices — the UI-isolate counterpart to
+  /// KehaiTaskHandler's own call, so the widget stays fresh even when the
+  /// background service isn't running but the app is.
+  Future<void> _syncWidget() => updatePartnerWidget(
+    partnerName: partner?.name,
+    status: partnerStatus,
+    partnerDevices: partnerDevices,
+  );
 
   /// Manual pull for the waiting-for-partner state, so the user can check
   /// again without restarting the app.

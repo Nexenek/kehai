@@ -3,11 +3,10 @@ import 'package:flutter/services.dart';
 
 import '../../../../app_controller.dart';
 import '../../../../data/services/background/kehai_foreground_task.dart';
-import '../../../../domain/models/doodle.dart';
+import '../../../../data/services/desktop_window_service.dart';
 import '../../../core/strings/app_strings.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
-import '../../../core/utils/time_ago.dart';
 import '../../../core/widgets/bevel_box.dart';
 import '../../../core/widgets/pixel_button.dart';
 import '../../../core/widgets/retro_window.dart';
@@ -18,10 +17,14 @@ import '../view_models/doodle_view_model.dart';
 import '../view_models/home_view_model.dart';
 import '../view_models/notes_view_model.dart';
 import 'countdowns_window.dart';
-import 'mood_picker.dart';
+import 'home_layout.dart';
+import 'my_mood_window.dart';
 import 'notes_window.dart';
 import 'partner_card.dart';
 
+/// Owns the home view models and hands the pieces to [HomeBody], which picks
+/// the shape for the space available (phone column / desktop companion pane /
+/// wide "our desktop" spread — see [HomeLayoutMode]).
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -94,6 +97,69 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  /// Each section keeps its own [ListenableBuilder] so a change in one
+  /// window doesn't rebuild the others — and so a drawer opening doesn't
+  /// rebuild anything but the drawer.
+  HomeSections _buildSections(BuildContext context) {
+    return HomeSections(
+      partner: _viewModel.hasPartner
+          ? PartnerCard(
+              partnerName: _viewModel.partner!.name,
+              status: _viewModel.partnerStatus,
+              phoneOnline: _viewModel.partnerPhoneOnline,
+              desktopOnline: _viewModel.partnerDesktopOnline,
+              ambientLine: _viewModel.partnerAmbientLine,
+              batteryInfo: _viewModel.partnerBatteryInfo,
+              partnerDoodle: _doodleViewModel.partnerDoodle,
+              onSendDoodle: _openDoodleCanvas,
+            )
+          : _WaitingForPartner(
+              inviteCode: _viewModel.inviteCode,
+              onRefresh: _viewModel.checkForPartner,
+            ),
+      mood: (context, onClose) => MyMoodWindow(
+        selectedMoodId: _viewModel.myMoodId,
+        onSelectMood: _viewModel.pickMood,
+        noteController: _noteController,
+        onNoteChanged: (v) => _lastSyncedNote = v,
+        onSaveNote: _viewModel.updateNote,
+        myDoodle: _doodleViewModel.myDoodle,
+        onDeleteDoodle: _doodleViewModel.deleteMine,
+        onClose: onClose,
+      ),
+      countdowns: (context, onClose) => ListenableBuilder(
+        listenable: _countdownsViewModel,
+        builder: (context, _) {
+          if (_countdownsViewModel.isLoading) return const SizedBox.shrink();
+          return CountdownsWindow(
+            viewModel: _countdownsViewModel,
+            onClose: onClose,
+          );
+        },
+      ),
+      notes: (context, onClose) => ListenableBuilder(
+        listenable: _notesViewModel,
+        builder: (context, _) {
+          if (_notesViewModel.isLoading) return const SizedBox.shrink();
+          return NotesWindow(viewModel: _notesViewModel, onClose: onClose);
+        },
+      ),
+      onOpenDoodle: _openDoodleCanvas,
+      onLogOut: () => AppScope.of(context, listen: false).logOut(),
+      extras: [
+        if (KehaiForegroundTask.isSupported)
+          PixelButton(
+            label: AppStrings.superpowersOpen,
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const PhoneSuperpowersScreen(),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -111,130 +177,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               );
             }
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 420),
-                  child: ListenableBuilder(
-                    listenable: _doodleViewModel,
-                    builder: (context, _) => Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                AppStrings.appName,
-                                style: AppTextStyles.heading.copyWith(
-                                  color: colors.ink,
-                                ),
-                              ),
-                            ),
-                            PixelButton(
-                              label: AppStrings.logOut,
-                              onPressed: () =>
-                                  AppScope.of(context, listen: false).logOut(),
-                            ),
-                          ],
-                        ),
-                        if (KehaiForegroundTask.isSupported) ...[
-                          const SizedBox(height: 10),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: PixelButton(
-                              label: AppStrings.superpowersOpen,
-                              onPressed: () => Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) => const PhoneSuperpowersScreen(),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 16),
-                        if (_viewModel.hasPartner)
-                          PartnerCard(
-                            partnerName: _viewModel.partner!.name,
-                            status: _viewModel.partnerStatus,
-                            phoneOnline: _viewModel.partnerPhoneOnline,
-                            desktopOnline: _viewModel.partnerDesktopOnline,
-                            ambientLine: _viewModel.partnerAmbientLine,
-                            batteryInfo: _viewModel.partnerBatteryInfo,
-                            partnerDoodle: _doodleViewModel.partnerDoodle,
-                            onSendDoodle: _openDoodleCanvas,
-                          )
-                        else
-                          _WaitingForPartner(
-                            inviteCode: _viewModel.inviteCode,
-                            onRefresh: _viewModel.checkForPartner,
-                          ),
-                        const SizedBox(height: 20),
-                        RetroWindow(
-                          title: AppStrings.moodPickerTitle,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              MoodPicker(
-                                selectedId: _viewModel.myMoodId,
-                                onSelect: _viewModel.pickMood,
-                              ),
-                              const SizedBox(height: 12),
-                              TextField(
-                                controller: _noteController,
-                                style: AppTextStyles.body1,
-                                decoration: const InputDecoration(
-                                  hintText: AppStrings.noteHint,
-                                ),
-                                onChanged: (v) => _lastSyncedNote = v,
-                                onSubmitted: _viewModel.updateNote,
-                              ),
-                              const SizedBox(height: 8),
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: PixelButton(
-                                  primary: true,
-                                  label: AppStrings.saveNote,
-                                  onPressed: () => _viewModel.updateNote(
-                                    _noteController.text,
-                                  ),
-                                ),
-                              ),
-                              if (_doodleViewModel.myDoodle != null) ...[
-                                const SizedBox(height: 12),
-                                _MyDoodleThumbnail(
-                                  doodle: _doodleViewModel.myDoodle!,
-                                  onDelete: _doodleViewModel.deleteMine,
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        ListenableBuilder(
-                          listenable: _countdownsViewModel,
-                          builder: (context, _) {
-                            if (_countdownsViewModel.isLoading)
-                              return const SizedBox.shrink();
-                            return CountdownsWindow(
-                              viewModel: _countdownsViewModel,
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 20),
-                        ListenableBuilder(
-                          listenable: _notesViewModel,
-                          builder: (context, _) {
-                            if (_notesViewModel.isLoading)
-                              return const SizedBox.shrink();
-                            return NotesWindow(viewModel: _notesViewModel);
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+            return ListenableBuilder(
+              listenable: _doodleViewModel,
+              builder: (context, _) => HomeBody(
+                sections: _buildSections(context),
+                desktop: DesktopWindowService.isSupported,
               ),
             );
           },
@@ -316,65 +263,6 @@ class _WaitingForPartner extends StatelessWidget {
           ],
         ],
       ),
-    );
-  }
-}
-
-/// The "you sent · X ago" thumbnail below the mood picker, with a small ✕
-/// to delete it — either partner may delete a doodle, so this mirrors the
-/// partner-card one visually but is my own to remove.
-class _MyDoodleThumbnail extends StatelessWidget {
-  const _MyDoodleThumbnail({required this.doodle, required this.onDelete});
-
-  final Doodle doodle;
-  final VoidCallback onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    return Row(
-      children: [
-        BevelBox(
-          style: BevelStyle.sunken,
-          padding: const EdgeInsets.all(3),
-          child: Image.network(
-            doodle.imageUrl,
-            width: 48,
-            height: 48,
-            fit: BoxFit.contain,
-            filterQuality: FilterQuality.none,
-            errorBuilder: (context, error, stack) =>
-                const SizedBox(width: 48, height: 48),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            AppStrings.youSentCaption(relativeTime(doodle.created)),
-            style: AppTextStyles.caption.copyWith(color: colors.chromeAlt),
-          ),
-        ),
-        Tooltip(
-          message: AppStrings.deleteDoodleTooltip,
-          child: GestureDetector(
-            onTap: onDelete,
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: BevelBox(
-                color: colors.surface,
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                child: Text(
-                  '✕',
-                  style: AppTextStyles.caption.copyWith(
-                    color: colors.warn,
-                    height: 1,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

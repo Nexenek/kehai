@@ -5,7 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:couples_app/ui/features/doodle/doodle_canvas_state.dart';
 
 void main() {
-  DoodleCanvasState makeState() => DoodleCanvasState(color: const Color(0xFF362D3B), brushWidth: 4);
+  DoodleCanvasState makeState() =>
+      DoodleCanvasState(color: const Color(0xFF362D3B), brushWidth: 4);
 
   group('DoodleCanvasState — drawing', () {
     test('starts empty', () {
@@ -35,7 +36,11 @@ void main() {
         ..extendStroke(const Offset(10, 10));
 
       expect(state.strokes, hasLength(1));
-      expect(state.strokes.single.points, [const Offset(0, 0), const Offset(5, 5), const Offset(10, 10)]);
+      expect(state.strokes.single.points, [
+        const Offset(0, 0),
+        const Offset(5, 5),
+        const Offset(10, 10),
+      ]);
     });
 
     test('extendStroke without a prior startStroke is a no-op', () {
@@ -60,7 +65,10 @@ void main() {
         ..startStroke(const Offset(9, 9));
 
       expect(state.strokes, hasLength(2));
-      expect(state.strokes.first.points, [const Offset(0, 0), const Offset(1, 1)]);
+      expect(state.strokes.first.points, [
+        const Offset(0, 0),
+        const Offset(1, 1),
+      ]);
       expect(state.strokes.last.points, [const Offset(9, 9)]);
     });
   });

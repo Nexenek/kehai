@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
-import 'bevel_box.dart';
+import 'win_glyph_button.dart';
 
 /// The signature Win95-parody window frame used for every card/dialog in
 /// the app (design-language.md: "Windows-9x-parody frames: every
@@ -74,55 +74,18 @@ class _TitleBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          _WinDecoration(
+          WinGlyphButton(
             glyph: '★',
-            tooltip: 'minimize (decorative)',
+            tooltip: onMinimize == null ? 'minimize (decorative)' : 'minimize',
             onTap: onMinimize,
           ),
           const SizedBox(width: 6),
-          _WinDecoration(
+          WinGlyphButton(
             glyph: '♥',
-            tooltip: 'close (decorative)',
+            tooltip: onClose == null ? 'close (decorative)' : 'close',
             onTap: onClose,
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _WinDecoration extends StatelessWidget {
-  const _WinDecoration({
-    required this.glyph,
-    required this.tooltip,
-    this.onTap,
-  });
-
-  final String glyph;
-  final String tooltip;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    return Tooltip(
-      message: tooltip,
-      child: GestureDetector(
-        onTap: onTap,
-        child: MouseRegion(
-          cursor: onTap != null ? SystemMouseCursors.click : MouseCursor.defer,
-          child: BevelBox(
-            color: colors.surface,
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-            child: Text(
-              glyph,
-              style: AppTextStyles.caption.copyWith(
-                color: colors.accent,
-                height: 1,
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }

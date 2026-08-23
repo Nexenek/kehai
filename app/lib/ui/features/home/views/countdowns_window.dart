@@ -14,9 +14,13 @@ import 'countdown_row.dart';
 /// The "countdowns" RetroWindow: the together-days chip, the sorted list of
 /// countdown rows (nearest upcoming highlighted), and the add button.
 class CountdownsWindow extends StatelessWidget {
-  const CountdownsWindow({super.key, required this.viewModel});
+  const CountdownsWindow({super.key, required this.viewModel, this.onClose});
 
   final CountdownsViewModel viewModel;
+
+  /// Makes the window's ♥ functional when it's shown inside the desktop
+  /// companion drawer; decorative (null) in the other layouts.
+  final VoidCallback? onClose;
 
   void _openDialog(BuildContext context, {Countdown? existing}) {
     showCountdownDialog(
@@ -52,6 +56,7 @@ class CountdownsWindow extends StatelessWidget {
 
     return RetroWindow(
       title: AppStrings.countdownsTitle,
+      onClose: onClose,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,

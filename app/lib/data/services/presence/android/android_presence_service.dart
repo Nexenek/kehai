@@ -50,9 +50,8 @@ class AndroidPresenceService implements PresenceService {
   AndroidPresenceSnapshot get snapshot => _snapshot;
 
   @override
-  DevicePresence get current => _hasReading
-      ? _snapshot.toPresence(now: _now())
-      : DevicePresence.empty;
+  DevicePresence get current =>
+      _hasReading ? _snapshot.toPresence(now: _now()) : DevicePresence.empty;
 
   @override
   Stream<DevicePresence> get onChange => _controller.stream;

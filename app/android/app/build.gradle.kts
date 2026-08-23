@@ -1,5 +1,12 @@
 plugins {
     id("com.android.application")
+    // Kotlin 2.x split the Compose compiler out of kotlin-android into its
+    // own plugin; the Glance home-screen widget (PartnerWidgetAppWidget)
+    // is @Composable, so this is required even though the app has no
+    // other Jetpack Compose UI. Version pinned to match the
+    // org.jetbrains.kotlin.android version declared in settings.gradle.kts
+    // — the two must always match.
+    id("org.jetbrains.kotlin.plugin.compose") version "2.4.0"
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
@@ -42,6 +49,14 @@ kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }
+}
+
+dependencies {
+    // Jetpack Glance — renders the partner-status home-screen widget
+    // (android/app/src/main/kotlin/app/kehai/widget/PartnerWidget.kt).
+    // 1.1.1 is the current stable release; 1.2.0 is still rc-only as of
+    // writing.
+    implementation("androidx.glance:glance-appwidget:1.1.1")
 }
 
 flutter {

@@ -19,6 +19,7 @@ import '../presence/presence_service.dart';
 import '../presence/presence_service_factory.dart';
 import 'kehai_foreground_task.dart';
 import 'partner_notification.dart';
+import 'partner_widget.dart';
 
 /// The foreground service's Dart entry point. `@pragma('vm:entry-point')`
 /// is load-bearing: the Kotlin side looks this function up by callback
@@ -147,6 +148,15 @@ class KehaiTaskHandler extends TaskHandler {
   }
 
   Future<void> _render() async {
+    // The home-screen widget has no re-post/re-animate cost like the
+    // notification does, so it's refreshed unconditionally on every
+    // render rather than behind the `_lastRendered` dedup below.
+    await updatePartnerWidget(
+      partnerName: _partnerName,
+      status: _partnerStatus,
+      partnerDevices: _partnerDevices,
+    );
+
     final content = buildPartnerNotification(
       partnerName: _partnerName,
       status: _partnerStatus,

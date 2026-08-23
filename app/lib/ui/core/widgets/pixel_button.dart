@@ -14,6 +14,7 @@ class PixelButton extends StatefulWidget {
     this.onPressed,
     this.icon,
     this.primary = false,
+    this.dense = false,
   });
 
   final String label;
@@ -22,6 +23,10 @@ class PixelButton extends StatefulWidget {
 
   /// Primary buttons use the accent fill; secondary use surface.
   final bool primary;
+
+  /// Tighter padding for chrome-sized spots (the window title bar), where a
+  /// full 44px-tall button would be taller than the bar itself.
+  final bool dense;
 
   @override
   State<PixelButton> createState() => _PixelButtonState();
@@ -56,10 +61,9 @@ class _PixelButtonState extends State<PixelButton> {
               child: BevelBox(
                 color: fill,
                 style: _pressed ? BevelStyle.sunken : BevelStyle.raised,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 12,
-                ),
+                padding: widget.dense
+                    ? const EdgeInsets.symmetric(horizontal: 8, vertical: 3)
+                    : const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [

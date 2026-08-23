@@ -56,9 +56,7 @@ PartnerNotificationContent buildPartnerNotification({
   }
 
   final mood = status == null ? null : MoodCatalog.byId(status.moodId);
-  final title = mood == null
-      ? partnerName
-      : '$partnerName  ${mood.kaomoji}';
+  final title = mood == null ? partnerName : '$partnerName  ${mood.kaomoji}';
 
   final lines = <String>[];
 

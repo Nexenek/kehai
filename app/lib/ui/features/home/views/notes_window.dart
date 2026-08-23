@@ -13,9 +13,13 @@ import 'note_dialog.dart';
 /// The "notes" RetroWindow: a wrap grid of sticky notes (pinned first) and
 /// the add button.
 class NotesWindow extends StatelessWidget {
-  const NotesWindow({super.key, required this.viewModel});
+  const NotesWindow({super.key, required this.viewModel, this.onClose});
 
   final NotesViewModel viewModel;
+
+  /// Makes the window's ♥ functional when it's shown inside the desktop
+  /// companion drawer; decorative (null) in the other layouts.
+  final VoidCallback? onClose;
 
   void _openDialog(BuildContext context, {Note? existing}) {
     showNoteDialog(
@@ -52,6 +56,7 @@ class NotesWindow extends StatelessWidget {
 
     return RetroWindow(
       title: AppStrings.notesTitle,
+      onClose: onClose,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,

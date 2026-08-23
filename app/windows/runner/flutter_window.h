@@ -6,6 +6,7 @@
 
 #include <memory>
 
+#include "presence_channel.h"
 #include "win32_window.h"
 
 // A window that does nothing but host a Flutter view.
@@ -28,6 +29,11 @@ class FlutterWindow : public Win32Window {
 
   // The Flutter instance hosted by this window.
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
+
+  // Now-playing/idle MethodChannel backing WindowsPresenceService. Created
+  // once the engine's messenger exists, torn down with everything else in
+  // OnDestroy.
+  std::unique_ptr<PresenceChannel> presence_channel_;
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_

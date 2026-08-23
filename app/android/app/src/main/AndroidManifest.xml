@@ -84,6 +84,23 @@
             </intent-filter>
         </service>
 
+        <!-- Home-screen widget showing the partner's live status — the
+             signature "partner window" from design-language.md, shrunk to
+             widget size. Reads whatever KehaiTaskHandler / HomeViewModel
+             last wrote via home_widget (see partner_widget.dart); no
+             interactive callbacks, tap just opens MainActivity. -->
+        <receiver
+            android:name=".widget.PartnerWidgetReceiver"
+            android:exported="true"
+            android:label="@string/partner_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/partner_widget_info"/>
+        </receiver>
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

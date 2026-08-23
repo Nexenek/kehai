@@ -39,6 +39,8 @@ dependencies:
   device_info_plus: ^13.2.0
   dbus: ^0.7.15
   flutter_foreground_task: ^11.0.1
+  window_manager: ^0.5.2
+  home_widget: ^0.9.3
 dev_dependencies:
   flutter_test:
     sdk: flutter

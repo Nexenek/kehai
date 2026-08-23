@@ -141,19 +141,22 @@ void main() {
       expect(content.text, AppStrings.notificationDevicesNone);
     });
 
-    test('equal inputs produce equal content, so re-renders can be skipped', () {
-      final devices = [_device()];
-      final a = buildPartnerNotification(
-        partnerName: 'mati',
-        status: _status(note: 'hi'),
-        partnerDevices: devices,
-      );
-      final b = buildPartnerNotification(
-        partnerName: 'mati',
-        status: _status(note: 'hi'),
-        partnerDevices: devices,
-      );
-      expect(a, b);
-    });
+    test(
+      'equal inputs produce equal content, so re-renders can be skipped',
+      () {
+        final devices = [_device()];
+        final a = buildPartnerNotification(
+          partnerName: 'mati',
+          status: _status(note: 'hi'),
+          partnerDevices: devices,
+        );
+        final b = buildPartnerNotification(
+          partnerName: 'mati',
+          status: _status(note: 'hi'),
+          partnerDevices: devices,
+        );
+        expect(a, b);
+      },
+    );
   });
 }

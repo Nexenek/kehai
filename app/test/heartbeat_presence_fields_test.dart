@@ -145,7 +145,10 @@ void main() {
 
     presence.emit(
       const DevicePresence(
-        nowPlaying: NowPlaying(title: 'Marigold', state: NowPlayingState.playing),
+        nowPlaying: NowPlaying(
+          title: 'Marigold',
+          state: NowPlayingState.playing,
+        ),
         battery: 62,
         charging: false,
       ),

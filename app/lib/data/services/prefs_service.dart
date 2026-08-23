@@ -1,3 +1,5 @@
+import 'dart:ui' show Rect;
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Thin wrapper around [SharedPreferences] for the handful of values we
@@ -8,7 +10,11 @@ class PrefsService {
 
   static const _serverUrlKey = 'server_url';
   static const _inviteCodeKey = 'invite_code';
-  static const _askedNotificationPermissionKey = 'asked_notification_permission';
+  static const _askedNotificationPermissionKey =
+      'asked_notification_permission';
+  static const _windowBoundsKey = 'window_bounds';
+  static const _windowMaximizedKey = 'window_maximized';
+  static const _windowAlwaysOnTopKey = 'window_always_on_top';
 
   final SharedPreferences _prefs;
 
@@ -41,4 +47,33 @@ class PrefsService {
 
   Future<void> markAskedNotificationPermission() =>
       _prefs.setBool(_askedNotificationPermissionKey, true);
+
+  /// Desktop only (see [DesktopWindowService]): where the user left the
+  /// companion window last time, stored as "x,y,width,height". Null on first
+  /// run — and on anything unparseable, so a corrupted value just means
+  /// "dock me bottom-right again" rather than a crash on launch.
+  Rect? get windowBounds {
+    final raw = _prefs.getString(_windowBoundsKey);
+    if (raw == null) return null;
+    final parts = raw.split(',').map(double.tryParse).toList();
+    if (parts.length != 4 || parts.any((v) => v == null)) return null;
+    return Rect.fromLTWH(parts[0]!, parts[1]!, parts[2]!, parts[3]!);
+  }
+
+  Future<void> setWindowBounds(Rect bounds) => _prefs.setString(
+    _windowBoundsKey,
+    '${bounds.left},${bounds.top},${bounds.width},${bounds.height}',
+  );
+
+  /// Kept separately from [windowBounds] so a maximized window restores as
+  /// maximized without overwriting the pane size the user picked.
+  bool get windowMaximized => _prefs.getBool(_windowMaximizedKey) ?? false;
+
+  Future<void> setWindowMaximized(bool value) =>
+      _prefs.setBool(_windowMaximizedKey, value);
+
+  bool get windowAlwaysOnTop => _prefs.getBool(_windowAlwaysOnTopKey) ?? false;
+
+  Future<void> setWindowAlwaysOnTop(bool value) =>
+      _prefs.setBool(_windowAlwaysOnTopKey, value);
 }

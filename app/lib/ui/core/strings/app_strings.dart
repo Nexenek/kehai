@@ -84,6 +84,29 @@ class AppStrings {
   static const batteryLowTooltip = 'battery low';
   static const chargingTooltip = 'charging';
 
+  // Home — desktop companion tray (kb/platform-desktop.md "Desktop
+  // companion layout"): the bottom bar in the compact window, whose
+  // sections slide up as a drawer.
+  static const trayMood = 'mood';
+  static const trayDoodle = 'doodle';
+  static const trayCountdowns = 'countdowns';
+  static const trayNotes = 'notes';
+  static const trayCloseTooltip = 'close';
+  static String trayOpenTooltip(String section) => 'open $section';
+
+  // Desktop window chrome — our own title bar in place of the OS one.
+  static const minimizeTooltip = 'tuck us away ★';
+  static const closeWindowTooltip = 'close ♥';
+
+  // Home — always-on-top pin. Honest about Wayland: we can ask, but the
+  // compositor decides (see kb/platform-desktop.md).
+  static const alwaysOnTopOffTooltip =
+      'keep us on top of your other windows ✦ '
+      '(on wayland the compositor may quietly ignore this)';
+  static const alwaysOnTopOnTooltip =
+      'let other windows cover us again ✦ '
+      '(on wayland the compositor may quietly ignore this)';
+
   // Home — countdowns
   static const countdownsTitle = 'countdowns';
   static const countdownsEmpty =

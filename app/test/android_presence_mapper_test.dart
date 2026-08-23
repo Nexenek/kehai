@@ -63,7 +63,10 @@ void main() {
     });
 
     test('degrades to empty for junk instead of throwing', () {
-      expect(AndroidPresenceSnapshot.fromChannel(null), same(AndroidPresenceSnapshot.empty));
+      expect(
+        AndroidPresenceSnapshot.fromChannel(null),
+        same(AndroidPresenceSnapshot.empty),
+      );
       expect(
         AndroidPresenceSnapshot.fromChannel('not a map'),
         same(AndroidPresenceSnapshot.empty),
@@ -71,7 +74,9 @@ void main() {
     });
 
     test('missing keys mean "no signal", and screen defaults to on', () {
-      final snapshot = AndroidPresenceSnapshot.fromChannel(<Object?, Object?>{});
+      final snapshot = AndroidPresenceSnapshot.fromChannel(
+        <Object?, Object?>{},
+      );
       expect(snapshot.battery, isNull);
       expect(snapshot.charging, isNull);
       expect(snapshot.screenOn, isTrue);
@@ -187,7 +192,9 @@ void main() {
 
     test('blank artist/album collapse to null rather than empty strings', () {
       final snapshot = AndroidPresenceSnapshot.fromChannel(
-        _snapshot(sessions: [_session(artist: '   ', album: '')]),
+        _snapshot(
+          sessions: [_session(artist: '   ', album: '')],
+        ),
       );
       final nowPlaying = snapshot.nowPlaying()!;
       expect(nowPlaying.artist, isNull);
@@ -246,7 +253,10 @@ void main() {
       final snapshot = AndroidPresenceSnapshot.fromChannel(
         _snapshot(
           sessions: [
-            _session(package: 'com.google.android.apps.youtube.music', label: null),
+            _session(
+              package: 'com.google.android.apps.youtube.music',
+              label: null,
+            ),
           ],
         ),
       );
@@ -263,7 +273,9 @@ void main() {
 
     test('a whitespace-only label is treated as no label', () {
       final snapshot = AndroidPresenceSnapshot.fromChannel(
-        _snapshot(sessions: [_session(package: 'org.videolan.vlc', label: '   ')]),
+        _snapshot(
+          sessions: [_session(package: 'org.videolan.vlc', label: '   ')],
+        ),
       );
       expect(snapshot.nowPlaying()!.player, 'VLC');
     });

@@ -4,4 +4,9 @@
          is one of the few strings Android renders for us, so it carries
          the same voice as the in-app explainer: say what it's for. -->
     <string name="notification_listener_label">Kehai — what you\'re listening to</string>
+
+    <!-- Widget picker entry name. -->
+    <string name="partner_widget_label">Kehai — partner status</string>
+    <!-- Shown under the widget's name in the Android 12+ widget picker. -->
+    <string name="partner_widget_description">Your partner\'s mood and status, right on your home screen.</string>
 </resources>
