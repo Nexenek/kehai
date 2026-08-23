@@ -11,6 +11,10 @@ import '../../../core/widgets/bevel_box.dart';
 import '../../../core/widgets/pixel_button.dart';
 import '../../../core/widgets/retro_window.dart';
 import '../../doodle/doodle_canvas_dialog.dart';
+import '../../instants/instants_view_model.dart';
+import '../../instants/instants_window.dart';
+import '../../location/view_models/location_view_model.dart';
+import '../../location/views/location_window.dart';
 import '../../settings/views/phone_superpowers_screen.dart';
 import '../view_models/countdowns_view_model.dart';
 import '../view_models/doodle_view_model.dart';
@@ -38,6 +42,8 @@ class _HomeScreenState extends State<HomeScreen> {
   late final CountdownsViewModel _countdownsViewModel;
   late final NotesViewModel _notesViewModel;
   late final DoodleViewModel _doodleViewModel;
+  late final LocationViewModel _locationViewModel;
+  late final InstantsViewModel _instantsViewModel;
   final _noteController = TextEditingController();
   String _lastSyncedNote = '';
 
@@ -73,6 +79,16 @@ class _HomeScreenState extends State<HomeScreen> {
       authRepository: controller.authRepository!,
       doodleRepository: controller.doodleRepository!,
     )..init();
+
+    _locationViewModel = LocationViewModel(
+      authRepository: controller.authRepository!,
+      locationRepository: controller.locationRepository!,
+    )..init();
+
+    _instantsViewModel = InstantsViewModel(
+      authRepository: controller.authRepository!,
+      instantRepository: controller.instantRepository!,
+    )..init();
   }
 
   void _syncFromHomeViewModel() {
@@ -81,6 +97,9 @@ class _HomeScreenState extends State<HomeScreen> {
       _noteController.text = _viewModel.myNote;
     }
     _doodleViewModel.updatePartner(_viewModel.partner?.id);
+    // The partner's record carries their `ghost_until` along with their
+    // name, so this hands over both at once.
+    _locationViewModel.updatePartner(_viewModel.partner);
   }
 
   Future<void> _openDoodleCanvas() {
@@ -95,6 +114,8 @@ class _HomeScreenState extends State<HomeScreen> {
     _countdownsViewModel.dispose();
     _notesViewModel.dispose();
     _doodleViewModel.dispose();
+    _locationViewModel.dispose();
+    _instantsViewModel.dispose();
     super.dispose();
   }
 
@@ -111,6 +132,7 @@ class _HomeScreenState extends State<HomeScreen> {
               desktopOnline: _viewModel.partnerDesktopOnline,
               ambientLine: _viewModel.partnerAmbientLine,
               batteryInfo: _viewModel.partnerBatteryInfo,
+              distanceLine: _locationViewModel.distanceLine,
               partnerDoodle: _doodleViewModel.partnerDoodle,
               onSendDoodle: _openDoodleCanvas,
             )
@@ -143,6 +165,31 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (context, _) {
           if (_notesViewModel.isLoading) return const SizedBox.shrink();
           return NotesWindow(viewModel: _notesViewModel, onClose: onClose);
+        },
+      ),
+      instants: (context, onClose) => ListenableBuilder(
+        listenable: _instantsViewModel,
+        builder: (context, _) => InstantsWindow(
+          viewModel: _instantsViewModel,
+          onClose: onClose,
+        ),
+      ),
+      map: (context, onClose) => ListenableBuilder(
+        listenable: _locationViewModel,
+        builder: (context, _) {
+          if (_locationViewModel.isLoading) return const SizedBox.shrink();
+          return LocationWindow(
+            partnerName: _viewModel.partner?.name ?? '',
+            myPoint: _locationViewModel.myPoint,
+            partnerPoint: _locationViewModel.partnerPoint,
+            myGhost: _locationViewModel.myGhost,
+            partnerGhost: _locationViewModel.partnerGhost,
+            distanceLine: _locationViewModel.distanceLine,
+            onChooseGhost: _locationViewModel.chooseGhost,
+            ghostBusy: _locationViewModel.ghostBusy,
+            errorText: _locationViewModel.errorText,
+            onClose: onClose,
+          );
         },
       ),
       onOpenDoodle: _openDoodleCanvas,
@@ -199,9 +246,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (mini) return _buildMini();
                 return ListenableBuilder(
                   listenable: _doodleViewModel,
-                  builder: (context, _) => HomeBody(
-                    sections: _buildSections(context),
-                    desktop: DesktopWindowService.isSupported,
+                  // The location view model feeds the partner card's
+                  // distance line as well as its own section, so the card
+                  // has to rebuild when a new point lands.
+                  builder: (context, _) => ListenableBuilder(
+                    listenable: _locationViewModel,
+                    builder: (context, _) => HomeBody(
+                      sections: _buildSections(context),
+                      desktop: DesktopWindowService.isSupported,
+                    ),
                   ),
                 );
               },

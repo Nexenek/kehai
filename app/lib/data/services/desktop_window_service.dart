@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -35,21 +36,31 @@ class DesktopWindowService with WindowListener implements WindowModeEffects {
   /// it reads as "docked next to things" rather than jammed into the corner.
   static const double screenMargin = 24;
 
-  /// Whether the window behind the mini card is genuinely see-through, in
-  /// which case the card gets pixel-stepped corners.
+  /// The `app.kehai/window#setTransparent` channel: asks the runner to make
+  /// the OS window itself see-through (mini mode) or opaque again (expanded
+  /// mode). Windows answers via `DwmExtendFrameIntoClientArea`
+  /// (windows/runner/transparency_channel.cpp); Linux answers via an RGBA
+  /// visual on the GtkWindow, only when the screen is composited
+  /// (linux/runner/my_application.cc).
+  static const MethodChannel _windowChannel = MethodChannel('app.kehai/window');
+
+  /// Whether the window behind the mini card is genuinely see-through right
+  /// now, in which case the card drops its opaque fill and gets
+  /// pixel-stepped corners (kb/platform-desktop.md's degrade for a
+  /// non-compositing desktop).
   ///
-  /// Currently false on both platforms, and measured rather than assumed:
-  /// asking window_manager for a transparent background on Windows left the
-  /// window without WS_EX_LAYERED (checked with GetWindowLong on a real
-  /// build), so nothing would have shown through — and on Linux a
-  /// transparent background without an RGBA visual paints solid black. Both
-  /// need runner-side C++ (a layered/composited window), so until that
-  /// exists we ship the opaque pastel card with our 2px ink border, which is
-  /// the degrade kb/platform-desktop.md allows for exactly this case.
-  ///
-  /// Flip this to true once the runner supports it: [MiniPartnerWindow]
-  /// already draws the stepped corners behind this flag.
-  static const bool wantsTransparentMini = false;
+  /// This used to be a hard-coded `false`: asking window_manager for a
+  /// transparent background on Windows left the window without
+  /// WS_EX_LAYERED (checked with GetWindowLong on a real build), so nothing
+  /// would have shown through — and on Linux a transparent background
+  /// without an RGBA visual paints solid black. Both needed runner-side
+  /// C++, which now exists — but the answer is still asked for at runtime,
+  /// every time we enter mini mode ([setMiniTransparency], called from
+  /// [applyMini]/[applyExpanded]), rather than assumed: a Wayland/X11
+  /// screen without a compositor (true e.g. under plain WSLg) or a Windows
+  /// DWM call that fails both report back false here, and the mini card
+  /// keeps the opaque pastel look [MiniPartnerWindow] falls back to.
+  final ValueNotifier<bool> wantsTransparentMini = ValueNotifier<bool>(false);
 
   /// Test seam: widget tests run on the Linux VM, where the real check would
   /// say "yes, desktop" and then blow up on the missing method channel.
@@ -125,6 +136,31 @@ class DesktopWindowService with WindowListener implements WindowModeEffects {
     }
   }
 
+  /// Asks the runner to turn genuine window transparency on or off, and
+  /// reports back whether it actually took — never assumed, always the
+  /// runner's answer.
+  ///
+  /// Best-effort and capability-checked, like every other member here: off
+  /// desktop, in tests (no runner registered so the channel throws
+  /// [MissingPluginException]), on an uncomposited Linux screen, or if the
+  /// Windows DWM call itself fails, this returns `false` and
+  /// [wantsTransparentMini] stays false. Public (rather than folded into
+  /// [applyMini]) so tests can drive the channel round-trip directly
+  /// without a real window_manager binding.
+  Future<bool> setMiniTransparency(bool enabled) async {
+    if (!isSupported) return false;
+    try {
+      final result = await _windowChannel.invokeMethod<bool>(
+        'setTransparent',
+        enabled,
+      );
+      return result ?? false;
+    } catch (error) {
+      debugPrint('mini transparency unavailable: $error');
+      return false;
+    }
+  }
+
   /// Called once the app knows whether it has a partner to show: a paired
   /// user's window tucks itself into the little card, everyone else stays on
   /// the panel they're onboarding in.
@@ -165,11 +201,19 @@ class DesktopWindowService with WindowListener implements WindowModeEffects {
     await windowManager.setAlwaysOnTop(true);
     await windowManager.setSkipTaskbar(true);
     await windowManager.show();
+    // Ask last, once the card is actually the shape/size it'll stay: the
+    // runner's answer decides whether MiniPartnerWindow gets the
+    // see-through, pixel-stepped look or the opaque pastel fallback.
+    wantsTransparentMini.value = await setMiniTransparency(true);
   });
 
   /// Grows back into the companion panel from the card's corner.
   @override
   Future<void> applyExpanded() => _guard(() async {
+    // The full panel never wears the glassy look — restore opaque before
+    // anything else so there's no glassy flash mid-resize.
+    wantsTransparentMini.value = false;
+    await setMiniTransparency(false);
     final card = await windowManager.getBounds();
     await _prefs?.setMiniWindowPosition(card.topLeft);
 

@@ -57,6 +57,8 @@ class HomeSections {
     required this.mood,
     required this.countdowns,
     required this.notes,
+    required this.map,
+    required this.instants,
     required this.onOpenDoodle,
     required this.onLogOut,
     this.extras = const <Widget>[],
@@ -69,6 +71,13 @@ class HomeSections {
   final HomeSectionBuilder mood;
   final HomeSectionBuilder countdowns;
   final HomeSectionBuilder notes;
+
+  /// "where we are" — the map, distance-apart line and my ghost switch
+  /// (kb/contracts.md "Location").
+  final HomeSectionBuilder map;
+
+  /// Instants — the shared quick-photo feed (kb/contracts.md "Instants").
+  final HomeSectionBuilder instants;
 
   /// Doodles have no drawer: the tray's ✎ opens the canvas dialog directly.
   final VoidCallback onOpenDoodle;
@@ -166,6 +175,10 @@ class HomeColumn extends StatelessWidget {
               sections.countdowns(context, null),
               const SizedBox(height: 20),
               sections.notes(context, null),
+              const SizedBox(height: 20),
+              sections.instants(context, null),
+              const SizedBox(height: 20),
+              sections.map(context, null),
             ],
           ),
         ),
@@ -175,8 +188,8 @@ class HomeColumn extends StatelessWidget {
 }
 
 /// "Our desktop": partner window (and my mood beneath it) held in a fixed
-/// left column, countdowns and notes as their own scrolling columns beside
-/// it. No tray — at this width nothing needs hiding.
+/// left column, countdowns, notes and the map as their own scrolling
+/// columns beside it. No tray — at this width nothing needs hiding.
 class HomeSpread extends StatelessWidget {
   const HomeSpread({super.key, required this.sections});
 
@@ -216,6 +229,21 @@ class HomeSpread extends StatelessWidget {
           const SizedBox(width: 16),
           Expanded(
             child: SingleChildScrollView(child: sections.notes(context, null)),
+          ),
+          const SizedBox(width: 16),
+          // Map and instants share the rightmost column — five columns
+          // would cramp the grid, and photos read fine under the map.
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  sections.map(context, null),
+                  const SizedBox(height: 16),
+                  sections.instants(context, null),
+                ],
+              ),
+            ),
           ),
         ],
       ),

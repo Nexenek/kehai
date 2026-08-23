@@ -26,6 +26,7 @@ class PartnerCard extends StatelessWidget {
     required this.desktopOnline,
     this.ambientLine,
     this.batteryInfo = BatteryGlyphInfo.none,
+    this.distanceLine,
     this.partnerDoodle,
     this.onSendDoodle,
   });
@@ -42,6 +43,12 @@ class PartnerCard extends StatelessWidget {
 
   /// Partner's phone low-battery/charging glyph — see [resolvePhoneBattery].
   final BatteryGlyphInfo batteryInfo;
+
+  /// "~4.2 km apart ♡" (kb/contracts.md "Distance-apart"), already resolved
+  /// by [formatDistanceApart] — null whenever it should be hidden (stale or
+  /// missing points, paused partner). Deliberately quiet: it's a small line
+  /// under the ambient one, not a headline.
+  final String? distanceLine;
 
   /// Most recent doodle authored by the partner (not mine), if any.
   final Doodle? partnerDoodle;
@@ -122,6 +129,16 @@ class PartnerCard extends StatelessWidget {
                     ? FontStyle.italic
                     : FontStyle.normal,
               ),
+            ),
+          ],
+          if (distanceLine != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              distanceLine!,
+              key: const Key('partner-distance-line'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.caption.copyWith(color: colors.accent2),
             ),
           ],
           if (partnerDoodle != null) ...[

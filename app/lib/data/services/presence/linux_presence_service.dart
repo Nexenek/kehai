@@ -2,14 +2,19 @@ import 'dart:async';
 
 import 'package:dbus/dbus.dart';
 
+import '../../../domain/activity_mapper.dart';
 import '../../../domain/models/now_playing.dart';
+import 'linux_foreground_app_detector.dart';
 import 'mpris_mapper.dart';
 import 'presence_service.dart';
 
 /// Linux implementation of [PresenceService]: MPRIS 2 for now-playing,
 /// `org.freedesktop.ScreenSaver` then GNOME `Mutter.IdleMonitor` for idle
 /// time — see kb/platform-desktop.md's "Now-playing" / "Idle / presence"
-/// tables. Polls every [pollInterval] rather than chasing
+/// tables — plus [LinuxForegroundAppDetector] for the opt-in "focused-app
+/// status" `activity` signal (kb/features.md), gated the same way as
+/// `WindowsPresenceService.shareFocusedApp`. Polls every [pollInterval]
+/// rather than chasing
 /// `PropertiesChanged` signals: MPRIS players come and go on the session
 /// bus constantly (a browser opening/closing an MPRIS name on every tab
 /// navigation is common), so subscribing per-player would mean
@@ -25,18 +30,34 @@ import 'presence_service.dart';
 class LinuxPresenceService implements PresenceService {
   LinuxPresenceService({
     DBusClient? sessionBus,
+    LinuxForegroundAppDetector? foregroundAppDetector,
     this.pollInterval = const Duration(seconds: 5),
   }) : _ownsBus = sessionBus == null,
-       _bus = sessionBus ?? DBusClient.session();
+       _bus = sessionBus ?? DBusClient.session(),
+       _foregroundAppDetector =
+           foregroundAppDetector ?? LinuxForegroundAppDetector();
 
   final DBusClient _bus;
   final bool _ownsBus;
   final Duration pollInterval;
+  final LinuxForegroundAppDetector _foregroundAppDetector;
 
   final _controller = StreamController<DevicePresence>.broadcast();
   DevicePresence _current = DevicePresence.empty;
   Timer? _timer;
   bool _polling = false;
+
+  /// The `shareFocusedApp` per-device opt-in (kb/features.md "Focused-app
+  /// status") — same contract as `WindowsPresenceService.shareFocusedApp`:
+  /// off means [_pollActivity] skips [_foregroundAppDetector] entirely
+  /// rather than reading it and discarding the result. Set by
+  /// `AppController` from `PrefsService` on launch and again the instant
+  /// the sharing-settings toggle changes.
+  bool shareFocusedApp = false;
+
+  /// The `shareUnknownApps` opt-in — see `WindowsPresenceService`'s field
+  /// of the same name. Meaningless while [shareFocusedApp] is off.
+  bool shareUnknownApps = false;
 
   static const _callTimeout = Duration(seconds: 2);
 
@@ -59,9 +80,11 @@ class LinuxPresenceService implements PresenceService {
     try {
       final nowPlaying = await _pollNowPlaying();
       final idleSeconds = await _pollIdleSeconds();
+      final activity = await _pollActivity();
       final next = DevicePresence(
         nowPlaying: nowPlaying,
         idleSeconds: idleSeconds,
+        activity: activity,
       );
       if (next != _current) {
         _current = next;
@@ -123,6 +146,26 @@ class LinuxPresenceService implements PresenceService {
       // or is just slow to answer — skip it, not fatal to the poll.
       return null;
     }
+  }
+
+  /// [shareFocusedApp]-gated focused-window read, mapped through
+  /// [ActivityMapper] into the `activity` value [_poll] puts on
+  /// [DevicePresence]. Returns null immediately (no detection attempted at
+  /// all) when the opt-in is off — mirrors
+  /// `WindowsPresenceService._pollActivity`.
+  Future<String?> _pollActivity() async {
+    if (!shareFocusedApp) return null;
+    LinuxForegroundWindow? window;
+    try {
+      window = await _foregroundAppDetector.detect().timeout(_callTimeout);
+    } catch (_) {
+      return null;
+    }
+    final label = ActivityMapper.mapLinuxClass(
+      window?.wmClass,
+      shareUnknown: shareUnknownApps,
+    );
+    return ActivityMapper.refineBrowserLabel(label, window?.title);
   }
 
   Future<int?> _pollIdleSeconds() async {

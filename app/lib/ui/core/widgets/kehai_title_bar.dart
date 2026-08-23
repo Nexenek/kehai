@@ -114,7 +114,7 @@ class KehaiTitleBar extends StatelessWidget {
           ),
           const SizedBox(width: 6),
           WinGlyphButton(
-            glyph: '♥',
+            glyph: '♥\uFE0E',
             tooltip: AppStrings.closeWindowTooltip,
             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
             onTap: onClose ?? service.windowMode.closeToMini,

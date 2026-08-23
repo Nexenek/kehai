@@ -7,6 +7,8 @@ import 'data/repositories/countdown_repository.dart';
 import 'data/repositories/couple_repository.dart';
 import 'data/repositories/device_repository.dart';
 import 'data/repositories/doodle_repository.dart';
+import 'data/repositories/instant_repository.dart';
+import 'data/repositories/location_repository.dart';
 import 'data/repositories/note_repository.dart';
 import 'data/repositories/status_repository.dart';
 import 'data/services/background/kehai_foreground_task.dart';
@@ -14,6 +16,7 @@ import 'data/services/device_info_service.dart';
 import 'data/services/heartbeat_service.dart';
 import 'data/services/pocketbase_client.dart';
 import 'data/services/presence/android/android_presence_service.dart';
+import 'data/services/presence/linux_presence_service.dart';
 import 'data/services/presence/presence_service.dart';
 import 'data/services/presence/presence_service_factory.dart';
 import 'data/services/presence/windows_presence_service.dart';
@@ -51,6 +54,8 @@ class AppController extends ChangeNotifier {
   CountdownRepository? countdownRepository;
   NoteRepository? noteRepository;
   DoodleRepository? doodleRepository;
+  InstantRepository? instantRepository;
+  LocationRepository? locationRepository;
   HeartbeatService? heartbeatService;
 
   String get serverUrl => prefs.serverUrl ?? '';
@@ -112,6 +117,8 @@ class AppController extends ChangeNotifier {
       countdownRepository = CountdownRepository(pb);
       noteRepository = NoteRepository(pb);
       doodleRepository = DoodleRepository(pb);
+      instantRepository = InstantRepository(pb);
+      locationRepository = LocationRepository(pb, authRepository!);
       heartbeatService = HeartbeatService(
         deviceRepository!,
         deviceInfoService,
@@ -160,15 +167,16 @@ class AppController extends ChangeNotifier {
   }
 
   /// Pushes the persisted opt-ins onto whichever concrete [presenceService]
-  /// this platform has — a no-op on Linux/stub, since neither wires
-  /// activity detection up yet (kb/features.md defers Linux to a later
-  /// pass).
+  /// this platform has — a no-op on the stub (nothing to wire there).
   void _applyActivitySharingPrefs() {
     final service = presenceService;
     if (service is WindowsPresenceService) {
       service.shareFocusedApp = prefs.shareFocusedApp;
       service.shareUnknownApps = prefs.shareUnknownApps;
     } else if (service is AndroidPresenceService) {
+      service.shareFocusedApp = prefs.shareFocusedApp;
+      service.shareUnknownApps = prefs.shareUnknownApps;
+    } else if (service is LinuxPresenceService) {
       service.shareFocusedApp = prefs.shareFocusedApp;
       service.shareUnknownApps = prefs.shareUnknownApps;
     }

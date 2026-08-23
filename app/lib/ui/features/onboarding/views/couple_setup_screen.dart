@@ -214,7 +214,7 @@ class _InviteCodeReveal extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          '(｡♥‿♥｡)',
+          '(｡♥\uFE0E‿♥\uFE0E｡)',
           style: AppTextStyles.kaomojiMedium.copyWith(color: colors.accent),
         ),
         const SizedBox(height: 12),

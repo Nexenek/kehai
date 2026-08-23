@@ -40,6 +40,16 @@ func bindRoutes(app core.App) {
 
 		se.Router.POST("/api/heartbeat", heartbeat).Bind(apis.RequireAuth("users"))
 
+		// OwnTracks ingest does its own HTTP Basic auth (the tracker app
+		// can't hold a PB session) — no RequireAuth middleware here.
+		se.Router.POST("/api/owntracks", owntracksIngest)
+
+		se.App.Cron().MustAdd("locations_purge", "0 4 * * *", func() {
+			if err := purgeOldLocations(se.App); err != nil {
+				se.App.Logger().Error("locations purge failed", "error", err)
+			}
+		})
+
 		return se.Next()
 	})
 }

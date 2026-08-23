@@ -125,10 +125,15 @@ class WindowsPresenceService implements PresenceService {
   Future<String?> _pollActivity() async {
     if (!shareFocusedApp) return null;
     final foreground = await getForegroundApp();
-    return ActivityMapper.mapWindowsExe(
+    final label = ActivityMapper.mapWindowsExe(
       foreground?.exe,
       shareUnknown: shareUnknownApps,
     );
+    // Title-based refinement is opt-in-independent (kb/features.md): it
+    // only ever swaps one fixed label for another fixed label, never
+    // surfaces the title itself, so it applies whether or not
+    // shareUnknownApps is on.
+    return ActivityMapper.refineBrowserLabel(label, foreground?.title);
   }
 
   /// Raw passthrough of the native `getForegroundApp` result — the

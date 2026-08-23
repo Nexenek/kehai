@@ -29,6 +29,7 @@ void main() {
     VoidCallback? onDragStart,
     bool phoneOnline = false,
     bool desktopOnline = false,
+    bool transparentCorners = false,
   }) async {
     // The real thing: 240×150, the size DesktopWindowService gives it.
     tester.view.devicePixelRatio = 1.0;
@@ -48,6 +49,7 @@ void main() {
             ambientLine: ambientLine,
             onExpand: onExpand,
             onDragStart: onDragStart,
+            transparentCorners: transparentCorners,
           ),
         ),
       ),
@@ -141,5 +143,72 @@ void main() {
     await pumpCard(tester, status: _status('working'), desktopOnline: true);
 
     expect(find.byTooltip(AppStrings.onDesktopTooltip), findsWidgets);
+  });
+
+  group('when the window behind it is genuinely transparent', () {
+    testWidgets('the card drops its opaque fill — only the border remains', (
+      tester,
+    ) async {
+      await pumpCard(
+        tester,
+        status: _status('happy'),
+        transparentCorners: true,
+      );
+
+      final decoratedBoxes = tester
+          .widgetList<DecoratedBox>(find.byType(DecoratedBox))
+          .toList();
+      final cardBox = decoratedBoxes.firstWhere(
+        (box) => (box.decoration as BoxDecoration).border != null,
+      );
+      expect((cardBox.decoration as BoxDecoration).color, isNull);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('stays opaque-filled when transparency is not active', (
+      tester,
+    ) async {
+      await pumpCard(tester, status: _status('happy'));
+
+      final decoratedBoxes = tester
+          .widgetList<DecoratedBox>(find.byType(DecoratedBox))
+          .toList();
+      final cardBox = decoratedBoxes.firstWhere(
+        (box) => (box.decoration as BoxDecoration).border != null,
+      );
+      expect((cardBox.decoration as BoxDecoration).color, isNotNull);
+    });
+
+    testWidgets('the kaomoji gets a legibility halo so it reads on any '
+        'desktop background', (tester) async {
+      await pumpCard(
+        tester,
+        status: _status('happy'),
+        transparentCorners: true,
+      );
+
+      final kaomoji = tester.widget<Text>(
+        find.descendant(
+          of: find.byType(PartnerPortrait),
+          matching: find.text(MoodCatalog.byId('happy').kaomoji),
+        ),
+      );
+      expect(kaomoji.style?.shadows, isNotNull);
+      expect(kaomoji.style!.shadows!, isNotEmpty);
+    });
+
+    testWidgets('no halo when the card has its own opaque background', (
+      tester,
+    ) async {
+      await pumpCard(tester, status: _status('happy'));
+
+      final kaomoji = tester.widget<Text>(
+        find.descendant(
+          of: find.byType(PartnerPortrait),
+          matching: find.text(MoodCatalog.byId('happy').kaomoji),
+        ),
+      );
+      expect(kaomoji.style?.shadows, isNull);
+    });
   });
 }

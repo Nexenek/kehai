@@ -71,7 +71,7 @@ PartnerNotificationContent buildPartnerNotification({
   return PartnerNotificationContent(title: title, text: lines.join('\n'));
 }
 
-/// The notification's stand-in for the partner card's lit/dim 📱/🖥 pixel
+/// The notification's stand-in for the partner card's lit/dim/pixel
 /// glyphs. Only lit devices are named — a dim glyph reads fine in a
 /// window with two fixed slots, but in a notification an unlit label is
 /// just a lie you have to squint at.

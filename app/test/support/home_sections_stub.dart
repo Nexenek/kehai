@@ -9,6 +9,8 @@ const stubPartnerText = 'partner-window';
 const stubMoodText = 'mood-section';
 const stubCountdownsText = 'countdowns-section';
 const stubNotesText = 'notes-section';
+const stubMapText = 'map-section';
+const stubInstantsText = 'instants-section';
 
 /// Records what the tray asked for, so tests can assert on the doodle button
 /// opening the canvas rather than a drawer.
@@ -31,6 +33,8 @@ HomeSections stubSections({SectionTaps? taps, HomeSectionBuilder? mood}) {
     mood: mood ?? (context, onClose) => section(stubMoodText, onClose),
     countdowns: (context, onClose) => section(stubCountdownsText, onClose),
     notes: (context, onClose) => section(stubNotesText, onClose),
+    map: (context, onClose) => section(stubMapText, onClose),
+    instants: (context, onClose) => section(stubInstantsText, onClose),
     onOpenDoodle: () => recorded.doodle++,
     onLogOut: () => recorded.logOut++,
   );

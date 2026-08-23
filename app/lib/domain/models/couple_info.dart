@@ -22,12 +22,26 @@ class CoupleInfo {
   );
 }
 
-/// Clean view of the partner's `users` record (name + couple only — the
-/// rest of their auth record isn't our business).
+/// Clean view of the partner's `users` record (name, and the one field
+/// they share with us on purpose — the rest of their auth record isn't our
+/// business).
 @immutable
 class Partner {
-  const Partner({required this.id, required this.name});
+  const Partner({required this.id, required this.name, this.ghostUntil});
 
   final String id;
   final String name;
+
+  /// Their `users.ghost_until` — the honest location pause (kb/contracts.md
+  /// "Ghost mode"). Deliberately visible to us: the whole design is that a
+  /// paused location says so instead of quietly going stale. Null means
+  /// they're not paused. Read it through [resolveGhostState].
+  final DateTime? ghostUntil;
+
+  Partner copyWith({DateTime? ghostUntil, bool clearGhostUntil = false}) =>
+      Partner(
+        id: id,
+        name: name,
+        ghostUntil: clearGhostUntil ? null : (ghostUntil ?? this.ghostUntil),
+      );
 }

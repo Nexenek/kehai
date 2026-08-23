@@ -81,7 +81,7 @@ class _TitleBar extends StatelessWidget {
           ),
           const SizedBox(width: 6),
           WinGlyphButton(
-            glyph: '♥',
+            glyph: '♥\uFE0E',
             tooltip: onClose == null ? 'close (decorative)' : 'close',
             onTap: onClose,
           ),

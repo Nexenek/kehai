@@ -52,7 +52,7 @@ void main() {
     );
   }
 
-  testWidgets('wears the app name and real ★ / ♥ window controls', (
+  testWidgets('wears the app name and real ★ / ♥\uFE0E window controls', (
     tester,
   ) async {
     var minimized = 0;
@@ -67,7 +67,7 @@ void main() {
     expect(find.text(AppStrings.appName), findsOneWidget);
 
     await tester.tap(find.text('★'));
-    await tester.tap(find.text('♥'));
+    await tester.tap(find.text('♥\uFE0E'));
     await tester.pump();
 
     expect(minimized, 1);
@@ -91,7 +91,7 @@ void main() {
     expect(drags, 1);
 
     // The window controls are not part of the drag region.
-    await tester.drag(find.text('♥'), const Offset(40, 20));
+    await tester.drag(find.text('♥\uFE0E'), const Offset(40, 20));
     await tester.pump();
     expect(drags, 1);
 

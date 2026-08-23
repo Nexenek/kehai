@@ -86,6 +86,18 @@ void main() {
     expect(find.text(stubCountdownsText), findsNothing);
   });
 
+  testWidgets('the map button opens the location drawer', (tester) async {
+    await pumpTray(tester);
+
+    await tester.tap(find.byKey(const Key('tray-map')));
+    await tester.pumpAndSettle();
+
+    expect(drawerOffset(tester), Offset.zero);
+    expect(find.text(stubMapText), findsOneWidget);
+    // Five buttons still fit the pane without an overflow.
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets("the section's own close closes the drawer", (tester) async {
     await pumpTray(tester);
 

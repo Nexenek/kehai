@@ -299,8 +299,8 @@ void main() {
     test('threads the caller-supplied activity straight through', () {
       final now = DateTime.fromMillisecondsSinceEpoch(2000000);
       final presence = AndroidPresenceSnapshot.fromChannel(_snapshot())
-          .toPresence(now: now, activity: 'gaming 🎮');
-      expect(presence.activity, 'gaming 🎮');
+          .toPresence(now: now, activity: 'gaming');
+      expect(presence.activity, 'gaming');
     });
 
     test('a null activity (opt-in off, or nothing mapped) stays null', () {

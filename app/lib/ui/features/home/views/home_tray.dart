@@ -5,11 +5,12 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/bevel_box.dart';
 import '../../../core/widgets/pixel_hourglass.dart';
+import '../../../core/widgets/pixel_map_pin.dart';
 import 'home_layout.dart';
 
 /// The tray sections that open as a drawer. Doodle is deliberately absent —
 /// its button opens the canvas dialog instead (kb/platform-desktop.md).
-enum TraySection { mood, countdowns, notes }
+enum TraySection { mood, countdowns, notes, instants, map }
 
 /// Slide-up timing for the drawer. One short, well-behaved move, per
 /// design-language.md's "smooth ≠ busy".
@@ -60,6 +61,8 @@ class _CompanionHomeState extends State<CompanionHome> {
     TraySection.mood => widget.sections.mood,
     TraySection.countdowns => widget.sections.countdowns,
     TraySection.notes => widget.sections.notes,
+    TraySection.instants => widget.sections.instants,
+    TraySection.map => widget.sections.map,
   };
 
   @override
@@ -129,7 +132,7 @@ class _CompanionHomeState extends State<CompanionHome> {
   }
 }
 
-/// The bottom bar itself: four chunky pixel buttons, glyph over label.
+/// The bottom bar itself: five chunky pixel buttons, glyph over label.
 class _TrayBar extends StatelessWidget {
   const _TrayBar({
     required this.active,
@@ -157,7 +160,7 @@ class _TrayBar extends StatelessWidget {
             Expanded(
               child: _TrayButton(
                 buttonKey: const Key('tray-mood'),
-                glyph: _textGlyph('♥'),
+                glyph: _textGlyph('♥\uFE0E'),
                 label: AppStrings.trayMood,
                 selected: active == TraySection.mood,
                 onTap: () => onSelect(TraySection.mood),
@@ -191,6 +194,28 @@ class _TrayBar extends StatelessWidget {
                 label: AppStrings.trayNotes,
                 selected: active == TraySection.notes,
                 onTap: () => onSelect(TraySection.notes),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: _TrayButton(
+                buttonKey: const Key('tray-instants'),
+                // ◉ (BMP "fisheye") reads as a camera lens and, unlike an emoji camera,
+                // can't be hijacked by Android's color-emoji font.
+                glyph: _textGlyph('◉'),
+                label: AppStrings.trayInstants,
+                selected: active == TraySection.instants,
+                onTap: () => onSelect(TraySection.instants),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: _TrayButton(
+                buttonKey: const Key('tray-map'),
+                glyph: (color) => PixelMapPin(color: color),
+                label: AppStrings.trayMap,
+                selected: active == TraySection.map,
+                onTap: () => onSelect(TraySection.map),
               ),
             ),
           ],

@@ -27,6 +27,9 @@ bool FlutterWindow::OnCreate() {
   RegisterPlugins(flutter_controller_->engine());
   presence_channel_ = std::make_unique<PresenceChannel>(
       flutter_controller_->engine()->messenger());
+  transparency_channel_ = std::make_unique<TransparencyChannel>(
+      flutter_controller_->engine()->messenger(),
+      [this]() { return GetHandle(); });
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
@@ -42,6 +45,7 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  transparency_channel_ = nullptr;
   presence_channel_ = nullptr;
   if (flutter_controller_) {
     flutter_controller_ = nullptr;

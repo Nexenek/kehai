@@ -42,6 +42,9 @@ dependencies:
   window_manager: ^0.5.2
   home_widget: ^0.9.3
   tray_manager: ^0.5.3
+  flutter_map: ^8.3.1
+  latlong2: ^0.10.1
+  image_picker: ^1.2.3
 dev_dependencies:
   flutter_test:
     sdk: flutter

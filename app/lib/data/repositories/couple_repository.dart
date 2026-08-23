@@ -1,6 +1,7 @@
 import 'package:pocketbase/pocketbase.dart';
 
 import '../../domain/models/couple_info.dart';
+import '../../domain/models/ghost_state.dart';
 import 'auth_repository.dart';
 
 /// Wraps the custom /api/couple/create and /api/couple/join routes, plus
@@ -40,7 +41,13 @@ class CoupleRepository {
       final record = await _pb
           .collection('users')
           .getFirstListItem('couple = "$coupleId" && id != "$myId"');
-      return Partner(id: record.id, name: record.get<String>('name'));
+      return Partner(
+        id: record.id,
+        name: record.get<String>('name'),
+        // Empty (or missing, while the phase-3 migration is still
+        // landing) simply means they aren't paused.
+        ghostUntil: parseGhostUntil(record.get<String>('ghost_until', '')),
+      );
     } on ClientException catch (e) {
       // 404 just means the partner hasn't joined yet.
       if (e.statusCode == 404) return null;

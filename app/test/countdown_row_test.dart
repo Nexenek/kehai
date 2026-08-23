@@ -20,7 +20,7 @@ void main() {
         8,
         23,
       ), // same calendar date as `now`, different time
-      kaomoji: '(｡♥‿♥｡)',
+      kaomoji: '(｡♥\uFE0E‿♥\uFE0E｡)',
     );
 
     await tester.pumpWidget(
@@ -34,7 +34,7 @@ void main() {
 
     expect(find.text(AppStrings.countdownToday), findsOneWidget);
     expect(find.text('date night'), findsOneWidget);
-    expect(find.text('(｡♥‿♥｡)'), findsOneWidget);
+    expect(find.text('(｡♥\uFE0E‿♥\uFE0E｡)'), findsOneWidget);
   });
 
   testWidgets('CountdownRow renders "in N days" for a future countdown', (

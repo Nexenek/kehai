@@ -61,10 +61,19 @@ class _MiniPartnerWindowState extends State<MiniPartnerWindow> {
         ? MoodCatalog.byId(widget.status!.moodId)
         : null;
     final line = widget.ambientLine;
+    final transparent = widget.transparentCorners;
+
+    TextStyle legible(TextStyle style) =>
+        transparent ? style.copyWith(shadows: _legibilityHalo) : style;
 
     final card = Container(
       decoration: BoxDecoration(
-        color: colors.surface,
+        // A genuinely see-through window shows the desktop straight
+        // through, so the fill drops out entirely — only the ink border
+        // (and the pixel-stepped clip below) draw the card's silhouette.
+        // Where we're not transparent, the pastel fill is what makes this
+        // read as a card at all.
+        color: transparent ? null : colors.surface,
         border: Border.all(
           color: _hovered ? colors.accent : colors.ink,
           width: 2,
@@ -83,8 +92,8 @@ class _MiniPartnerWindowState extends State<MiniPartnerWindow> {
                       : widget.partnerName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.caption.copyWith(
-                    color: colors.chromeAlt,
+                  style: legible(
+                    AppTextStyles.caption.copyWith(color: colors.chromeAlt),
                   ),
                 ),
               ),
@@ -94,27 +103,29 @@ class _MiniPartnerWindowState extends State<MiniPartnerWindow> {
               ),
             ],
           ),
-          Expanded(child: PartnerPortrait(mood: mood)),
+          Expanded(child: PartnerPortrait(mood: mood, legible: transparent)),
           SizedBox(
             height: 18,
             child: line != null
                 ? MarqueeText(
                     text: line.text,
-                    style: AppTextStyles.caption.copyWith(
-                      color: line.kind == AmbientLineKind.nowPlaying
-                          ? colors.accent2
-                          : colors.ink,
-                      fontStyle: line.kind == AmbientLineKind.away
-                          ? FontStyle.italic
-                          : FontStyle.normal,
+                    style: legible(
+                      AppTextStyles.caption.copyWith(
+                        color: line.kind == AmbientLineKind.nowPlaying
+                            ? colors.accent2
+                            : colors.ink,
+                        fontStyle: line.kind == AmbientLineKind.away
+                            ? FontStyle.italic
+                            : FontStyle.normal,
+                      ),
                     ),
                   )
                 : Text(
                     mood?.label ?? AppStrings.miniNobodyYet,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.caption.copyWith(
-                      color: colors.chromeAlt,
+                    style: legible(
+                      AppTextStyles.caption.copyWith(color: colors.chromeAlt),
                     ),
                   ),
           ),
@@ -202,6 +213,17 @@ class _PixelCornerClipper extends CustomClipper<Path> {
   bool shouldReclip(_PixelCornerClipper oldClipper) => false;
 }
 
+/// A soft dark-under-light halo so the mini card's text and kaomoji stay
+/// readable when they're sitting directly on an arbitrary desktop
+/// background (transparent mode) rather than our own pastel fill: the dark
+/// layer keeps it legible over bright wallpaper, the light layer keeps it
+/// legible over dark wallpaper, and stacked with no offset neither reads as
+/// a directional drop shadow.
+const List<Shadow> _legibilityHalo = [
+  Shadow(color: Color(0xCC000000), blurRadius: 3),
+  Shadow(color: Color(0xCCFFFFFF), blurRadius: 6),
+];
+
 /// The partner, as art.
 ///
 /// Today that's their mood kaomoji at display size. This widget exists as
@@ -210,23 +232,26 @@ class _PixelCornerClipper extends CustomClipper<Path> {
 /// over later without the card around it moving a pixel: swap the [Text] for
 /// an [Image]/sprite-sheet frame and nothing else changes.
 class PartnerPortrait extends StatelessWidget {
-  const PartnerPortrait({super.key, required this.mood});
+  const PartnerPortrait({super.key, required this.mood, this.legible = false});
 
   final Mood? mood;
+
+  /// True when this portrait may be sitting directly over an unknown
+  /// desktop background (the mini card is transparent) rather than our own
+  /// surface colour — see [_legibilityHalo].
+  final bool legible;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    var style = AppTextStyles.kaomojiLarge.copyWith(
+      color: mood?.colorOf(colors) ?? colors.ink,
+    );
+    if (legible) style = style.copyWith(shadows: _legibilityHalo);
     return Center(
       child: FittedBox(
         fit: BoxFit.scaleDown,
-        child: Text(
-          mood?.kaomoji ?? '(. .)',
-          maxLines: 1,
-          style: AppTextStyles.kaomojiLarge.copyWith(
-            color: mood?.colorOf(colors) ?? colors.ink,
-          ),
-        ),
+        child: Text(mood?.kaomoji ?? '(. .)', maxLines: 1, style: style),
       ),
     );
   }
@@ -252,15 +277,22 @@ class MiniWindowHost extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = DesktopWindowService.instance;
-    return MiniPartnerWindow(
-      partnerName: partnerName,
-      status: status,
-      phoneOnline: phoneOnline,
-      desktopOnline: desktopOnline,
-      ambientLine: ambientLine,
-      transparentCorners: DesktopWindowService.wantsTransparentMini,
-      onExpand: service.windowMode.expand,
-      onDragStart: service.startDragging,
+    // A second listenable on top of the home screen's ListenableBuilder on
+    // windowMode: mode flips to mini synchronously, but whether the window
+    // actually went see-through is a runner round-trip that lands slightly
+    // later — this is what repaints the card once that answer is in.
+    return ValueListenableBuilder<bool>(
+      valueListenable: service.wantsTransparentMini,
+      builder: (context, transparent, _) => MiniPartnerWindow(
+        partnerName: partnerName,
+        status: status,
+        phoneOnline: phoneOnline,
+        desktopOnline: desktopOnline,
+        ambientLine: ambientLine,
+        transparentCorners: transparent,
+        onExpand: service.windowMode.expand,
+        onDragStart: service.startDragging,
+      ),
     );
   }
 }

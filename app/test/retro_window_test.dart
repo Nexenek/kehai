@@ -19,6 +19,6 @@ void main() {
     expect(find.text('hello, love'), findsOneWidget);
     // Decorative win-chrome glyphs.
     expect(find.text('★'), findsOneWidget);
-    expect(find.text('♥'), findsOneWidget);
+    expect(find.text('♥\uFE0E'), findsOneWidget);
   });
 }

@@ -50,7 +50,7 @@ class AppStrings {
   static const inviteCodeExplainer =
       'send this to your person so they can join ヾ(＾-＾)ノ';
   static const copyCode = 'copy';
-  static const codeCopied = 'copied! (｡♥‿♥｡)';
+  static const codeCopied = 'copied! (｡♥\uFE0E‿♥\uFE0E｡)';
   static const back = 'back';
   static const enterCodeLabel = 'their invite code';
   static const enterCodeHint = 'e.g. AB12CD';
@@ -98,16 +98,16 @@ class AppStrings {
   // Neither control ends the app: Kehai lives in the tray, so ★ and ♥ both
   // fold the window back into the little always-there card.
   static const minimizeTooltip = 'tuck us away ★';
-  static const closeWindowTooltip = 'back to the little window ♥';
+  static const closeWindowTooltip = 'back to the little window ♥\uFE0E';
 
   // Desktop tray — the pixel heart that's always there.
   static const trayTooltip = 'Kehai — czuję, że tam jesteś';
-  static const trayOpen = 'open kehai ♡';
+  static const trayOpen = 'open kehai ♡\uFE0E';
   static const trayMini = 'just the little one';
   static const trayQuit = 'quit for real';
 
   // The little window (mini state).
-  static const miniExpandTooltip = 'open the big window ♡';
+  static const miniExpandTooltip = 'open the big window ♡\uFE0E';
   static const miniDragHint = 'drag me anywhere';
   static const miniNobodyYet = 'nobody here yet (｡•ᴗ•｡)';
 
@@ -142,8 +142,8 @@ class AppStrings {
 
   // Home — together / anniversary
   static String togetherDays(int days) =>
-      'together $days ${days == 1 ? 'day' : 'days'} ♡';
-  static const setAnniversary = 'set your day ♡';
+      'together $days ${days == 1 ? 'day' : 'days'} ♡\uFE0E';
+  static const setAnniversary = 'set your day ♡\uFE0E';
   static const anniversaryDialogTitle = 'your day together';
   static const anniversaryDialogBody = 'when did you two get together?';
   static const saveAnniversary = 'save';
@@ -166,12 +166,12 @@ class AppStrings {
   static const untitledNote = 'untitled';
 
   // Home — doodles
-  static const doodleDialogTitle = 'draw something for them ♡';
+  static const doodleDialogTitle = 'draw something for them ♡\uFE0E';
   static const doodleUndo = 'undo';
   static const doodleClear = 'clear';
   static const doodleSend = 'send';
   static const doodleSending = 'sending…';
-  static const doodleSent = 'sent! (｡•̀ᴗ-)♡';
+  static const doodleSent = 'sent! (｡•̀ᴗ-)♡\uFE0E';
   static const doodleSendFailed = "couldn't send that (・_・;) — try again?";
   static const sendDoodleTooltip = 'send a doodle ✎';
   static const drawBackButton = 'draw back ✎';
@@ -180,6 +180,57 @@ class AppStrings {
   static const brushBigTooltip = 'big brush';
   static String fromThemCaption(String relative) => 'from them · $relative';
   static String youSentCaption(String relative) => 'you sent · $relative';
+
+  // Home — location (kb/contracts.md "Location", ADR-6). Voice rule from
+  // design-language.md: "Privacy controls use honest language: ghost mode
+  // says 'Location paused — partner can see it's paused'." Nothing here
+  // guilts anyone for pausing, and nothing implies secret tracking.
+  static const locationTitle = 'where we are';
+  static const locationEmpty = 'no location yet ( . .)';
+  static const locationEmptyHint =
+      "once OwnTracks is pointed at your server, your dots show up here.";
+  static const locationYou = 'you';
+  static const locationRecenter = 'centre on us';
+  static const mapAttribution = '© OpenStreetMap';
+
+  /// Per-marker freshness chip: "you · 5m ago", "mati · just now".
+  static String locationAsOf(String who, String relative) => '$who · $relative';
+
+  // Distance-apart (kb/contracts.md: "~X km apart ♡").
+  static String distanceApart(String km) => '~$km km apart ♡\uFE0E';
+  static const distanceTogether = 'right here together ♡\uFE0E';
+
+  // Their pause, seen from my side — honest, never accusing.
+  static String partnerGhostUntil(String name, String when) =>
+      "$name's location is paused — until $when";
+  static String partnerGhostIndefinite(String name) =>
+      "$name's location is paused — until they turn it back on";
+
+  // My own sharing switch.
+  static const ghostRowSharing = 'your location: sharing ♡\uFE0E';
+  static String ghostRowPausedUntil(String when) =>
+      'your location: paused until $when';
+  static const ghostRowPausedIndefinite =
+      'your location: paused until you turn it back on';
+  static const ghostExplainer =
+      "pausing is honest — they see that it's paused, not a dot quietly "
+      "going stale.";
+  static const ghostPauseHour = '1h';
+  static const ghostPauseTomorrow = 'until tomorrow';
+  static const ghostPauseIndefinite = 'until I turn it on';
+  static const ghostResume = 'sharing on';
+  static const ghostPauseHourTooltip = 'pause sharing for an hour';
+  static const ghostPauseTomorrowTooltip =
+      'pause sharing until 8:00 tomorrow morning';
+  static const ghostPauseIndefiniteTooltip =
+      'pause sharing until you turn it back on yourself';
+  static const ghostResumeTooltip = 'share your location again';
+  static const ghostFailed =
+      "couldn't change that just now (・_・;) — try again?";
+
+  // Tray button for the map section.
+  static const trayInstants = 'photos';
+  static const trayMap = 'map';
 
   // Ongoing notification (Android) — the pocket version of the partner
   // window. Composed in Dart (see buildPartnerNotification) and handed to
@@ -192,10 +243,10 @@ class AppStrings {
   static const notificationStartingText = 'looking for your person… (｡•ᴗ•｡)';
   static const notificationWaitingTitle = 'waiting for your person';
   static const notificationWaitingText =
-      "we'll fill this in the moment they're around ♡";
-  static const notificationDevicesPhone = '📱 phone';
-  static const notificationDevicesDesktop = '🖥 computer';
-  static const notificationDevicesBoth = '📱 phone · 🖥 computer';
+      "we'll fill this in the moment they're around ♡\uFE0E";
+  static const notificationDevicesPhone = 'phone';
+  static const notificationDevicesDesktop = 'computer';
+  static const notificationDevicesBoth = 'phone · computer';
   static const notificationDevicesNone = offlineTooltip;
 
   // Phone superpowers (Android permissions/onboarding screen).
@@ -237,7 +288,7 @@ class AppStrings {
   static const superpowerServiceBody =
       "runs the little background helper that sends your status and keeps "
       "their window fresh when Kehai isn't the app you're looking at.";
-  static const superpowerServiceRunning = 'running ♡';
+  static const superpowerServiceRunning = 'running ♡\uFE0E';
   static const superpowerServiceStopped = 'off';
   static const superpowerServiceStart = 'start';
   static const superpowerServiceStop = 'stop';
@@ -248,14 +299,14 @@ class AppStrings {
   static const superpowerUsageAccessBody =
       "android calls this \"usage access\". it lets Kehai see which app is "
       "in front right now, so your person's card can say something like "
-      "\"coding ⌨\" or \"gaming 🎮\" instead of just \"on their phone\". we "
+      "\"coding ⌨\uFE0E\" or \"gaming\" instead of just \"on their phone\". we "
       "only ever read the current app's name — never anything on screen — "
       "and you can revoke it in settings any second.";
 
   static const shareFocusedAppTitle = 'share what app you\'re focused on';
   static const shareFocusedAppBody =
-      "tells them what app you're focused on, like \"coding ⌨\" or "
-      "\"gaming 🎮\" — off means we never look. it sits one rung below "
+      "tells them what app you're focused on, like \"coding ⌨\uFE0E\" or "
+      "\"gaming\" — off means we never look. it sits one rung below "
       "now-playing, so if you're mid-song it says that instead.";
   static const shareFocusedAppOn = 'sharing ✓';
   static const shareFocusedAppOff = 'off';
@@ -284,4 +335,27 @@ class AppStrings {
   static const genericError = "something went sideways (；一_一) — try again?";
   static const retry = 'try again';
   static const cancel = 'cancel';
+
+  // Home — instants (kb/contracts.md "Instants": quick photos shared
+  // through the day). Not wired into the home tray/layout in this batch —
+  // see the top-of-file note in ui/features/instants/instants_window.dart.
+  static const instantsTitle = 'instants';
+  static const instantsEmpty =
+      "no instants yet — show them your day! (´｡• ᵕ •｡`)";
+  static const sendInstant = 'send an instant';
+  static const sendInstantTooltip = 'send an instant';
+  static const sendInstantDialogTitle = 'send an instant';
+  static const instantCaptureCamera = 'camera';
+  static const instantCaptureGallery = 'gallery';
+  static const instantChoosePhoto = 'choose a photo';
+  static const instantChangePhoto = 'choose a different one';
+  static const instantCaptionHint = 'add a caption… (optional)';
+  static const instantSend = 'send';
+  static const instantSending = 'sending…';
+  static const instantSent = 'sent! (｡•̀ᴗ-)♡\uFE0E';
+  static const instantSendFailed = "couldn't send that (・_・;) — try again?";
+  static const instantPickFailed =
+      "couldn't get that photo (・_・;) — try again?";
+  static const deleteInstantTooltip = 'delete this instant';
+  static const instantsLoadMore = 'load more';
 }

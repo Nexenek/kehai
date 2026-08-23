@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 /// A hand-drawn 7×9 pixel hourglass — the countdowns glyph.
 ///
-/// Drawn rather than typed: ⌛/⏳ land in whatever emoji font the OS happens
+/// Drawn rather than typed:/land in whatever emoji font the OS happens
 /// to have and come out full-colour and round-cornered, which is exactly the
 /// opposite of the crisp nearest-neighbour look design-language.md asks for.
 /// A handful of aligned rects always renders sharp, at any scale, on every

@@ -29,7 +29,7 @@ class MoodCatalog {
   const MoodCatalog._();
 
   static const List<Mood> all = [
-    Mood(id: 'happy', kaomoji: '(´｡• ᵕ •｡`) ♡', label: 'happy', colorOf: _mint),
+    Mood(id: 'happy', kaomoji: '(´｡• ᵕ •｡`) ♡\uFE0E', label: 'happy', colorOf: _mint),
     Mood(
       id: 'sleepy',
       kaomoji: '(￣o￣) zzZ',

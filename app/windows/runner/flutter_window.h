@@ -7,6 +7,7 @@
 #include <memory>
 
 #include "presence_channel.h"
+#include "transparency_channel.h"
 #include "win32_window.h"
 
 // A window that does nothing but host a Flutter view.
@@ -34,6 +35,11 @@ class FlutterWindow : public Win32Window {
   // once the engine's messenger exists, torn down with everything else in
   // OnDestroy.
   std::unique_ptr<PresenceChannel> presence_channel_;
+
+  // The mini-transparency MethodChannel backing
+  // DesktopWindowService.setMiniTransparency. Same lifetime as
+  // presence_channel_.
+  std::unique_ptr<TransparencyChannel> transparency_channel_;
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_

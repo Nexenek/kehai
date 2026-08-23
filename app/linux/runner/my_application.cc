@@ -10,6 +10,21 @@
 struct _MyApplication {
   GtkApplication parent_instance;
   char** dart_entrypoint_arguments;
+
+  // Whether the top-level window actually got an RGBA visual applied below
+  // — true only on a compositing screen. This is what the
+  // `app.kehai/window#setTransparent` handler reports back to
+  // DesktopWindowService.setMiniTransparency, so a non-compositing desktop
+  // (a bare X11 server, notably WSLg's default) cleanly reports "no" rather
+  // than painting a solid black card.
+  gboolean transparency_capable;
+
+  // Kept so transparency_method_call_cb can flip the FlView's background
+  // colour at runtime, well after activate() has returned.
+  FlView* flutter_view;
+
+  // Owns the `app.kehai/window` channel for the app's lifetime.
+  FlMethodChannel* window_channel;
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
@@ -17,6 +32,49 @@ G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView* view) {
   gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
+}
+
+// Handles `app.kehai/window#setTransparent` — the mini partner card asking
+// for (or releasing) genuine per-pixel transparency. Mirrors
+// windows/runner/transparency_channel.cpp's contract: always responds
+// (never leaves Dart hanging), and the bool it succeeds with is the real
+// answer, not an assumption — false whenever this screen never got an RGBA
+// visual, regardless of what was asked for.
+static void transparency_method_call_cb(FlMethodChannel* channel,
+                                        FlMethodCall* method_call,
+                                        gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  g_autoptr(GError) error = nullptr;
+
+  if (g_strcmp0(fl_method_call_get_name(method_call), "setTransparent") !=
+      0) {
+    if (!fl_method_call_respond_not_implemented(method_call, &error)) {
+      g_warning("Failed to respond to %s: %s",
+               fl_method_call_get_name(method_call), error->message);
+    }
+    return;
+  }
+
+  FlValue* args = fl_method_call_get_args(method_call);
+  gboolean want_transparent = args != nullptr &&
+                             fl_value_get_type(args) == FL_VALUE_TYPE_BOOL &&
+                             fl_value_get_bool(args);
+  gboolean applied = want_transparent && self->transparency_capable;
+
+  if (self->flutter_view != nullptr) {
+    GdkRGBA color;
+    // Real alpha only when we're both asked for it and actually capable —
+    // otherwise back to the same opaque black the view starts with, which
+    // the app's own UI paints over completely.
+    gdk_rgba_parse(&color, applied ? "#00000000" : "#000000");
+    fl_view_set_background_color(self->flutter_view, &color);
+  }
+
+  g_autoptr(FlValue) result = fl_value_new_bool(applied);
+  if (!fl_method_call_respond_success(method_call, result, &error)) {
+    g_warning("Failed to respond to app.kehai/window#setTransparent: %s",
+             error->message);
+  }
 }
 
 // Implements GApplication::activate.
@@ -32,9 +90,10 @@ static void my_application_activate(GApplication* application) {
   // in case the window manager does more exotic layout, e.g. tiling.
   // If running on Wayland assume the header bar will work (may need changing
   // if future cases occur).
+  GdkScreen* screen = gtk_window_get_screen(window);
+
   gboolean use_header_bar = TRUE;
 #ifdef GDK_WINDOWING_X11
-  GdkScreen* screen = gtk_window_get_screen(window);
   if (GDK_IS_X11_SCREEN(screen)) {
     const gchar* wm_name = gdk_x11_screen_get_window_manager_name(screen);
     if (g_strcmp0(wm_name, "GNOME Shell") != 0) {
@@ -42,6 +101,23 @@ static void my_application_activate(GApplication* application) {
     }
   }
 #endif
+
+  // Mini partner card transparency (kb/platform-desktop.md): only worth
+  // attempting on a compositing screen. Wayland compositors and composited
+  // X11 (the GNOME/KDE/etc default) support an RGBA visual; a bare X11
+  // server — notably WSLg's default — does not, and asking for one there
+  // just paints solid black once the background colour below goes
+  // transparent. Guarded here rather than assumed, so
+  // transparency_method_call_cb has a real answer to give back.
+  self->transparency_capable = FALSE;
+  if (screen != nullptr && gdk_screen_is_composited(screen)) {
+    GdkVisual* rgba_visual = gdk_screen_get_rgba_visual(screen);
+    if (rgba_visual != nullptr) {
+      gtk_widget_set_visual(GTK_WIDGET(window), rgba_visual);
+      gtk_widget_set_app_paintable(GTK_WIDGET(window), TRUE);
+      self->transparency_capable = TRUE;
+    }
+  }
   if (use_header_bar) {
     GtkHeaderBar* header_bar = GTK_HEADER_BAR(gtk_header_bar_new());
     gtk_widget_show(GTK_WIDGET(header_bar));
@@ -61,9 +137,13 @@ static void my_application_activate(GApplication* application) {
   FlView* view = fl_view_new(project);
   GdkRGBA background_color;
   // Background defaults to black, override it here if necessary, e.g. #00000000
-  // for transparent.
+  // for transparent. Left opaque at startup regardless of
+  // transparency_capable: the window opens in expanded mode
+  // (window_mode.dart), and app.kehai/window#setTransparent is what flips
+  // this once the mini card actually needs it.
   gdk_rgba_parse(&background_color, "#000000");
   fl_view_set_background_color(view, &background_color);
+  self->flutter_view = view;
   gtk_widget_show(GTK_WIDGET(view));
   gtk_container_add(GTK_CONTAINER(window), GTK_WIDGET(view));
 
@@ -74,6 +154,13 @@ static void my_application_activate(GApplication* application) {
   gtk_widget_realize(GTK_WIDGET(view));
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
+
+  g_autoptr(FlStandardMethodCodec) window_codec = fl_standard_method_codec_new();
+  self->window_channel = fl_method_channel_new(
+      fl_engine_get_binary_messenger(fl_view_get_engine(view)),
+      "app.kehai/window", FL_METHOD_CODEC(window_codec));
+  fl_method_channel_set_method_call_handler(
+      self->window_channel, transparency_method_call_cb, self, nullptr);
 
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }
@@ -121,6 +208,8 @@ static void my_application_shutdown(GApplication* application) {
 static void my_application_dispose(GObject* object) {
   MyApplication* self = MY_APPLICATION(object);
   g_clear_pointer(&self->dart_entrypoint_arguments, g_strfreev);
+  g_clear_object(&self->window_channel);
+  self->flutter_view = nullptr;
   G_OBJECT_CLASS(my_application_parent_class)->dispose(object);
 }
 

@@ -108,7 +108,7 @@ void main() {
   });
 
   group('closing collapses — it never quits', () {
-    test('♥ on our title bar shrinks to the little window', () async {
+    test('♥\uFE0E on our title bar shrinks to the little window', () async {
       final c = controller();
 
       await c.closeToMini();

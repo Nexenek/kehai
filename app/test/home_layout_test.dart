@@ -89,7 +89,9 @@ void main() {
       expect(find.byKey(const Key('tray-doodle')), findsOneWidget);
       expect(find.byKey(const Key('tray-countdowns')), findsOneWidget);
       expect(find.byKey(const Key('tray-notes')), findsOneWidget);
+      expect(find.byKey(const Key('tray-map')), findsOneWidget);
       expect(find.text(stubNotesText), findsNothing);
+      expect(find.text(stubMapText), findsNothing);
     });
 
     testWidgets('stretching the window wide swaps in the spread', (
@@ -104,6 +106,8 @@ void main() {
       expect(find.text(stubMoodText), findsOneWidget);
       expect(find.text(stubCountdownsText), findsOneWidget);
       expect(find.text(stubNotesText), findsOneWidget);
+      // The map is the spread's third content column.
+      expect(find.text(stubMapText), findsOneWidget);
       expect(find.byKey(const Key('tray-mood')), findsNothing);
     });
 
@@ -136,6 +140,7 @@ void main() {
       expect(find.text(stubMoodText), findsOneWidget);
       expect(find.text(stubCountdownsText), findsOneWidget);
       expect(find.text(stubNotesText), findsOneWidget);
+      expect(find.text(stubMapText), findsOneWidget);
     });
   });
 }
