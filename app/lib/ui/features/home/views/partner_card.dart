@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../../domain/models/ambient_line.dart';
+import '../../../../domain/models/device_status.dart';
 import '../../../../domain/models/doodle.dart';
 import '../../../../domain/models/mood.dart';
 import '../../../../domain/models/partner_status.dart';
+import '../../../../domain/models/utc_offset.dart';
 import '../../../core/strings/app_strings.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -17,7 +21,7 @@ import 'device_indicator.dart';
 /// The signature partner window: mood kaomoji, note, "updated X ago", the
 /// device-source indicator glyphs, and (kb/platform-desktop.md's
 /// "Telemetry contract") the ambient line + battery glyph.
-class PartnerCard extends StatelessWidget {
+class PartnerCard extends StatefulWidget {
   const PartnerCard({
     super.key,
     required this.partnerName,
@@ -29,6 +33,7 @@ class PartnerCard extends StatelessWidget {
     this.distanceLine,
     this.partnerDoodle,
     this.onSendDoodle,
+    this.partnerDevices = const [],
   });
 
   final String partnerName;
@@ -57,11 +62,55 @@ class PartnerCard extends StatelessWidget {
   /// affordance and the "draw back" button shown next to [partnerDoodle].
   final VoidCallback? onSendDoodle;
 
+  /// The partner's `devices` records — used only to derive the "what time
+  /// is it there" line (kb/features.md "Timezone dual clocks") via
+  /// [resolvePartnerUtcOffset]. Defaults to empty so existing callers keep
+  /// compiling unchanged; the line simply stays hidden until a caller
+  /// starts passing the partner's device list.
+  final List<DeviceStatus> partnerDevices;
+
+  @override
+  State<PartnerCard> createState() => _PartnerCardState();
+}
+
+class _PartnerCardState extends State<PartnerCard> {
+  Timer? _clockTicker;
+
+  @override
+  void initState() {
+    super.initState();
+    // Ticks the dual-clock line forward once a minute — nothing else on
+    // this card needs a timer of its own (everything else re-renders off
+    // of `ListenableBuilder`/prop changes upstream).
+    _clockTicker = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _clockTicker?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final mood = status != null ? MoodCatalog.byId(status!.moodId) : null;
-    final line = ambientLine;
+    final status = widget.status;
+    final mood = status != null ? MoodCatalog.byId(status.moodId) : null;
+    final line = widget.ambientLine;
+    final batteryInfo = widget.batteryInfo;
+    final distanceLine = widget.distanceLine;
+    final partnerDoodle = widget.partnerDoodle;
+    final partnerName = widget.partnerName;
+    final phoneOnline = widget.phoneOnline;
+    final desktopOnline = widget.desktopOnline;
+    final onSendDoodle = widget.onSendDoodle;
+    final dualClockLine = resolveDualClockLine(
+      mine: UtcOffset.now(),
+      theirs: resolvePartnerUtcOffset(widget.partnerDevices),
+      nowUtc: DateTime.now().toUtc(),
+    );
 
     return RetroWindow(
       title: partnerName.isEmpty
@@ -98,7 +147,7 @@ class PartnerCard extends StatelessWidget {
               ),
               if (onSendDoodle != null) ...[
                 const SizedBox(width: 6),
-                _DoodleAffordance(onTap: onSendDoodle!),
+                _DoodleAffordance(onTap: onSendDoodle),
               ],
             ],
           ),
@@ -108,10 +157,10 @@ class PartnerCard extends StatelessWidget {
               mood.label,
               style: AppTextStyles.body2.copyWith(color: colors.ink),
             ),
-          if (status != null && status!.note.isNotEmpty) ...[
+          if (status != null && status.note.isNotEmpty) ...[
             const SizedBox(height: 6),
             Text(
-              status!.note,
+              status.note,
               style: AppTextStyles.body2.copyWith(color: colors.ink),
             ),
           ],
@@ -134,8 +183,18 @@ class PartnerCard extends StatelessWidget {
           if (distanceLine != null) ...[
             const SizedBox(height: 4),
             Text(
-              distanceLine!,
+              distanceLine,
               key: const Key('partner-distance-line'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.caption.copyWith(color: colors.accent2),
+            ),
+          ],
+          if (dualClockLine != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              dualClockLine,
+              key: const Key('partner-dual-clock-line'),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTextStyles.caption.copyWith(color: colors.accent2),
@@ -143,11 +202,11 @@ class PartnerCard extends StatelessWidget {
           ],
           if (partnerDoodle != null) ...[
             const SizedBox(height: 10),
-            _PartnerDoodle(doodle: partnerDoodle!, onDrawBack: onSendDoodle),
+            _PartnerDoodle(doodle: partnerDoodle, onDrawBack: onSendDoodle),
           ],
           const SizedBox(height: 10),
           Text(
-            status != null ? timeAgo(status!.updated) : '',
+            status != null ? timeAgo(status.updated) : '',
             style: AppTextStyles.caption.copyWith(color: colors.chromeAlt),
           ),
         ],

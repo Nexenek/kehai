@@ -61,6 +61,15 @@ class _SharingSettingsContentState extends State<_SharingSettingsContent> {
   );
 
   @override
+  void dispose() {
+    // Stops the preview's ~3s poll timer — it has no reason to keep
+    // running (or holding a MethodChannel/process-spawning probe alive)
+    // once this dialog is closed.
+    _viewModel.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     // Small pop-up window, but the two toggle rows' body copy is long
@@ -109,6 +118,19 @@ class _SharingSettingsContentState extends State<_SharingSettingsContent> {
                     body: AppStrings.shareUnknownAppsBody,
                     value: _viewModel.shareUnknownApps,
                     onChanged: _viewModel.setShareUnknownApps,
+                  ),
+                  const SizedBox(height: 14),
+                  // "What we'd share right now" — refreshed every ~3s by
+                  // the view model while this dialog is open, so a silent
+                  // failure (Wayland/GNOME with no reader, an unmapped app)
+                  // is visible instead of the partner's card just never
+                  // saying anything (kb/features.md "Focused-app status").
+                  Text(
+                    _viewModel.preview,
+                    key: const Key('sharing-preview'),
+                    style: AppTextStyles.caption.copyWith(
+                      color: colors.accent,
+                    ),
                   ),
                   const SizedBox(height: 18),
                   Align(

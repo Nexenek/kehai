@@ -94,6 +94,17 @@ class AppStrings {
   static const trayCloseTooltip = 'close';
   static String trayOpenTooltip(String section) => 'open $section';
 
+  // Home — tray overflow redesign (2026-08-23): five primaries (mood,
+  // doodle, pet, thumb-kiss, ✚ more) plus a grid behind ✚ for the rest —
+  // ten sections no longer fit five buttons. Grid tiles reuse the labels
+  // above (trayCountdowns/trayNotes/trayInstants/trayMap) plus these two.
+  static const trayPet = 'pet';
+  static const trayThumbKiss = 'kiss';
+  static const trayMore = 'more';
+  static const trayBoard = 'board';
+  static const trayQuestion = 'question';
+  static const trayBackToMoreTooltip = 'back to more';
+
   // Desktop window chrome — our own title bar in place of the OS one.
   // Neither control ends the app: Kehai lives in the tray, so ★ and ♥ both
   // fold the window back into the little always-there card.
@@ -379,4 +390,133 @@ class AppStrings {
       "couldn't get that photo (・_・;) — try again?";
   static const deleteInstantTooltip = 'delete this instant';
   static const instantsLoadMore = 'load more';
+
+  // Home — dual clocks (kb/features.md "Timezone dual clocks"). The line
+  // only shows when the partner's freshest device offset differs from
+  // mine; ☾/☀ reflects whether it's currently night/day for them, not a
+  // decoration.
+  static String theirTimeLine(String time, String glyph) =>
+      'their time: $time $glyph';
+
+  // Home — thumb-kiss (kb/features.md "Thumb-kiss"). Copy sets latency
+  // expectations honestly, per design-language.md's "errors are honest and
+  // gentle" voice rule — realtime lag here isn't a bug, so we say so.
+  static const thumbKissTitle = 'thumb-kiss';
+  static const thumbKissHint = 'hold your thumb here… feel for them ♡';
+  static const thumbKissMetMessage = 'you found each other ♡';
+  static const thumbKissLatencyHint =
+      "a little lag is normal — it's really them, just a beat behind";
+
+  // Home — the shared pet (kb/features.md "Shared pet"). The hard rule from
+  // that file's anti-features list: "The pet gets 'sleepy', never dies." So
+  // nothing in this block nags, scolds, warns or counts down to anything
+  // bad. The most negative line we ever show is wistful — "dreaming of
+  // snacks…" — and the pet is always waiting patiently, never suffering.
+  // Not wired into the home tray/layout in this batch — see the
+  // top-of-file note in ui/features/pet/pet_window.dart.
+  static const petTitle = 'our pet';
+  static const petDefaultName = 'kehai-chan';
+  static const petAdopting = 'waking them up… (｡•ᴗ•｡)';
+  static const petUnavailable =
+      "your pet is napping somewhere we can't reach (・_・;) — try again in "
+      "a bit?";
+  static const petActionFailed =
+      "that didn't reach your server (・_・;) — they're fine, try again?";
+
+  // Care buttons.
+  static const petFeed = 'feed ♡︎';
+  static const petPet = 'pet';
+  static const petDress = 'dress ▾';
+  static const petRename = 'rename';
+  static const petFeedTooltip = 'give them a snack';
+  static const petPetTooltip = 'give them a cuddle';
+  static const petDressTooltip = 'change how they look';
+  static const petRenameTooltip = 'give them a new name';
+
+  // Derived state lines (ui/features/pet/pet_state.dart): hunger from how
+  // long since the last snack, cuddles from the last pet, plus a 23:00–07:00
+  // nap. None of these is a failure state — there is no failure state.
+  static const petLineFullCozy = 'full and cosy ♡︎ (´｡• ᵕ •｡`)';
+  static const petLineFullCuddles = 'full ♡︎ — and up for a cuddle (｡･ω･｡)';
+  static const petLinePeckishCozy = 'peckish, but comfy (｡•ᴗ•｡)';
+  static const petLinePeckishCuddles = 'peckish, and cuddle-shaped (｡•ᴗ•｡)';
+  static const petLineHungryCozy = 'dreaming of snacks… (￣ω￣)';
+  static const petLineHungryCuddles = 'dreaming of snacks and cuddles… (￣ω￣)';
+  static const petLineSleepy = 'fast asleep (￣o￣) zzZ';
+  static const petLineSleepyHungry = 'dreaming of snacks… (￣o￣) zzZ';
+
+  // Dress-up dialog.
+  static const petDressTitle = 'dress up';
+  static const petVariantLabel = 'who are they?';
+  static const petOutfitLabel = 'what are they wearing?';
+  static const petVariantBlob = 'blob';
+  static const petVariantCat = 'cat';
+  static const petVariantStar = 'star';
+  static const petOutfitNone = 'nothing';
+  static const petOutfitBow = 'bow';
+  static const petOutfitScarf = 'scarf';
+  static const petOutfitCrown = 'crown';
+  static const petDressSave = 'save';
+
+  // Rename dialog.
+  static const petRenameTitle = 'their name';
+  static const petNameLabel = 'name';
+  static const petNameHint = 'e.g. "kehai-chan"';
+  static const petRenameSave = 'save';
+
+  // Focused-app sharing preview ("what we'd share right now" — bug-fix pass
+  // on kb/features.md "Focused-app status", 2026-08-23): a live status line
+  // under the desktop sharing-settings toggles and the Android superpowers
+  // screen's matching window, so a silent failure (Wayland/GNOME with no
+  // window reader, Usage Access revoked, an app with no mapping-table entry)
+  // is visible instead of the partner's card just... never saying anything.
+  static const sharingPreviewOff = 'sharing is off — we never look';
+  static const sharingPreviewNoReading =
+      "can't see the focused window on this desktop (・_・;)";
+  static const sharingPreviewNoReadingAndroid =
+      "can't see the focused app right now (・_・;)";
+  static const sharingPreviewUnmapped =
+      "this app isn't on the list — sharing nothing (turn on 'unknown apps' "
+      "to share its name)";
+  static String sharingPreviewSharing(String label) =>
+      "right now they'd see: $label";
+  static const sharingPreviewGrantUsageAccess =
+      'grant usage access first (・_・;)';
+
+  // Home — daily question, blind reveal (kb/features.md: "both answer
+  // blind, reveal together — ritual + conversation fuel"). Not wired into
+  // the home tray/layout in this batch — see the top-of-file note in
+  // ui/features/questions/daily_question_window.dart. Anti-features rule:
+  // no streaks, no "you missed a day" — a missed day is simply never
+  // mentioned anywhere in this copy.
+  static const questionsTitle = 'daily question';
+  static const questionsLoading = "finding today's question… (｡•ᴗ•｡)";
+  static const questionsAnswerHint = 'type your answer…';
+  static const questionsSubmit = 'seal it ✉';
+  static const questionsUpdateAnswer = 'update your answer';
+  static const questionsWaitingTitle = 'sealed until you both answer';
+  static const questionsWaitingBody = '✉ waiting for them…';
+  static const questionsYourAnswerLabel = 'you said';
+  static const questionsPartnerAnswerLabel = 'they said';
+  static const questionsRevealedTitle = 'you both answered! ♡';
+  static const questionsLoadFailed =
+      "couldn't find today's question (・_・;) — try again?";
+  static const questionsSubmitFailed = "that didn't send (・_・;) — try again?";
+
+  // Home — shared board (kb/features.md "Shared board": a freeform
+  // decorable pinboard both partners arrange together). Not wired into the
+  // home tray/layout in this batch — see the top-of-file note in
+  // ui/features/board/board_window.dart.
+  static const boardTitle = 'our board';
+  static const boardEmpty =
+      "an empty board… let's fill it together (´｡• ᵕ •｡`)";
+  static const boardAdd = 'add';
+  static const boardAddMenuTitle = 'add to the board';
+  static const boardAddNote = 'note ✎';
+  static const boardAddPhoto = 'photo ◉';
+  static const boardAddSticker = 'sticker ♥︎';
+  static const boardNoteDialogTitle = 'pin a note';
+  static const boardPhotoDialogTitle = 'pin a photo';
+  static const boardStickerDialogTitle = 'pick a sticker';
+  static const boardDeleteItemTooltip = 'remove this from the board';
 }

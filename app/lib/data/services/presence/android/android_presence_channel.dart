@@ -63,6 +63,15 @@ class AndroidPresenceChannel {
     }
   }
 
+  /// One-shot raw read of the current foreground package — gated on the
+  /// Usage Access OS grant only, NOT on [setForegroundAppEnabled] — so the
+  /// "phone superpowers" screen can preview "what we'd share right now"
+  /// (kb/features.md "Focused-app status") before the user turns
+  /// `shareFocusedApp` on. Never run through `ActivityMapper` here; that's
+  /// the caller's job, same as `WindowsPresenceService.getForegroundApp`.
+  Future<String?> getForegroundAppPreview() =>
+      _invoke<String>('getForegroundAppPreview');
+
   /// Every call is swallowed on failure: on a device where a signal isn't
   /// available (or the plugin isn't attached to this engine yet) the
   /// answer is "no reading", never an exception bubbling into the

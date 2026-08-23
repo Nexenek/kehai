@@ -184,6 +184,30 @@ class KehaiForegroundTask {
     }
   }
 
+  /// Pushes a one-shot "go re-read your sharing prefs" signal to the
+  /// background isolate via `sendDataToTask` — the instant path
+  /// `KehaiTaskHandler.onReceiveData`/`_applySharingPrefs` use so a toggle
+  /// flipped from the superpowers screen or the desktop sharing-settings
+  /// dialog (`shareLocation`, `shareFocusedApp`, `shareUnknownApps`) takes
+  /// effect right away instead of waiting for the next 60s
+  /// `onRepeatEvent` tick. The payload's content is never read on the other
+  /// end — only its arrival matters — so any constant works.
+  ///
+  /// Swallowed on failure like every other call here: the service may not
+  /// be running yet (nothing to notify — its next start reads fresh prefs
+  /// anyway) or the communication port may not be wired up in this
+  /// process. Either way the existing 60s tick is the fallback that always
+  /// catches up.
+  static void notifyPrefsChanged() {
+    if (!isSupported) return;
+    try {
+      FlutterForegroundTask.sendDataToTask('prefs_changed');
+    } catch (_) {
+      // No running service / no communication port yet — the next
+      // onRepeatEvent tick (or the next service start) catches this up.
+    }
+  }
+
   /// Pushes finished strings into the notification. Called from the
   /// background isolate; the Kotlin side just renders them.
   static Future<void> render(PartnerNotificationContent content) async {

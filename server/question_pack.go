@@ -1,0 +1,79 @@
+package main
+
+// QuestionPackEntry is one daily-question prompt, shipped in both languages
+// at once: kb/design-language.md keeps user-facing chrome in English for
+// now, but the daily question is *content*, not chrome — it always ships
+// bilingual so either partner reads it in whichever language sits easier
+// for the moment (kb/features.md: "question packs = content we can ship
+// free").
+type QuestionPackEntry struct {
+	EN string
+	PL string
+}
+
+// questionPack is the starter set of ~60 prompts (kb/features.md "Daily
+// question, blind reveal"): a warm/deep/fun mix of memories, dreams, silly
+// hypotheticals, and "about us" questions. Picked deterministically per
+// couple+day by pickQuestion in questions.go.
+var questionPack = []QuestionPackEntry{
+	{EN: "What's a small moment from this week you don't want to forget?", PL: "Jaka drobna chwila z tego tygodnia zapadła ci w pamięć?"},
+	{EN: "If we could teleport anywhere for one dinner tonight, where would you pick?", PL: "Gdybyśmy mogli teleportować się gdziekolwiek na dzisiejszą kolację, dokąd byś wybrał/a?"},
+	{EN: "What's something I do that makes you feel loved, even if it's tiny?", PL: "Co robię, że czujesz się kochany/a, nawet jeśli to coś drobnego?"},
+	{EN: "Which fictional couple do we remind you of most, for better or worse?", PL: "Do jakiej fikcyjnej pary jesteśmy najbardziej podobni — na dobre i na złe?"},
+	{EN: "What's a dream you haven't told me about yet?", PL: "Jakie masz marzenie, o którym jeszcze mi nie powiedziałeś/aś?"},
+	{EN: "If our life were a movie, what genre would this month be?", PL: "Gdyby nasze życie było filmem, jaki gatunek pasowałby do tego miesiąca?"},
+	{EN: "What's the silliest thing you've ever been afraid of?", PL: "Czego najzabawniejszego kiedyś się bałeś/aś?"},
+	{EN: "What's one thing about how we met that you still think about?", PL: "Co z naszego poznania wciąż wraca ci do głowy?"},
+	{EN: "If you had to describe our relationship as weather, what would today be?", PL: "Gdybyś miał/a opisać nasz związek pogodą, jaka byłaby dzisiaj?"},
+	{EN: "What's a completely useless skill you wish you had?", PL: "Jaką kompletnie bezużyteczną umiejętność chciałbyś/chciałabyś mieć?"},
+	{EN: "What's something you're proud of that you haven't bragged about enough?", PL: "Z czego jesteś dumny/a, a o czym za mało mówisz?"},
+	{EN: "If we adopted a mythical creature instead of a pet, what would you pick?", PL: "Gdybyśmy zamiast zwierzaka adoptowali istotę z mitów, co byś wybrał/a?"},
+	{EN: "What's a place from your childhood you wish I could see?", PL: "Jakie miejsce z twojego dzieciństwa chciałbyś/chciałabyś mi pokazać?"},
+	{EN: "What's the best meal we've ever eaten together?", PL: "Jaki był najlepszy posiłek, jaki kiedykolwiek zjedliśmy razem?"},
+	{EN: "If you won the lottery tomorrow, what's the first silly thing you'd buy?", PL: "Gdybyś jutro wygrał/a na loterii, co głupiego kupiłbyś/kupiłabyś jako pierwsze?"},
+	{EN: "What's something small I could do this week that would mean a lot?", PL: "Co drobnego mógłbym/mogłabym zrobić w tym tygodniu, co dużo by dla ciebie znaczyło?"},
+	{EN: "What song feels like 'us' right now?", PL: "Jaka piosenka brzmi teraz jak „my”?"},
+	{EN: "What's a fear you've gotten braver about since we've been together?", PL: "Jakiego lęku przestałeś/aś się tak bardzo bać, odkąd jesteśmy razem?"},
+	{EN: "If you could relive one day of ours exactly as it was, which one?", PL: "Gdybyś mógł/mogła przeżyć jeszcze raz jeden nasz dzień dokładnie tak jak był, który by to był?"},
+	{EN: "What's a weird food combination you secretly love?", PL: "Jakie dziwne połączenie jedzenia potajemnie uwielbiasz?"},
+	{EN: "What's something about getting older that you're actually looking forward to?", PL: "Co w starzeniu się właściwie cię cieszy?"},
+	{EN: "If our home had a theme song playing whenever you walked in, what would it be?", PL: "Gdyby nasz dom miał motyw muzyczny grający, gdy wchodzisz, jaki by to był?"},
+	{EN: "What's a compliment you got recently that you're still thinking about?", PL: "Jaki komplement dostałeś/aś ostatnio, który wciąż chodzi ci po głowie?"},
+	{EN: "What's one thing you hope never changes about us?", PL: "Co w nas, mam nadzieję, nigdy się nie zmieni?"},
+	{EN: "If you could instantly master one language, which would you pick and why?", PL: "Gdybyś mógł/mogła od razu opanować jeden język, który byś wybrał/a i dlaczego?"},
+	{EN: "What's the most 'us' inside joke we have?", PL: "Jaki jest nasz najbardziej „nasz” żart, którego nikt inny by nie zrozumiał?"},
+	{EN: "What's a small habit of mine that secretly makes you smile?", PL: "Jaki mój drobny nawyk potajemnie cię rozśmiesza?"},
+	{EN: "If we had to survive a week in the wilderness, what job would you give me?", PL: "Gdybyśmy musieli przeżyć tydzień w dziczy, jakie zadanie byś mi przydzielił/a?"},
+	{EN: "What's something you learned about love from your family, good or bad?", PL: "Czego nauczyłeś/aś się o miłości od swojej rodziny, dobrego czy złego?"},
+	{EN: "What's a tiny luxury that makes your whole day better?", PL: "Jaki drobny luksus poprawia ci cały dzień?"},
+	{EN: "If you could send a message back to us on our very first date, what would it say?", PL: "Gdybyś mógł/mogła wysłać wiadomość do nas sprzed pierwszej randki, co by w niej było?"},
+	{EN: "What's a hobby you'd love for us to try together?", PL: "Jakie hobby chciałbyś/chciałabyś, żebyśmy razem spróbowali?"},
+	{EN: "What's the last thing that made you laugh until it hurt?", PL: "Co ostatnio rozśmieszyło cię do łez?"},
+	{EN: "If you had to pick one word to describe this year for us, what would it be?", PL: "Gdybyś musiał/a wybrać jedno słowo opisujące ten rok dla nas, jakie by to było?"},
+	{EN: "What's something you wish more people understood about you?", PL: "Co chciałbyś/chciałabyś, żeby więcej osób w tobie rozumiało?"},
+	{EN: "If we designed our dream house together right now, what's the one room you'd insist on?", PL: "Gdybyśmy teraz zaprojektowali nasz wymarzony dom, na jaki pokój byś nalegał/a?"},
+	{EN: "What's a moment you felt proud to be with me?", PL: "Kiedy poczułeś/aś dumę, że jesteś ze mną?"},
+	{EN: "What's an animal that matches your mood today, and why?", PL: "Jakie zwierzę pasuje dziś do twojego nastroju i dlaczego?"},
+	{EN: "If you could give past-you one piece of advice about love, what would it be?", PL: "Gdybyś mógł/mogła dać dawnej sobie jedną radę o miłości, jaka by to była?"},
+	{EN: "What's something small you're grateful for today?", PL: "Za co drobnego jesteś dziś wdzięczny/a?"},
+	{EN: "If we could time-travel to any decade for one week, which would you pick?", PL: "Gdybyśmy mogli cofnąć się w czasie do dowolnej dekady na tydzień, którą byś wybrał/a?"},
+	{EN: "What's a childhood snack you still crave sometimes?", PL: "Jaką przekąskę z dzieciństwa czasem wciąż masz ochotę zjeść?"},
+	{EN: "What's one thing about your day today you haven't told me yet?", PL: "Co z dzisiejszego dnia jeszcze mi nie powiedziałeś/aś?"},
+	{EN: "If you could only text me in emoji for a day, which three would you use most?", PL: "Gdybyś mógł/mogła pisać do mnie przez cały dzień tylko emoji, których trzech używałbyś/używałabyś najczęściej?"},
+	{EN: "What's a risk you're glad you took?", PL: "Jakiego podjętego ryzyka się cieszysz?"},
+	{EN: "What's something about the way I see the world that surprised you at first?", PL: "Co w tym, jak patrzę na świat, cię na początku zaskoczyło?"},
+	{EN: "If we threw a party with no budget limit, what's the one absurd thing you'd add?", PL: "Gdybyśmy urządzili przyjęcie bez ograniczeń budżetowych, jaki absurdalny dodatek byś wybrał/a?"},
+	{EN: "What's a comfort show or book you go back to when you need softness?", PL: "Jaki serial albo książka to twój „comfort”, do którego wracasz, gdy potrzebujesz ukojenia?"},
+	{EN: "What's the bravest thing you've done for us?", PL: "Co najodważniejszego zrobiłeś/aś dla nas?"},
+	{EN: "If you could freeze one ordinary day with me forever, which would it be?", PL: "Gdybyś mógł/mogła zamrozić na zawsze jeden zwyczajny dzień ze mną, który by to był?"},
+	{EN: "What's a smell that instantly makes you think of home?", PL: "Jaki zapach od razu kojarzy ci się z domem?"},
+	{EN: "What's something you used to believe about relationships that you don't anymore?", PL: "W co kiedyś wierzyłeś/aś w związkach, a już w to nie wierzysz?"},
+	{EN: "If we could master any skill overnight as a couple, what should it be?", PL: "Gdybyśmy jako para mogli z dnia na dzień opanować dowolną umiejętność, jaka by to była?"},
+	{EN: "What's a tiny tradition you'd love for us to start?", PL: "Jaki drobny rytuał chciałbyś/chciałabyś, żebyśmy zaczęli?"},
+	{EN: "What's the most 'you' purchase you've ever made?", PL: "Jaki zakup był najbardziej „w twoim stylu”?"},
+	{EN: "If today had a soundtrack, what would the opening song be?", PL: "Gdyby dzisiejszy dzień miał ścieżkę dźwiękową, jaka piosenka grałaby na początku?"},
+	{EN: "What's a way you've grown this year that you're quietly proud of?", PL: "W czym urosłeś/aś w tym roku, z czego jesteś cicho dumny/a?"},
+	{EN: "What's your favorite way to be comforted when things are hard?", PL: "Jak najbardziej lubisz być pocieszany/a, gdy jest ci trudno?"},
+	{EN: "If we could only keep three photos of us forever, which moments would you pick?", PL: "Gdybyśmy mogli zachować tylko trzy nasze zdjęcia na zawsze, jakie momenty byś wybrał/a?"},
+	{EN: "What's something about tomorrow you're quietly looking forward to?", PL: "Na co jutro po cichu się cieszysz?"},
+}

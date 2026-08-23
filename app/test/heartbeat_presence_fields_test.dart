@@ -6,6 +6,7 @@ import 'package:couples_app/data/services/heartbeat_service.dart';
 import 'package:couples_app/data/services/presence/presence_service.dart';
 import 'package:couples_app/domain/models/now_playing.dart';
 import 'package:couples_app/domain/models/partner_status.dart';
+import 'package:couples_app/domain/models/utc_offset.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pocketbase/pocketbase.dart';
 
@@ -176,6 +177,26 @@ void main() {
     await pumpEventQueue();
 
     expect(repository.sent.length, beforeCount);
+  });
+
+  // --- timezone (dual clocks, kb/features.md) --------------------------
+
+  test('every heartbeat carries the device\'s current UTC offset', () async {
+    presence.emit(DevicePresence.empty);
+    await heartbeat.pingNow();
+
+    expect(
+      repository.sent.single['timezone'],
+      UtcOffset.now().encode(),
+    );
+  });
+
+  test('timezone is still sent when no presence signal is available '
+      '(unlike battery/charging/activity, it is never opt-in)', () async {
+    await heartbeat.pingNow();
+
+    expect(repository.sent.single.containsKey('timezone'), isTrue);
+    expect(repository.sent.single['timezone'], isNotNull);
   });
 
   test('a track change still triggers one', () async {

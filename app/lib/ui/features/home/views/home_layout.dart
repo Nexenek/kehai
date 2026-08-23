@@ -55,10 +55,14 @@ class HomeSections {
   const HomeSections({
     required this.partner,
     required this.mood,
+    required this.pet,
+    required this.thumbkiss,
     required this.countdowns,
     required this.notes,
     required this.map,
     required this.instants,
+    required this.board,
+    required this.question,
     required this.onOpenDoodle,
     required this.onLogOut,
     this.extras = const <Widget>[],
@@ -69,6 +73,13 @@ class HomeSections {
   final Widget partner;
 
   final HomeSectionBuilder mood;
+
+  /// The shared pet (kb/features.md "Shared pet").
+  final HomeSectionBuilder pet;
+
+  /// Thumb-kiss — the live touch area (kb/features.md "Thumb-kiss").
+  final HomeSectionBuilder thumbkiss;
+
   final HomeSectionBuilder countdowns;
   final HomeSectionBuilder notes;
 
@@ -78,6 +89,12 @@ class HomeSections {
 
   /// Instants — the shared quick-photo feed (kb/contracts.md "Instants").
   final HomeSectionBuilder instants;
+
+  /// The shared decorable board (kb/features.md "Shared board").
+  final HomeSectionBuilder board;
+
+  /// The daily question, blind reveal (kb/features.md "Daily question").
+  final HomeSectionBuilder question;
 
   /// Doodles have no drawer: the tray's ✎ opens the canvas dialog directly.
   final VoidCallback onOpenDoodle;
@@ -172,11 +189,19 @@ class HomeColumn extends StatelessWidget {
               const SizedBox(height: 20),
               sections.mood(context, null),
               const SizedBox(height: 20),
+              sections.pet(context, null),
+              const SizedBox(height: 20),
+              sections.question(context, null),
+              const SizedBox(height: 20),
+              sections.thumbkiss(context, null),
+              const SizedBox(height: 20),
               sections.countdowns(context, null),
               const SizedBox(height: 20),
               sections.notes(context, null),
               const SizedBox(height: 20),
               sections.instants(context, null),
+              const SizedBox(height: 20),
+              sections.board(context, null),
               const SizedBox(height: 20),
               sections.map(context, null),
             ],
@@ -187,9 +212,10 @@ class HomeColumn extends StatelessWidget {
   }
 }
 
-/// "Our desktop": partner window (and my mood beneath it) held in a fixed
-/// left column, countdowns, notes and the map as their own scrolling
-/// columns beside it. No tray — at this width nothing needs hiding.
+/// "Our desktop": partner window (mood and the pet beneath it) held in a
+/// fixed left column, with the other eight sections spread across three
+/// scrolling columns beside it. No tray — at this width nothing needs
+/// hiding.
 class HomeSpread extends StatelessWidget {
   const HomeSpread({super.key, required this.sections});
 
@@ -216,6 +242,8 @@ class HomeSpread extends StatelessWidget {
                   sections.partner,
                   const SizedBox(height: 16),
                   sections.mood(context, null),
+                  const SizedBox(height: 16),
+                  sections.pet(context, null),
                 ],
               ),
             ),
@@ -223,12 +251,30 @@ class HomeSpread extends StatelessWidget {
           const SizedBox(width: 16),
           Expanded(
             child: SingleChildScrollView(
-              child: sections.countdowns(context, null),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  sections.countdowns(context, null),
+                  const SizedBox(height: 16),
+                  sections.question(context, null),
+                ],
+              ),
             ),
           ),
           const SizedBox(width: 16),
           Expanded(
-            child: SingleChildScrollView(child: sections.notes(context, null)),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  sections.notes(context, null),
+                  const SizedBox(height: 16),
+                  sections.thumbkiss(context, null),
+                  const SizedBox(height: 16),
+                  sections.board(context, null),
+                ],
+              ),
+            ),
           ),
           const SizedBox(width: 16),
           // Map and instants share the rightmost column — five columns

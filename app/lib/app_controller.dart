@@ -4,6 +4,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/widgets.dart';
 
 import 'data/repositories/auth_repository.dart';
+import 'data/repositories/board_repository.dart';
 import 'data/repositories/countdown_repository.dart';
 import 'data/repositories/couple_repository.dart';
 import 'data/repositories/device_repository.dart';
@@ -11,7 +12,10 @@ import 'data/repositories/doodle_repository.dart';
 import 'data/repositories/instant_repository.dart';
 import 'data/repositories/location_repository.dart';
 import 'data/repositories/note_repository.dart';
+import 'data/repositories/pet_repository.dart';
+import 'data/repositories/question_repository.dart';
 import 'data/repositories/status_repository.dart';
+import 'data/repositories/touch_repository.dart';
 import 'data/services/background/kehai_foreground_task.dart';
 import 'data/services/background/location_publisher.dart';
 import 'data/services/device_info_service.dart';
@@ -58,6 +62,10 @@ class AppController extends ChangeNotifier {
   DoodleRepository? doodleRepository;
   InstantRepository? instantRepository;
   LocationRepository? locationRepository;
+  PetRepository? petRepository;
+  TouchRepository? touchRepository;
+  BoardRepository? boardRepository;
+  QuestionRepository? questionRepository;
   HeartbeatService? heartbeatService;
 
   /// The app's own OwnTracks-compatible tracker (kb/contracts.md
@@ -134,6 +142,10 @@ class AppController extends ChangeNotifier {
       doodleRepository = DoodleRepository(pb);
       instantRepository = InstantRepository(pb);
       locationRepository = LocationRepository(pb, authRepository!);
+      petRepository = PetRepository(pb);
+      touchRepository = TouchRepository(pb);
+      boardRepository = BoardRepository(pb);
+      questionRepository = QuestionRepository(pb);
       heartbeatService = HeartbeatService(
         deviceRepository!,
         deviceInfoService,
@@ -178,16 +190,21 @@ class AppController extends ChangeNotifier {
   /// [presenceService] so the very next poll honours it — no restart
   /// needed, and turning it off means the next poll (Windows) or the
   /// native poll loop (Android) genuinely stops looking rather than just
-  /// discarding what it already read.
+  /// discarding what it already read. Also nudges the background isolate
+  /// (if it's the one currently holding presence duty) so it doesn't have
+  /// to wait for its own 60s tick to notice — see
+  /// [KehaiForegroundTask.notifyPrefsChanged].
   Future<void> setShareFocusedApp(bool value) async {
     await prefs.setShareFocusedApp(value);
     _applyActivitySharingPrefs();
+    KehaiForegroundTask.notifyPrefsChanged();
     notifyListeners();
   }
 
   Future<void> setShareUnknownApps(bool value) async {
     await prefs.setShareUnknownApps(value);
     _applyActivitySharingPrefs();
+    KehaiForegroundTask.notifyPrefsChanged();
     notifyListeners();
   }
 
@@ -264,12 +281,16 @@ class AppController extends ChangeNotifier {
   /// Persists the toggle and, if this isolate is the one currently doing
   /// presence duty, applies it to the live [locationPublisher] immediately
   /// — no restart needed. When the background service owns presence
-  /// instead, its next tick picks the new value up on its own (within a
-  /// minute; see [KehaiTaskHandler.onRepeatEvent]).
+  /// instead, [KehaiForegroundTask.notifyPrefsChanged] nudges it to pick
+  /// the new value up right away rather than waiting for its next tick
+  /// (see [KehaiTaskHandler.onReceiveData]) — that tick remains the
+  /// fallback if the nudge itself doesn't land.
   Future<void> setShareLocation(bool value) async {
     await prefs.setShareLocation(value);
     if (_uiOwnsLocation) {
       await locationPublisher?.setEnabled(value);
+    } else {
+      KehaiForegroundTask.notifyPrefsChanged();
     }
     notifyListeners();
   }

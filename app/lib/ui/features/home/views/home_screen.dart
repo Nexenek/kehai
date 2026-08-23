@@ -10,12 +10,20 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/bevel_box.dart';
 import '../../../core/widgets/pixel_button.dart';
 import '../../../core/widgets/retro_window.dart';
+import '../../board/board_view_model.dart';
+import '../../board/board_window.dart';
 import '../../doodle/doodle_canvas_dialog.dart';
 import '../../instants/instants_view_model.dart';
 import '../../instants/instants_window.dart';
 import '../../location/view_models/location_view_model.dart';
 import '../../location/views/location_window.dart';
+import '../../pet/pet_view_model.dart';
+import '../../pet/pet_window.dart';
+import '../../questions/daily_question_window.dart';
+import '../../questions/questions_view_model.dart';
 import '../../settings/views/phone_superpowers_screen.dart';
+import '../../thumbkiss/thumb_kiss_view_model.dart';
+import '../../thumbkiss/thumb_kiss_window.dart';
 import '../view_models/countdowns_view_model.dart';
 import '../view_models/doodle_view_model.dart';
 import '../view_models/home_view_model.dart';
@@ -44,6 +52,10 @@ class _HomeScreenState extends State<HomeScreen> {
   late final DoodleViewModel _doodleViewModel;
   late final LocationViewModel _locationViewModel;
   late final InstantsViewModel _instantsViewModel;
+  late final PetViewModel _petViewModel;
+  late final ThumbKissViewModel _thumbKissViewModel;
+  late final BoardViewModel _boardViewModel;
+  late final QuestionsViewModel _questionsViewModel;
   final _noteController = TextEditingController();
   String _lastSyncedNote = '';
 
@@ -89,6 +101,25 @@ class _HomeScreenState extends State<HomeScreen> {
       authRepository: controller.authRepository!,
       instantRepository: controller.instantRepository!,
     )..init();
+
+    _petViewModel = PetViewModel(
+      authRepository: controller.authRepository!,
+      petRepository: controller.petRepository!,
+    )..init();
+
+    _thumbKissViewModel = ThumbKissViewModel(
+      authRepository: controller.authRepository!,
+      touchRepository: controller.touchRepository!,
+    )..init();
+
+    _boardViewModel = BoardViewModel(
+      authRepository: controller.authRepository!,
+      boardRepository: controller.boardRepository!,
+    )..init();
+
+    _questionsViewModel = QuestionsViewModel(
+      questionRepository: controller.questionRepository!,
+    )..init();
   }
 
   void _syncFromHomeViewModel() {
@@ -116,6 +147,10 @@ class _HomeScreenState extends State<HomeScreen> {
     _doodleViewModel.dispose();
     _locationViewModel.dispose();
     _instantsViewModel.dispose();
+    _petViewModel.dispose();
+    _thumbKissViewModel.dispose();
+    _boardViewModel.dispose();
+    _questionsViewModel.dispose();
     super.dispose();
   }
 
@@ -135,6 +170,7 @@ class _HomeScreenState extends State<HomeScreen> {
               distanceLine: _locationViewModel.distanceLine,
               partnerDoodle: _doodleViewModel.partnerDoodle,
               onSendDoodle: _openDoodleCanvas,
+              partnerDevices: _viewModel.partnerDevices,
             )
           : _WaitingForPartner(
               inviteCode: _viewModel.inviteCode,
@@ -169,10 +205,8 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       instants: (context, onClose) => ListenableBuilder(
         listenable: _instantsViewModel,
-        builder: (context, _) => InstantsWindow(
-          viewModel: _instantsViewModel,
-          onClose: onClose,
-        ),
+        builder: (context, _) =>
+            InstantsWindow(viewModel: _instantsViewModel, onClose: onClose),
       ),
       map: (context, onClose) => ListenableBuilder(
         listenable: _locationViewModel,
@@ -192,6 +226,18 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         },
       ),
+      // Pet/board/question windows already wrap themselves in a
+      // ListenableBuilder over their view model (see each window's own
+      // build method) — no need to double it here. Thumb-kiss listens via
+      // its own StatefulWidget the same way.
+      pet: (context, onClose) =>
+          PetWindow(viewModel: _petViewModel, onClose: onClose),
+      thumbkiss: (context, onClose) =>
+          ThumbKissWindow(viewModel: _thumbKissViewModel, onClose: onClose),
+      board: (context, onClose) =>
+          BoardWindow(viewModel: _boardViewModel, onClose: onClose),
+      question: (context, onClose) =>
+          DailyQuestionWindow(viewModel: _questionsViewModel, onClose: onClose),
       onOpenDoodle: _openDoodleCanvas,
       onLogOut: () => AppScope.of(context, listen: false).logOut(),
       extras: [

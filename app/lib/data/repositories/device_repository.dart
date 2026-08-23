@@ -31,6 +31,7 @@ class DeviceRepository {
     battery: _zeroAsUnreported(r.get<double?>('battery', null)),
     charging: r.get<bool?>('charging', null),
     activity: r.get<String?>('activity', null),
+    timezone: r.get<String?>('timezone', null),
   );
 
   static double? _zeroAsUnreported(double? battery) =>

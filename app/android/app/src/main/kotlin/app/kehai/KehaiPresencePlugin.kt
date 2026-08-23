@@ -71,6 +71,8 @@ class KehaiPresencePlugin :
             "openNotificationListenerSettings" ->
                 result.success(openNotificationListenerSettings())
             "hasUsageAccess" -> result.success(monitor?.hasUsageAccess() ?: false)
+            "getForegroundAppPreview" ->
+                result.success(monitor?.queryForegroundPackagePreview())
             "openUsageAccessSettings" -> result.success(openUsageAccessSettings())
             "setForegroundAppEnabled" -> {
                 val enabled = call.argument<Boolean>("enabled") ?: false

@@ -184,6 +184,12 @@ class _PhoneSuperpowersScreenState extends State<PhoneSuperpowersScreen>
                           // grant — the action stays live either way so the
                           // user can flip it straight back off.
                           alwaysActionable: true,
+                          // "What we'd share right now" — refreshed every
+                          // ~3s by the view model, so a silent failure (no
+                          // Usage Access grant, an unmapped app) is visible
+                          // instead of the partner's card just never saying
+                          // anything (kb/features.md "Focused-app status").
+                          preview: _viewModel.activityPreview,
                           onAction: () => _viewModel.setShareFocusedApp(
                             !_viewModel.shareFocusedApp,
                           ),
@@ -258,6 +264,7 @@ class _SuperpowerWindow extends StatelessWidget {
     this.grantedLabel,
     this.pendingLabel,
     this.alwaysActionable = false,
+    this.preview,
   });
 
   final String title;
@@ -268,6 +275,11 @@ class _SuperpowerWindow extends StatelessWidget {
   final String? grantedLabel;
   final String? pendingLabel;
   final bool alwaysActionable;
+
+  /// "What we'd share right now" (kb/features.md "Focused-app status") —
+  /// only the `shareFocusedApp` window passes this; every other window
+  /// leaves it null and skips the line entirely.
+  final String? preview;
 
   @override
   Widget build(BuildContext context) {
@@ -283,6 +295,14 @@ class _SuperpowerWindow extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(body, style: AppTextStyles.body2.copyWith(color: colors.ink)),
+          if (preview != null && preview!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              preview!,
+              key: const Key('superpower-activity-preview'),
+              style: AppTextStyles.caption.copyWith(color: colors.accent),
+            ),
+          ],
           const SizedBox(height: 12),
           Row(
             children: [

@@ -45,40 +45,101 @@ Future<void> pumpTray(
   );
 }
 
+/// Opens the ✚ grid and taps the tile for [suffix] (e.g. 'countdowns' for
+/// key `tray-grid-countdowns`) — the two-tap path every grid-only section
+/// now takes to reach the drawer.
+Future<void> openGridSection(WidgetTester tester, String suffix) async {
+  await tester.tap(find.byKey(const Key('tray-more')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(Key('tray-grid-$suffix')));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   // Text metrics matter for the "does it fit" test below.
   setUpAll(loadPixelFonts);
 
-  testWidgets('a tray button slides its drawer up, and closes it again', (
-    tester,
-  ) async {
+  testWidgets('a primary tray button slides its drawer up, and closes it '
+      'again', (tester) async {
     await pumpTray(tester);
 
     expect(drawerOffset(tester), const Offset(0, 1));
 
-    await tester.tap(find.byKey(const Key('tray-countdowns')));
+    await tester.tap(find.byKey(const Key('tray-mood')));
     await tester.pumpAndSettle();
 
     expect(drawerOffset(tester), Offset.zero);
-    expect(find.text(stubCountdownsText), findsOneWidget);
+    expect(find.text(stubMoodText), findsOneWidget);
     // The partner window is never covered up entirely — it stays above the
     // drawer, which is the whole point of the companion pane.
     expect(find.text(stubPartnerText), findsOneWidget);
 
     // Tapping the active button again puts it away.
-    await tester.tap(find.byKey(const Key('tray-countdowns')));
+    await tester.tap(find.byKey(const Key('tray-mood')));
     await tester.pumpAndSettle();
     expect(drawerOffset(tester), const Offset(0, 1));
   });
 
-  testWidgets('only one drawer at a time', (tester) async {
+  testWidgets('the pet and thumb-kiss buttons are primaries too', (
+    tester,
+  ) async {
     await pumpTray(tester);
 
-    await tester.tap(find.byKey(const Key('tray-countdowns')));
+    await tester.tap(find.byKey(const Key('tray-pet')));
     await tester.pumpAndSettle();
+    expect(find.text(stubPetText), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('tray-thumbkiss')));
+    await tester.pumpAndSettle();
+    expect(find.text(stubThumbKissText), findsOneWidget);
+    expect(find.text(stubPetText), findsNothing);
+  });
+
+  testWidgets('the ✚ button opens a grid of the sections that no longer '
+      'fit the bar', (tester) async {
+    await pumpTray(tester);
+
+    await tester.tap(find.byKey(const Key('tray-more')));
+    await tester.pumpAndSettle();
+
+    expect(drawerOffset(tester), Offset.zero);
+    expect(find.byKey(const Key('tray-grid-countdowns')), findsOneWidget);
+    expect(find.byKey(const Key('tray-grid-notes')), findsOneWidget);
+    expect(find.byKey(const Key('tray-grid-instants')), findsOneWidget);
+    expect(find.byKey(const Key('tray-grid-map')), findsOneWidget);
+    expect(find.byKey(const Key('tray-grid-board')), findsOneWidget);
+    expect(find.byKey(const Key('tray-grid-question')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('picking a grid tile swaps the drawer to that section', (
+    tester,
+  ) async {
+    await pumpTray(tester);
+
+    await openGridSection(tester, 'map');
+
+    expect(drawerOffset(tester), Offset.zero);
+    expect(find.text(stubMapText), findsOneWidget);
+    // Five buttons still fit the pane without an overflow.
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('only one drawer at a time, grid section to grid section', (
+    tester,
+  ) async {
+    await pumpTray(tester);
+
+    await openGridSection(tester, 'countdowns');
     expect(find.text(stubCountdownsText), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('tray-notes')));
+    // ✚ again from inside a grid section steps back to the grid rather
+    // than closing outright.
+    await tester.tap(find.byKey(const Key('tray-more')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('tray-grid-notes')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('tray-grid-notes')));
     await tester.pumpAndSettle();
 
     expect(drawerOffset(tester), Offset.zero);
@@ -86,16 +147,42 @@ void main() {
     expect(find.text(stubCountdownsText), findsNothing);
   });
 
-  testWidgets('the map button opens the location drawer', (tester) async {
+  testWidgets('a primary button reopens straight to its own section even '
+      'while the grid is open', (tester) async {
     await pumpTray(tester);
 
-    await tester.tap(find.byKey(const Key('tray-map')));
+    await tester.tap(find.byKey(const Key('tray-more')));
     await tester.pumpAndSettle();
 
-    expect(drawerOffset(tester), Offset.zero);
-    expect(find.text(stubMapText), findsOneWidget);
-    // Five buttons still fit the pane without an overflow.
-    expect(tester.takeException(), isNull);
+    await tester.tap(find.byKey(const Key('tray-mood')));
+    await tester.pumpAndSettle();
+
+    expect(find.text(stubMoodText), findsOneWidget);
+    expect(find.byKey(const Key('tray-grid-notes')), findsNothing);
+  });
+
+  testWidgets('a grid section shows a back-to-grid affordance', (tester) async {
+    await pumpTray(tester);
+
+    await openGridSection(tester, 'notes');
+    expect(find.byKey(const Key('tray-back-to-grid')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('tray-back-to-grid')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('tray-grid-notes')), findsOneWidget);
+    expect(find.text(stubNotesText), findsNothing);
+  });
+
+  testWidgets('a primary section never shows the back-to-grid affordance', (
+    tester,
+  ) async {
+    await pumpTray(tester);
+
+    await tester.tap(find.byKey(const Key('tray-mood')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('tray-back-to-grid')), findsNothing);
   });
 
   testWidgets("the section's own close closes the drawer", (tester) async {
@@ -186,6 +273,27 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text(AppStrings.moodPickerTitle), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the grid itself fits the smallest allowed window', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(360, 480);
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(body: HomeBody(sections: stubSections(), desktop: true)),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('tray-more')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('tray-more-grid')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

@@ -4,12 +4,19 @@ import (
 	"crypto/rand"
 	"math/big"
 	"net/http"
+	"regexp"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
 )
+
+// timezonePattern accepts both IANA zone names ("Europe/Warsaw") and the
+// UTC-offset strings the current Flutter client actually sends
+// ("UTC+02:00") — see the client-side note in heartbeat_service.dart for
+// why we don't require a real IANA name yet.
+var timezonePattern = regexp.MustCompile(`^[A-Za-z0-9_+:/-]+$`)
 
 // unambiguous alphabet: no 0/O, 1/I/L — the code gets read out loud between partners
 const inviteAlphabet = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
@@ -40,6 +47,11 @@ func bindRoutes(app core.App) {
 
 		se.Router.POST("/api/heartbeat", heartbeat).Bind(apis.RequireAuth("users"))
 
+		gQuestion := se.Router.Group("/api/question")
+		gQuestion.Bind(apis.RequireAuth("users"))
+		gQuestion.GET("/today", questionToday)
+		gQuestion.POST("/answer", questionAnswer)
+
 		// OwnTracks ingest does its own HTTP Basic auth (the tracker app
 		// can't hold a PB session) — no RequireAuth middleware here.
 		se.Router.POST("/api/owntracks", owntracksIngest)
@@ -47,6 +59,12 @@ func bindRoutes(app core.App) {
 		se.App.Cron().MustAdd("locations_purge", "0 4 * * *", func() {
 			if err := purgeOldLocations(se.App); err != nil {
 				se.App.Logger().Error("locations purge failed", "error", err)
+			}
+		})
+
+		se.App.Cron().MustAdd("touches_purge", "0 * * * *", func() {
+			if err := purgeOldTouches(se.App); err != nil {
+				se.App.Logger().Error("touches purge failed", "error", err)
 			}
 		})
 
@@ -149,7 +167,8 @@ func joinCouple(e *core.RequestEvent) error {
 // idle_seconds, now_playing, activity) per the "only provided keys are
 // written" contract in kb/platform-desktop.md: a key that's absent from the
 // request body is left untouched, while a key sent as explicit null/empty
-// clears it back to its zero value.
+// clears it back to its zero value. `timezone` (added for the dual-clock
+// feature, kb/features.md) follows the exact same only-present contract.
 func heartbeat(e *core.RequestEvent) error {
 	body := struct {
 		Kind string `json:"kind"`
@@ -248,6 +267,18 @@ func heartbeat(e *core.RequestEvent) error {
 				return e.BadRequestError("activity must be a string of at most 100 characters.", nil)
 			}
 			device.Set("activity", s)
+		}
+	}
+
+	if v, present := raw["timezone"]; present {
+		if v == nil {
+			device.Set("timezone", "")
+		} else {
+			s, ok := v.(string)
+			if !ok || s == "" || len(s) > 64 || !timezonePattern.MatchString(s) {
+				return e.BadRequestError("timezone must be a non-empty string of at most 64 characters (letters, digits, '_+:/-' only).", nil)
+			}
+			device.Set("timezone", s)
 		}
 	}
 

@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../../../../data/services/background/kehai_foreground_task.dart';
 import '../../../../data/services/presence/android/android_presence_channel.dart';
+import '../../../../domain/activity_mapper.dart';
 import '../../../core/strings/app_strings.dart';
 
 /// State for the "phone superpowers" screen: the live grant status of each
@@ -22,6 +25,9 @@ class PhoneSuperpowersViewModel extends ChangeNotifier {
     required Future<void> Function(bool value) onSetShareFocusedApp,
     required Future<void> Function(bool value) onSetShareUnknownApps,
     required Future<void> Function(bool value) onSetShareLocation,
+    @visibleForTesting Duration activityPreviewInterval = const Duration(
+      seconds: 3,
+    ),
   }) : _presenceChannel = presenceChannel,
        _onSetShareFocusedApp = onSetShareFocusedApp,
        _onSetShareUnknownApps = onSetShareUnknownApps,
@@ -29,6 +35,18 @@ class PhoneSuperpowersViewModel extends ChangeNotifier {
     shareFocusedApp = initialShareFocusedApp;
     shareUnknownApps = initialShareUnknownApps;
     shareLocation = initialShareLocation;
+    // Show something sensible before the first async probe/refresh lands.
+    activityPreview = resolvePreviewMessage(
+      shareFocusedApp: shareFocusedApp,
+      hasUsageAccess: false,
+      hasReading: false,
+      mappedLabel: null,
+    );
+    unawaited(_refreshActivityPreview());
+    _activityPreviewTimer = Timer.periodic(
+      activityPreviewInterval,
+      (_) => unawaited(_refreshActivityPreview()),
+    );
   }
 
   final AndroidPresenceChannel _presenceChannel;
@@ -78,6 +96,17 @@ class PhoneSuperpowersViewModel extends ChangeNotifier {
   bool shareUnknownApps = false;
   bool shareLocation = false;
 
+  Timer? _activityPreviewTimer;
+
+  /// "What we'd share right now" for the `shareFocusedApp` window —
+  /// kb/features.md "Focused-app status"'s silent-failure fix. Refreshed
+  /// every [PhoneSuperpowersViewModel]'s `activityPreviewInterval` (default
+  /// ~3s) from [AndroidPresenceChannel.getForegroundAppPreview], a raw
+  /// probe gated only on the Usage Access OS grant — NOT on
+  /// [shareFocusedApp] — so this works even before the user turns the
+  /// opt-in on, same as the desktop dialog's preview.
+  String activityPreview = '';
+
   /// A transient one-liner for the rare "your ROM hides that screen" case.
   String? message;
 
@@ -116,6 +145,12 @@ class PhoneSuperpowersViewModel extends ChangeNotifier {
     if (!wasGranted && locationWhileInUseGranted && shareLocation) {
       await _restartServiceForLocation();
     }
+
+    // Usage Access is itself a "walk to system settings and back" grant
+    // (see [openUsageAccessSettings]) — [refresh] is exactly the moment
+    // that could have changed, so the preview should reflect it right away
+    // rather than waiting up to ~3s.
+    await _refreshActivityPreview();
   }
 
   Future<void> requestNotifications() async {
@@ -179,12 +214,53 @@ class PhoneSuperpowersViewModel extends ChangeNotifier {
     shareFocusedApp = value;
     await _onSetShareFocusedApp(value);
     notifyListeners();
+    await _refreshActivityPreview();
   }
 
   Future<void> setShareUnknownApps(bool value) async {
     shareUnknownApps = value;
     await _onSetShareUnknownApps(value);
     notifyListeners();
+    await _refreshActivityPreview();
+  }
+
+  Future<void> _refreshActivityPreview() async {
+    if (!isSupported) return;
+    final package = await _presenceChannel.getForegroundAppPreview();
+    final mapped = ActivityMapper.mapAndroidPackage(
+      package,
+      shareUnknown: shareUnknownApps,
+    );
+    final message = resolvePreviewMessage(
+      shareFocusedApp: shareFocusedApp,
+      hasUsageAccess: usageAccessGranted,
+      hasReading: package != null,
+      mappedLabel: mapped,
+    );
+    if (message == activityPreview) return;
+    activityPreview = message;
+    notifyListeners();
+  }
+
+  /// Pure resolution of the `shareFocusedApp` preview line from
+  /// already-computed inputs — no platform channel, no I/O — so it's
+  /// directly unit-testable against every state the toggle/grant/probe can
+  /// be in. Mirrors `SharingSettingsViewModel.resolvePreviewMessage` on
+  /// desktop, plus the one thing Android needs that desktop doesn't: the
+  /// Usage Access grant, checked before the toggle even matters for
+  /// reading (it gates the OS signal itself, not just our own opt-in).
+  @visibleForTesting
+  static String resolvePreviewMessage({
+    required bool shareFocusedApp,
+    required bool hasUsageAccess,
+    required bool hasReading,
+    required String? mappedLabel,
+  }) {
+    if (!shareFocusedApp) return AppStrings.sharingPreviewOff;
+    if (!hasUsageAccess) return AppStrings.sharingPreviewGrantUsageAccess;
+    if (!hasReading) return AppStrings.sharingPreviewNoReadingAndroid;
+    if (mappedLabel == null) return AppStrings.sharingPreviewUnmapped;
+    return AppStrings.sharingPreviewSharing(mappedLabel);
   }
 
   /// The "share my location ♡" opt-in (kb/contracts.md "Location"). A
@@ -224,5 +300,12 @@ class PhoneSuperpowersViewModel extends ChangeNotifier {
     if (message == null) return;
     message = null;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _activityPreviewTimer?.cancel();
+    _activityPreviewTimer = null;
+    super.dispose();
   }
 }

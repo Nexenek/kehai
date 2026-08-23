@@ -15,6 +15,7 @@ import '../device_info_service.dart';
 import '../heartbeat_service.dart';
 import '../pocketbase_client.dart';
 import '../prefs_service.dart';
+import '../presence/android/android_presence_service.dart';
 import '../presence/presence_service.dart';
 import '../presence/presence_service_factory.dart';
 import 'kehai_foreground_task.dart';
@@ -41,7 +42,10 @@ void kehaiTaskCallback() {
 /// 3. subscribes to the partner's `statuses` + `devices` records,
 /// 4. pushes rendered notification strings down to the service, and
 /// 5. — when `shareLocation` is on — runs [LocationPublisher], the app's
-///    own OwnTracks-compatible tracker (kb/contracts.md "Location").
+///    own OwnTracks-compatible tracker (kb/contracts.md "Location"), and
+///    keeps [PresenceService]'s `shareFocusedApp`/`shareUnknownApps`
+///    opt-ins (kb/features.md "Focused-app status") in sync too — see
+///    [_applySharingPrefs].
 ///
 /// Note the deliberate asymmetry: this isolate *computes* every string
 /// (mood kaomoji, ambient-line precedence, device indicator) and Kotlin
@@ -93,12 +97,13 @@ class KehaiTaskHandler extends TaskHandler {
 
   Future<void> _connect() async {
     if (_pb != null) {
-      // Already connected — still worth re-applying `shareLocation` every
+      // Already connected — still worth re-applying the sharing prefs every
       // tick, since this is the only isolate-side hook a toggle flipped
-      // from the superpowers screen while this service owns presence has
-      // to reach the location publisher (see `AppController.setShareLocation`
-      // doc comment on the UI-isolate half of this).
-      await _applyLocationPrefs();
+      // from the superpowers/sharing-settings screens while this service
+      // owns presence has to reach the location publisher and presence
+      // service (see `AppController.setShareLocation`/`setShareFocusedApp`
+      // doc comments on the UI-isolate half of this).
+      await _applySharingPrefs();
       return;
     }
 
@@ -132,28 +137,69 @@ class KehaiTaskHandler extends TaskHandler {
       pb: pb,
       batteryLevel: () => presence.current.battery,
     );
-    await _applyLocationPrefs(prefs);
+    await _applySharingPrefs(prefs);
 
     await _refreshPartner();
     await _subscribe();
     await _render();
   }
 
-  /// Re-reads `shareLocation` and applies it to [_locationPublisher] —
-  /// cheap (SharedPreferences' instance is cached) and safe to call every
-  /// tick, which is exactly what [onRepeatEvent] does: `flutter_foreground_task`
-  /// has no live push channel wired up for this today, so a prefs re-read on
-  /// the existing 60s tick is the same mechanism the rest of this class
-  /// already relies on to notice a saved-server/login that happened while it
-  /// was idle.
-  Future<void> _applyLocationPrefs([PrefsService? loaded]) async {
+  /// Re-reads every sharing toggle (`shareLocation`, `shareFocusedApp`,
+  /// `shareUnknownApps`) and pushes each onto whichever live service
+  /// actually owns it — cheap (SharedPreferences' instance is cached) and
+  /// safe to call every tick, which is exactly what [onRepeatEvent] does,
+  /// plus once immediately whenever [onReceiveData] hears from the UI
+  /// isolate. `flutter_foreground_task`'s `sendDataToTask` gives an instant
+  /// path for the latter (see [onReceiveData]); the 60s tick remains the
+  /// fallback for whatever that missed — e.g. a toggle flipped before this
+  /// isolate ever connected.
+  ///
+  /// This is the fix for a bug that shipped once already
+  /// (kb/features.md "Focused-app status"): `shareFocusedApp`/
+  /// `shareUnknownApps` toggled from the superpowers screen never reached
+  /// this isolate at all, so the background service kept sharing (or not
+  /// sharing) whatever the toggle said at the moment it last connected —
+  /// exactly the stale-forever bug `shareLocation` had before it grew this
+  /// same re-apply.
+  Future<void> _applySharingPrefs([PrefsService? loaded]) async {
     final prefs = loaded ?? await PrefsService.create();
     // SharedPreferences caches per isolate: without this reload the UI
-    // isolate's toggle writes are invisible here and the publisher would
-    // stay disabled forever.
+    // isolate's toggle writes are invisible here and the publisher/presence
+    // service would stay stuck on whatever they saw at connect time.
     await prefs.reload();
     await _locationPublisher?.setEnabled(prefs.shareLocation);
+
+    final presence = _presenceService;
+    if (presence is AndroidPresenceService) {
+      presence.shareFocusedApp = prefs.shareFocusedApp;
+      presence.shareUnknownApps = prefs.shareUnknownApps;
+    }
   }
+
+  /// `FlutterForegroundTask.sendDataToTask` lands here — the instant path
+  /// [KehaiForegroundTask.notifyPrefsChanged] uses so a sharing toggle
+  /// flipped in the app (superpowers screen, sharing-settings dialog)
+  /// reaches this isolate right away instead of waiting for the next 60s
+  /// [onRepeatEvent] tick. The payload itself carries no information worth
+  /// reading — any receipt just means "go re-read prefs".
+  @override
+  void onReceiveData(Object data) {
+    unawaited(_applySharingPrefs());
+  }
+
+  /// Test-only hook: exercises the same prefs-reload-and-push path
+  /// [_connect]/[onRepeatEvent]/[onReceiveData] all use, without spinning up
+  /// PocketBase — see [presenceServiceForTest].
+  @visibleForTesting
+  Future<void> applySharingPrefsForTest(PrefsService prefs) =>
+      _applySharingPrefs(prefs);
+
+  /// Test-only seam: lets a unit test hand this handler a fake/real
+  /// [PresenceService] (e.g. a bare [AndroidPresenceService]) without going
+  /// through [_connect]'s real PocketBase/HeartbeatService wiring.
+  @visibleForTesting
+  set presenceServiceForTest(PresenceService? service) =>
+      _presenceService = service;
 
   Future<void> _refreshPartner() async {
     final partner = await _coupleRepository?.fetchPartner();

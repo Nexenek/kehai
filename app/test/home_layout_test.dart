@@ -84,12 +84,16 @@ void main() {
       expect(find.byKey(const Key('home-spread')), findsNothing);
       // The partner window is always on screen…
       expect(find.text(stubPartnerText), findsOneWidget);
-      // …the sections live behind tray buttons.
+      // …the five primaries live on the bar…
       expect(find.byKey(const Key('tray-mood')), findsOneWidget);
       expect(find.byKey(const Key('tray-doodle')), findsOneWidget);
-      expect(find.byKey(const Key('tray-countdowns')), findsOneWidget);
-      expect(find.byKey(const Key('tray-notes')), findsOneWidget);
-      expect(find.byKey(const Key('tray-map')), findsOneWidget);
+      expect(find.byKey(const Key('tray-pet')), findsOneWidget);
+      expect(find.byKey(const Key('tray-thumbkiss')), findsOneWidget);
+      expect(find.byKey(const Key('tray-more')), findsOneWidget);
+      // …and the rest live behind ✚, not on the bar itself.
+      expect(find.byKey(const Key('tray-countdowns')), findsNothing);
+      expect(find.byKey(const Key('tray-notes')), findsNothing);
+      expect(find.byKey(const Key('tray-map')), findsNothing);
       expect(find.text(stubNotesText), findsNothing);
       expect(find.text(stubMapText), findsNothing);
     });
@@ -104,9 +108,14 @@ void main() {
       // Everything is on screen at once — no tray, nothing hidden.
       expect(find.text(stubPartnerText), findsOneWidget);
       expect(find.text(stubMoodText), findsOneWidget);
+      expect(find.text(stubPetText), findsOneWidget);
+      expect(find.text(stubThumbKissText), findsOneWidget);
       expect(find.text(stubCountdownsText), findsOneWidget);
       expect(find.text(stubNotesText), findsOneWidget);
-      // The map is the spread's third content column.
+      expect(find.text(stubBoardText), findsOneWidget);
+      expect(find.text(stubQuestionText), findsOneWidget);
+      expect(find.text(stubInstantsText), findsOneWidget);
+      // The map is the spread's rightmost content column.
       expect(find.text(stubMapText), findsOneWidget);
       expect(find.byKey(const Key('tray-mood')), findsNothing);
     });
@@ -138,8 +147,13 @@ void main() {
       expect(find.byType(SingleChildScrollView), findsOneWidget);
       expect(find.text(stubPartnerText), findsOneWidget);
       expect(find.text(stubMoodText), findsOneWidget);
+      expect(find.text(stubPetText), findsOneWidget);
+      expect(find.text(stubThumbKissText), findsOneWidget);
       expect(find.text(stubCountdownsText), findsOneWidget);
       expect(find.text(stubNotesText), findsOneWidget);
+      expect(find.text(stubBoardText), findsOneWidget);
+      expect(find.text(stubQuestionText), findsOneWidget);
+      expect(find.text(stubInstantsText), findsOneWidget);
       expect(find.text(stubMapText), findsOneWidget);
     });
   });

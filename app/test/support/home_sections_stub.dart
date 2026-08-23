@@ -7,10 +7,14 @@ import 'package:couples_app/ui/features/home/views/home_layout.dart';
 /// these tests are about — the composition is.
 const stubPartnerText = 'partner-window';
 const stubMoodText = 'mood-section';
+const stubPetText = 'pet-section';
+const stubThumbKissText = 'thumbkiss-section';
 const stubCountdownsText = 'countdowns-section';
 const stubNotesText = 'notes-section';
 const stubMapText = 'map-section';
 const stubInstantsText = 'instants-section';
+const stubBoardText = 'board-section';
+const stubQuestionText = 'question-section';
 
 /// Records what the tray asked for, so tests can assert on the doodle button
 /// opening the canvas rather than a drawer.
@@ -31,10 +35,14 @@ HomeSections stubSections({SectionTaps? taps, HomeSectionBuilder? mood}) {
   return HomeSections(
     partner: const Text(stubPartnerText),
     mood: mood ?? (context, onClose) => section(stubMoodText, onClose),
+    pet: (context, onClose) => section(stubPetText, onClose),
+    thumbkiss: (context, onClose) => section(stubThumbKissText, onClose),
     countdowns: (context, onClose) => section(stubCountdownsText, onClose),
     notes: (context, onClose) => section(stubNotesText, onClose),
     map: (context, onClose) => section(stubMapText, onClose),
     instants: (context, onClose) => section(stubInstantsText, onClose),
+    board: (context, onClose) => section(stubBoardText, onClose),
+    question: (context, onClose) => section(stubQuestionText, onClose),
     onOpenDoodle: () => recorded.doodle++,
     onLogOut: () => recorded.logOut++,
   );

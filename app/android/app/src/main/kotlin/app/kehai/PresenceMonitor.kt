@@ -192,6 +192,17 @@ class PresenceMonitor(
     }
 
     /**
+     * A one-shot read of the same [queryForegroundPackage] signal, exposed
+     * for the phone-superpowers screen's "what we'd share right now"
+     * preview (kb/features.md "Focused-app status") — deliberately NOT
+     * gated on [foregroundAppEnabled] the way [foregroundPackage] is, so the
+     * preview works *before* the user turns `shareFocusedApp` on. Still
+     * gated on the Usage Access grant itself (inside [queryForegroundPackage]):
+     * without that grant this is null, same as the real signal would be.
+     */
+    fun queryForegroundPackagePreview(): String? = queryForegroundPackage()
+
+    /**
      * The latest MOVE_TO_FOREGROUND event in the trailing
      * [foregroundAppLookbackMs] window, or null if there's no Usage Access
      * grant (checked explicitly — `queryEvents` doesn't throw without the

@@ -1,20 +1,47 @@
 import 'package:flutter/material.dart';
 
+import '../../../../domain/models/pet.dart';
 import '../../../core/strings/app_strings.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/bevel_box.dart';
 import '../../../core/widgets/pixel_hourglass.dart';
 import '../../../core/widgets/pixel_map_pin.dart';
+import '../../pet/pet_painter.dart' show petSpriteFor, petGridSize;
 import 'home_layout.dart';
 
-/// The tray sections that open as a drawer. Doodle is deliberately absent —
-/// its button opens the canvas dialog instead (kb/platform-desktop.md).
-enum TraySection { mood, countdowns, notes, instants, map }
+/// The tray sections that open in the drawer. [mood], [pet] and [thumbkiss]
+/// sit on the primary bar next to doodle (which is deliberately absent from
+/// this enum — its button opens the canvas dialog directly, per
+/// kb/platform-desktop.md); everything else lives behind the ✚ "more" grid.
+enum TraySection {
+  mood,
+  pet,
+  thumbkiss,
+  countdowns,
+  notes,
+  instants,
+  map,
+  board,
+  question,
+}
+
+/// Sections that get their own primary tray button. Anything not in here
+/// shows up as a grid tile behind ✚ instead (see [_MoreGrid]).
+const Set<TraySection> _primarySections = {
+  TraySection.mood,
+  TraySection.pet,
+  TraySection.thumbkiss,
+};
 
 /// Slide-up timing for the drawer. One short, well-behaved move, per
 /// design-language.md's "smooth ≠ busy".
 const Duration kDrawerDuration = Duration(milliseconds: 200);
+
+/// What the drawer is currently showing: the ✚ grid itself, or one section's
+/// content (reached either straight from a primary button or picked out of
+/// the grid).
+enum _DrawerContent { grid, section }
 
 /// The compact desktop companion: partner window pinned at the top, a pixel
 /// tray bar anchored at the bottom, and one section drawer at a time sliding
@@ -33,8 +60,13 @@ class CompanionHome extends StatefulWidget {
 }
 
 class _CompanionHomeState extends State<CompanionHome> {
-  /// Which drawer is open, if any.
-  TraySection? _open;
+  /// Whether the drawer is currently slid up. Independent of [_content]/
+  /// [_showing] so both stay put (and keep rendering) while it slides back
+  /// down — same reasoning as the old single-section version's `_showing`.
+  bool _isOpen = false;
+
+  /// The grid, or a specific section's content.
+  _DrawerContent _content = _DrawerContent.section;
 
   /// The last section shown — kept mounted while the drawer slides back
   /// down, so it doesn't blink away mid-animation.
@@ -44,30 +76,89 @@ class _CompanionHomeState extends State<CompanionHome> {
   /// of the top so the partner card is never fully covered.
   static const double _drawerHeightFactor = 0.72;
 
-  void _select(TraySection section) {
+  void _selectPrimary(TraySection section) {
     setState(() {
-      if (_open == section) {
-        _open = null;
+      if (_isOpen &&
+          _content == _DrawerContent.section &&
+          _showing == section) {
+        _isOpen = false;
       } else {
-        _open = section;
+        _isOpen = true;
+        _content = _DrawerContent.section;
         _showing = section;
       }
     });
   }
 
-  void _close() => setState(() => _open = null);
+  /// The ✚ button: opens the grid from closed, steps back to the grid from
+  /// any section (the "back/✚ affordance to return to the grid"), and
+  /// closes only when the grid itself is already what's showing.
+  void _toggleMore() {
+    setState(() {
+      if (!_isOpen) {
+        _isOpen = true;
+        _content = _DrawerContent.grid;
+      } else if (_content == _DrawerContent.grid) {
+        _isOpen = false;
+      } else {
+        _content = _DrawerContent.grid;
+      }
+    });
+  }
+
+  void _selectFromGrid(TraySection section) {
+    setState(() {
+      _isOpen = true;
+      _content = _DrawerContent.section;
+      _showing = section;
+    });
+  }
+
+  void _close() => setState(() => _isOpen = false);
+
+  bool get _moreActive =>
+      _isOpen &&
+      (_content == _DrawerContent.grid || !_primarySections.contains(_showing));
 
   HomeSectionBuilder _builderFor(TraySection section) => switch (section) {
     TraySection.mood => widget.sections.mood,
+    TraySection.pet => widget.sections.pet,
+    TraySection.thumbkiss => widget.sections.thumbkiss,
     TraySection.countdowns => widget.sections.countdowns,
     TraySection.notes => widget.sections.notes,
     TraySection.instants => widget.sections.instants,
     TraySection.map => widget.sections.map,
+    TraySection.board => widget.sections.board,
+    TraySection.question => widget.sections.question,
   };
+
+  Widget _drawerContent(BuildContext context) {
+    if (_content == _DrawerContent.grid) {
+      return _MoreGrid(onSelect: _selectFromGrid);
+    }
+    final section = _builderFor(_showing)(context, _close);
+    // Anything reached through the grid gets a small way back to it; the
+    // primary sections (mood/pet/thumbkiss) never need one — their own tray
+    // button already toggles them.
+    if (_primarySections.contains(_showing)) return section;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: _BackToGridButton(
+            onTap: () => setState(() => _content = _DrawerContent.grid),
+          ),
+        ),
+        const SizedBox(height: 6),
+        section,
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final open = _open != null;
     // Reduced motion: the drawer still opens, it just arrives instantly
     // (design-language.md: "respect reduced-motion OS setting: swap
     // animations for instant states").
@@ -96,12 +187,12 @@ class _CompanionHomeState extends State<CompanionHome> {
                     bottom: 0,
                     child: AnimatedSlide(
                       key: const Key('home-tray-drawer'),
-                      offset: open ? Offset.zero : const Offset(0, 1),
+                      offset: _isOpen ? Offset.zero : const Offset(0, 1),
                       duration: duration,
                       curve: Curves.easeOutCubic,
                       child: IgnorePointer(
                         key: const Key('home-tray-drawer-guard'),
-                        ignoring: !open,
+                        ignoring: !_isOpen,
                         child: ConstrainedBox(
                           constraints: BoxConstraints(
                             maxHeight:
@@ -110,7 +201,7 @@ class _CompanionHomeState extends State<CompanionHome> {
                           child: Padding(
                             padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
                             child: SingleChildScrollView(
-                              child: _builderFor(_showing)(context, _close),
+                              child: _drawerContent(context),
                             ),
                           ),
                         ),
@@ -123,8 +214,23 @@ class _CompanionHomeState extends State<CompanionHome> {
           ),
         ),
         _TrayBar(
-          active: _open,
-          onSelect: _select,
+          moodSelected:
+              _isOpen &&
+              _content == _DrawerContent.section &&
+              _showing == TraySection.mood,
+          petSelected:
+              _isOpen &&
+              _content == _DrawerContent.section &&
+              _showing == TraySection.pet,
+          thumbKissSelected:
+              _isOpen &&
+              _content == _DrawerContent.section &&
+              _showing == TraySection.thumbkiss,
+          moreSelected: _moreActive,
+          onSelectMood: () => _selectPrimary(TraySection.mood),
+          onSelectPet: () => _selectPrimary(TraySection.pet),
+          onSelectThumbKiss: () => _selectPrimary(TraySection.thumbkiss),
+          onToggleMore: _toggleMore,
           onOpenDoodle: widget.sections.onOpenDoodle,
         ),
       ],
@@ -132,16 +238,29 @@ class _CompanionHomeState extends State<CompanionHome> {
   }
 }
 
-/// The bottom bar itself: five chunky pixel buttons, glyph over label.
+/// The bottom bar itself: five chunky pixel buttons, glyph over label —
+/// mood, doodle, pet, thumb-kiss, and ✚ more.
 class _TrayBar extends StatelessWidget {
   const _TrayBar({
-    required this.active,
-    required this.onSelect,
+    required this.moodSelected,
+    required this.petSelected,
+    required this.thumbKissSelected,
+    required this.moreSelected,
+    required this.onSelectMood,
+    required this.onSelectPet,
+    required this.onSelectThumbKiss,
+    required this.onToggleMore,
     required this.onOpenDoodle,
   });
 
-  final TraySection? active;
-  final ValueChanged<TraySection> onSelect;
+  final bool moodSelected;
+  final bool petSelected;
+  final bool thumbKissSelected;
+  final bool moreSelected;
+  final VoidCallback onSelectMood;
+  final VoidCallback onSelectPet;
+  final VoidCallback onSelectThumbKiss;
+  final VoidCallback onToggleMore;
   final VoidCallback onOpenDoodle;
 
   @override
@@ -160,10 +279,10 @@ class _TrayBar extends StatelessWidget {
             Expanded(
               child: _TrayButton(
                 buttonKey: const Key('tray-mood'),
-                glyph: _textGlyph('♥\uFE0E'),
+                glyph: _textGlyph('♥︎'),
                 label: AppStrings.trayMood,
-                selected: active == TraySection.mood,
-                onTap: () => onSelect(TraySection.mood),
+                selected: moodSelected,
+                onTap: onSelectMood,
               ),
             ),
             const SizedBox(width: 6),
@@ -179,46 +298,154 @@ class _TrayBar extends StatelessWidget {
             const SizedBox(width: 6),
             Expanded(
               child: _TrayButton(
-                buttonKey: const Key('tray-countdowns'),
-                glyph: (color) => PixelHourglass(color: color),
-                label: AppStrings.trayCountdowns,
-                selected: active == TraySection.countdowns,
-                onTap: () => onSelect(TraySection.countdowns),
+                buttonKey: const Key('tray-pet'),
+                glyph: _petGlyph,
+                label: AppStrings.trayPet,
+                selected: petSelected,
+                onTap: onSelectPet,
               ),
             ),
             const SizedBox(width: 6),
             Expanded(
               child: _TrayButton(
-                buttonKey: const Key('tray-notes'),
-                glyph: _textGlyph('≡'),
-                label: AppStrings.trayNotes,
-                selected: active == TraySection.notes,
-                onTap: () => onSelect(TraySection.notes),
+                buttonKey: const Key('tray-thumbkiss'),
+                glyph: _thumbKissGlyph,
+                label: AppStrings.trayThumbKiss,
+                selected: thumbKissSelected,
+                onTap: onSelectThumbKiss,
               ),
             ),
             const SizedBox(width: 6),
             Expanded(
               child: _TrayButton(
-                buttonKey: const Key('tray-instants'),
-                // ◉ (BMP "fisheye") reads as a camera lens and, unlike an emoji camera,
-                // can't be hijacked by Android's color-emoji font.
-                glyph: _textGlyph('◉'),
-                label: AppStrings.trayInstants,
-                selected: active == TraySection.instants,
-                onTap: () => onSelect(TraySection.instants),
-              ),
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: _TrayButton(
-                buttonKey: const Key('tray-map'),
-                glyph: (color) => PixelMapPin(color: color),
-                label: AppStrings.trayMap,
-                selected: active == TraySection.map,
-                onTap: () => onSelect(TraySection.map),
+                buttonKey: const Key('tray-more'),
+                glyph: _textGlyph('✚'),
+                label: AppStrings.trayMore,
+                selected: moreSelected,
+                onTap: onToggleMore,
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One entry in the ✚ grid: the section it opens, its key suffix, glyph and
+/// label — everything [_MoreGrid] needs to lay a tile out.
+class _GridEntry {
+  const _GridEntry({
+    required this.section,
+    required this.keySuffix,
+    required this.glyph,
+    required this.label,
+  });
+
+  final TraySection section;
+  final String keySuffix;
+  final _GlyphBuilder glyph;
+  final String label;
+}
+
+final List<_GridEntry> _gridEntries = [
+  _GridEntry(
+    section: TraySection.countdowns,
+    keySuffix: 'countdowns',
+    glyph: (color) => PixelHourglass(color: color),
+    label: AppStrings.trayCountdowns,
+  ),
+  _GridEntry(
+    section: TraySection.notes,
+    keySuffix: 'notes',
+    glyph: _textGlyph('≡'),
+    label: AppStrings.trayNotes,
+  ),
+  _GridEntry(
+    section: TraySection.instants,
+    keySuffix: 'instants',
+    // ◉ (BMP "fisheye") reads as a camera lens and, unlike an emoji camera,
+    // can't be hijacked by Android's color-emoji font.
+    glyph: _textGlyph('◉'),
+    label: AppStrings.trayInstants,
+  ),
+  _GridEntry(
+    section: TraySection.map,
+    keySuffix: 'map',
+    glyph: (color) => PixelMapPin(color: color),
+    label: AppStrings.trayMap,
+  ),
+  _GridEntry(
+    section: TraySection.board,
+    keySuffix: 'board',
+    glyph: _textGlyph('▦'),
+    label: AppStrings.trayBoard,
+  ),
+  _GridEntry(
+    section: TraySection.question,
+    keySuffix: 'question',
+    glyph: _textGlyph('✉'),
+    label: AppStrings.trayQuestion,
+  ),
+];
+
+/// The grid the ✚ button opens: a labeled pixel button per section that no
+/// longer fits the primary bar.
+class _MoreGrid extends StatelessWidget {
+  const _MoreGrid({required this.onSelect});
+
+  final ValueChanged<TraySection> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.count(
+      key: const Key('tray-more-grid'),
+      crossAxisCount: 3,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: 6,
+      crossAxisSpacing: 6,
+      childAspectRatio: 1,
+      children: [
+        for (final entry in _gridEntries)
+          _TrayButton(
+            buttonKey: Key('tray-grid-${entry.keySuffix}'),
+            glyph: entry.glyph,
+            label: entry.label,
+            selected: false,
+            onTap: () => onSelect(entry.section),
+          ),
+      ],
+    );
+  }
+}
+
+/// The small "back to more" affordance shown above a section that was
+/// reached through the ✚ grid (design-language.md "one orchestrated moment
+/// per screen" — no animation here, just an honest way back).
+class _BackToGridButton extends StatelessWidget {
+  const _BackToGridButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Tooltip(
+      message: AppStrings.trayBackToMoreTooltip,
+      child: GestureDetector(
+        key: const Key('tray-back-to-grid'),
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: BevelBox(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+            child: Text(
+              '◂ ${AppStrings.trayMore}',
+              style: AppTextStyles.caption.copyWith(color: colors.accent),
+            ),
+          ),
         ),
       ),
     );
@@ -233,6 +460,71 @@ _GlyphBuilder _textGlyph(String glyph) =>
       glyph,
       style: AppTextStyles.caption.copyWith(color: color, height: 1),
     );
+
+/// The shared pet's blob silhouette, at mini scale — a cheap reuse of
+/// [petSpriteFor]'s cell grid (just the body cells, one flat colour) rather
+/// than the full multi-colour [PetPainter] composite, which is more detail
+/// than a 20px tray glyph can show anyway.
+Widget _petGlyph(Color color) => SizedBox(
+  width: 20,
+  height: 20,
+  child: CustomPaint(painter: _PetGlyphPainter(color: color)),
+);
+
+class _PetGlyphPainter extends CustomPainter {
+  const _PetGlyphPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final sprite = petSpriteFor(PetVariant.blob);
+    final cell = size.shortestSide / petGridSize;
+    if (cell <= 0) return;
+    final paint = Paint()..color = color;
+    for (var y = 0; y < petGridSize; y++) {
+      for (var x = 0; x < petGridSize; x++) {
+        if (!sprite.isBody(x, y)) continue;
+        canvas.drawRect(
+          Rect.fromLTWH(x * cell, y * cell, cell + 0.5, cell + 0.5),
+          paint,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _PetGlyphPainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
+/// Two small overlapping circles — the thumb-kiss tray glyph
+/// (design-language.md's painted-not-emoji rule; the real touch area glows
+/// like this too, see `thumb_kiss_painter.dart`).
+Widget _thumbKissGlyph(Color color) => SizedBox(
+  width: 20,
+  height: 14,
+  child: CustomPaint(painter: _ThumbKissGlyphPainter(color: color)),
+);
+
+class _ThumbKissGlyphPainter extends CustomPainter {
+  const _ThumbKissGlyphPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final r = size.height / 2;
+    final paint = Paint()..color = color.withValues(alpha: 0.85);
+    final cy = size.height / 2;
+    canvas.drawCircle(Offset(size.width / 2 - r * 0.55, cy), r, paint);
+    canvas.drawCircle(Offset(size.width / 2 + r * 0.55, cy), r, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ThumbKissGlyphPainter oldDelegate) =>
+      oldDelegate.color != color;
+}
 
 class _TrayButton extends StatelessWidget {
   const _TrayButton({

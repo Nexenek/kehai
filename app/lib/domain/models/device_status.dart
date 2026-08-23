@@ -21,6 +21,7 @@ class DeviceStatus {
     this.battery,
     this.charging,
     this.activity,
+    this.timezone,
   });
 
   final String id;
@@ -43,6 +44,12 @@ class DeviceStatus {
 
   /// `activity` — free-form text ≤100 chars, null/empty means none set.
   final String? activity;
+
+  /// `timezone` — this device's UTC offset, wire-encoded as "UTC+02:00"
+  /// (see `utc_offset.dart`'s [UtcOffset] for why it's an offset and not a
+  /// real IANA zone name). Null/empty means this device hasn't reported
+  /// one.
+  final String? timezone;
 
   static const onlineWindow = Duration(minutes: 2);
 

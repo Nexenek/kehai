@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import '../../domain/models/now_playing.dart';
+import '../../domain/models/utc_offset.dart';
 import '../repositories/device_repository.dart';
 import 'device_info_service.dart';
 import 'presence/presence_service.dart';
@@ -93,10 +94,16 @@ class HeartbeatService {
     try {
       final name = await _deviceInfoService.deviceName;
       final presence = _presenceService?.current ?? DevicePresence.empty;
+      final fields = _presenceFields(presence);
+      // Timezone (dual clocks, kb/features.md) is always computable — no
+      // opt-in, no platform channel — so unlike the presence-driven keys
+      // above it's simply sent on every heartbeat rather than tracked for
+      // an explicit-null clear.
+      fields['timezone'] = UtcOffset.now().encode();
       await _deviceRepository.sendHeartbeat(
         kind: _deviceInfoService.kind,
         name: name,
-        extra: _presenceFields(presence),
+        extra: fields,
       );
       _lastSentNowPlaying = presence.nowPlaying;
       _lastSentIdleSeconds = presence.idleSeconds;
