@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
+
 import '../../domain/models/now_playing.dart';
 import '../../domain/models/utc_offset.dart';
 import '../repositories/device_repository.dart';
@@ -40,6 +42,14 @@ class HeartbeatService {
   NowPlaying? _lastObservedNowPlaying;
   bool _lastObservedAway = false;
   bool? _lastObservedCharging;
+  String? _lastObservedActivity;
+  DateTime? _lastActivityBeatAt;
+
+  /// Minimum gap between activity-triggered out-of-band beats. Rapid
+  /// alt-tabbing collapses into one beat per window instead of a burst,
+  /// while a real "switched from the browser to Blender" lands in seconds
+  /// rather than waiting out the 30s tick (user-reported lag).
+  static const _activityBeatDebounce = Duration(seconds: 5);
 
   // What the *last heartbeat body* actually contained — used to know when
   // a key needs an explicit `null` to clear a previously-reported value
@@ -65,11 +75,16 @@ class HeartbeatService {
   }
 
   void _onPresenceChanged(DevicePresence presence) {
-    // `activity` deliberately does NOT get an out-of-band beat: alt-tabbing
-    // or switching windows can change it many times a minute, and unlike a
-    // track/away/charging flip that's genuinely no more urgent than the
-    // regular 30s cadence already covers — mirrors "a battery level ticking
-    // down alone does not [trigger one]" below.
+    // `activity` gets a DEBOUNCED out-of-band beat: waiting for the 30s
+    // tick made app switches feel minutes late on the partner card
+    // (user-reported), but raw per-change beats would spam on alt-tab
+    // bursts — the debounce keeps it to at most one beat per
+    // [_activityBeatDebounce].
+    final now = clock.now();
+    final activityChanged =
+        presence.activity != _lastObservedActivity &&
+        (_lastActivityBeatAt == null ||
+            now.difference(_lastActivityBeatAt!) >= _activityBeatDebounce);
     final trackChanged = presence.nowPlaying != _lastObservedNowPlaying;
     final away = (presence.idleSeconds ?? 0) >= _awayThresholdSeconds;
     final awayCrossed =
@@ -84,8 +99,10 @@ class HeartbeatService {
     _lastObservedNowPlaying = presence.nowPlaying;
     if (presence.idleSeconds != null) _lastObservedAway = away;
     if (presence.charging != null) _lastObservedCharging = presence.charging;
+    _lastObservedActivity = presence.activity;
 
-    if (trackChanged || awayCrossed || chargingFlipped) {
+    if (trackChanged || awayCrossed || chargingFlipped || activityChanged) {
+      if (activityChanged) _lastActivityBeatAt = now;
       pingNow();
     }
   }

@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pocketbase/pocketbase.dart';
@@ -119,17 +120,36 @@ void main() {
     expect(viewModel.partnerVisible, isTrue);
   });
 
-  test('a stale partner touch is not visible', () {
-    repository.emit(
-      TouchPoint(
-        userId: 'partner',
-        x: 0.6,
-        y: 0.6,
-        at: DateTime.now().subtract(const Duration(seconds: 5)),
-      ),
-    );
+  test('a partner touch goes stale by ARRIVAL age, not payload age', () {
+    fakeAsync((async) {
+      final repo = _FakeTouchRepository();
+      final vm = ThumbKissViewModel(
+        authRepository: _loggedInAuthRepository(),
+        touchRepository: repo,
+      );
+      vm.init();
+      async.flushMicrotasks();
 
-    expect(viewModel.partnerVisible, isFalse);
+      // Even a payload stamped far in the past is visible the moment it
+      // arrives — server timestamps vs the local clock can skew by seconds
+      // (phone NTP drift), and gating on them made the blob near-invisible
+      // on real phones. Arrival is what freshness means now.
+      repo.emit(
+        TouchPoint(
+          userId: 'partner',
+          x: 0.6,
+          y: 0.6,
+          at: clock.now().subtract(const Duration(seconds: 30)),
+        ),
+      );
+      expect(vm.partnerVisible, isTrue);
+
+      // …and it ages out once nothing new has ARRIVED for the window.
+      async.elapse(const Duration(seconds: 3));
+      expect(vm.partnerVisible, isFalse);
+
+      vm.dispose();
+    });
   });
 
   test('an echo of my own touch id is ignored', () {

@@ -17,7 +17,9 @@ const touchSendInterval = Duration(milliseconds: 250);
 /// gate below. Sized around realtime-subscription latency (~100-400ms per
 /// the feature brief) plus a little slack, so a moment's network hiccup
 /// doesn't make a held-still thumb visibly flicker away.
-const touchFreshWindow = Duration(milliseconds: 1500);
+// 2.5s: sized around realtime latency PLUS delivery jitter — 1.5s flickered
+// whenever two SSE messages arrived slightly far apart (user-reported).
+const touchFreshWindow = Duration(milliseconds: 2500);
 
 /// Normalized-distance threshold under which two fingertips count as
 /// "touching" for the met moment. 0.15 of the touch area's side — close

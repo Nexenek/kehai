@@ -45,6 +45,14 @@ class ThumbKissViewModel extends ChangeNotifier {
   /// it's still fresh — see [partnerVisible] for the freshness-gated view.
   TouchPoint? partnerTouch;
 
+  /// When [partnerTouch] ARRIVED, by this device's clock. Freshness is
+  /// gated on arrival, not on the record's server-side `created` stamp:
+  /// comparing a server timestamp against the local clock breaks the whole
+  /// feature the moment the phone's clock drifts a second or two from the
+  /// server's (user-reported: blob near-invisible on the phone while the
+  /// same-machine desktop worked fine).
+  DateTime? _partnerReceivedAt;
+
   bool isMet = false;
 
   Timer? _ticker;
@@ -59,14 +67,17 @@ class ThumbKissViewModel extends ChangeNotifier {
   /// (kept around so a fresh point arriving right after doesn't need to
   /// reallocate).
   bool get partnerVisible {
-    final touch = partnerTouch;
-    return touch != null && isTouchFresh(touch.at, clock.now());
+    final receivedAt = _partnerReceivedAt;
+    return partnerTouch != null &&
+        receivedAt != null &&
+        isTouchFresh(receivedAt, clock.now());
   }
 
   Future<void> init() async {
     _unsub = await _touchRepository.subscribe((touch) {
       if (touch.userId == _myId) return; // ignore my own echo, if any
       partnerTouch = touch;
+      _partnerReceivedAt = clock.now();
       _reevaluate();
     });
     // Freshness (mine and the partner's) decays with time alone, not just
@@ -133,7 +144,7 @@ class ThumbKissViewModel extends ChangeNotifier {
       mine: myTouch,
       mineAt: _myTouchAt,
       theirs: theirs?.offset,
-      theirsAt: theirs?.at,
+      theirsAt: theirs == null ? null : _partnerReceivedAt,
       now: now,
     );
     final becameMet = met && !isMet;

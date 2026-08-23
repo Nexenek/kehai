@@ -69,7 +69,7 @@ class PresenceMonitor(
     private var foregroundAppEnabled = false
     private var foregroundPackage: String? = null
 
-    private val foregroundAppPollIntervalMs = 30_000L
+    private val foregroundAppPollIntervalMs = 10_000L
     private val foregroundAppLookbackMs = 60_000L
 
     private val foregroundAppRunnable = object : Runnable {
