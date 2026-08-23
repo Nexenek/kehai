@@ -1,8 +1,10 @@
 import 'package:flutter/widgets.dart';
 
 import 'data/repositories/auth_repository.dart';
+import 'data/repositories/countdown_repository.dart';
 import 'data/repositories/couple_repository.dart';
 import 'data/repositories/device_repository.dart';
+import 'data/repositories/note_repository.dart';
 import 'data/repositories/status_repository.dart';
 import 'data/services/device_info_service.dart';
 import 'data/services/heartbeat_service.dart';
@@ -40,6 +42,8 @@ class AppController extends ChangeNotifier {
   CoupleRepository? coupleRepository;
   StatusRepository? statusRepository;
   DeviceRepository? deviceRepository;
+  CountdownRepository? countdownRepository;
+  NoteRepository? noteRepository;
   HeartbeatService? heartbeatService;
 
   String get serverUrl => prefs.serverUrl ?? '';
@@ -97,6 +101,8 @@ class AppController extends ChangeNotifier {
       coupleRepository = CoupleRepository(pb, authRepository!);
       statusRepository = StatusRepository(pb);
       deviceRepository = DeviceRepository(pb);
+      countdownRepository = CountdownRepository(pb);
+      noteRepository = NoteRepository(pb);
       heartbeatService = HeartbeatService(deviceRepository!, deviceInfoService, presenceService: presenceService);
       connectionError = null;
       return true;

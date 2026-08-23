@@ -82,8 +82,51 @@ class AppStrings {
   static const batteryLowTooltip = 'battery low';
   static const chargingTooltip = 'charging';
 
+  // Home — countdowns
+  static const countdownsTitle = 'countdowns';
+  static const countdownsEmpty =
+      "nothing counted down yet… add something to look forward to! (￣ω￣)";
+  static const addCountdown = 'add';
+  static const countdownToday = 'today!! ✧';
+  static String countdownInDays(int days) => 'in $days ${days == 1 ? 'day' : 'days'}';
+  static String countdownDaysAgo(int days) => '$days ${days == 1 ? 'day' : 'days'} ago';
+  static const countdownTitleLabel = 'what are we counting down to?';
+  static const countdownTitleHint = 'e.g. "trip to kyoto"';
+  static const countdownDateLabel = 'date';
+  static const countdownKaomojiLabel = 'kaomoji (optional)';
+  static const countdownKaomojiHint = 'e.g. ✈ or (๑˃ᴗ˂)ﻭ';
+  static const newCountdownTitle = 'new countdown';
+  static const editCountdownTitle = 'edit countdown';
+  static const saveCountdown = 'save';
+  static const deleteCountdown = 'delete';
+
+  // Home — together / anniversary
+  static String togetherDays(int days) => 'together $days ${days == 1 ? 'day' : 'days'} ♡';
+  static const setAnniversary = 'set your day ♡';
+  static const anniversaryDialogTitle = 'your day together';
+  static const anniversaryDialogBody = 'when did you two get together?';
+  static const saveAnniversary = 'save';
+  static const editTooltip = 'edit';
+
+  // Home — notes
+  static const notesTitle = 'notes';
+  static const notesEmpty = "no notes yet… stick something up! (｡•ᴗ•｡)";
+  static const addNote = 'add';
+  static const noteTitleLabel = 'title';
+  static const noteTitleHint = 'optional title';
+  static const noteBodyLabel = 'note';
+  static const noteBodyHint = 'write something sweet…';
+  static const noteColorLabel = 'color';
+  static const notePinLabel = 'pin this note';
+  static const newNoteTitle = 'new note';
+  static const editNoteTitle = 'edit note';
+  static const saveNoteButton = 'save';
+  static const deleteNoteButton = 'delete';
+  static const untitledNote = 'untitled';
+
   // Generic
   static const loading = 'one sec… (｡•ᴗ•｡)';
   static const genericError = "something went sideways (；一_一) — try again?";
   static const retry = 'try again';
+  static const cancel = 'cancel';
 }

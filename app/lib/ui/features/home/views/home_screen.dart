@@ -8,8 +8,12 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/bevel_box.dart';
 import '../../../core/widgets/pixel_button.dart';
 import '../../../core/widgets/retro_window.dart';
+import '../view_models/countdowns_view_model.dart';
 import '../view_models/home_view_model.dart';
+import '../view_models/notes_view_model.dart';
+import 'countdowns_window.dart';
 import 'mood_picker.dart';
+import 'notes_window.dart';
 import 'partner_card.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -21,6 +25,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   late final HomeViewModel _viewModel;
+  late final CountdownsViewModel _countdownsViewModel;
+  late final NotesViewModel _notesViewModel;
   final _noteController = TextEditingController();
   String _lastSyncedNote = '';
 
@@ -39,6 +45,17 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     _viewModel.addListener(_syncNoteController);
     _viewModel.init();
+
+    _countdownsViewModel = CountdownsViewModel(
+      authRepository: controller.authRepository!,
+      coupleRepository: controller.coupleRepository!,
+      countdownRepository: controller.countdownRepository!,
+    )..init();
+
+    _notesViewModel = NotesViewModel(
+      authRepository: controller.authRepository!,
+      noteRepository: controller.noteRepository!,
+    )..init();
   }
 
   void _syncNoteController() {
@@ -53,6 +70,8 @@ class _HomeScreenState extends State<HomeScreen> {
     _viewModel.removeListener(_syncNoteController);
     _noteController.dispose();
     _viewModel.dispose();
+    _countdownsViewModel.dispose();
+    _notesViewModel.dispose();
     super.dispose();
   }
 
@@ -137,6 +156,22 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ],
                         ),
+                      ),
+                      const SizedBox(height: 20),
+                      ListenableBuilder(
+                        listenable: _countdownsViewModel,
+                        builder: (context, _) {
+                          if (_countdownsViewModel.isLoading) return const SizedBox.shrink();
+                          return CountdownsWindow(viewModel: _countdownsViewModel);
+                        },
+                      ),
+                      const SizedBox(height: 20),
+                      ListenableBuilder(
+                        listenable: _notesViewModel,
+                        builder: (context, _) {
+                          if (_notesViewModel.isLoading) return const SizedBox.shrink();
+                          return NotesWindow(viewModel: _notesViewModel);
+                        },
                       ),
                     ],
                   ),
