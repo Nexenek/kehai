@@ -33,6 +33,7 @@ class ActivityMapper {
     if (exe == null) return null;
     final key = exe.trim().toLowerCase();
     if (key.isEmpty) return null;
+    if (_windowsSuppressedExes.contains(key)) return null;
     final hit = _windowsExeTable[key];
     if (hit != null) return hit;
     return shareUnknown ? _titleCase(key) : null;
@@ -47,6 +48,7 @@ class ActivityMapper {
     if (wmClass == null) return null;
     final key = wmClass.trim().toLowerCase();
     if (key.isEmpty) return null;
+    if (_linuxSuppressedClasses.contains(key)) return null;
     final hit = _linuxClassTable[key];
     if (hit != null) return hit;
     return shareUnknown ? _titleCase(key) : null;
@@ -64,12 +66,60 @@ class ActivityMapper {
     bool shareUnknown = false,
   }) {
     if (package == null) return null;
-    final key = package.trim().toLowerCase();
+    final trimmed = package.trim();
+    final key = trimmed.toLowerCase();
     if (key.isEmpty) return null;
+    // Launchers, system UI, keyboards: being "in" them just means being on
+    // the home screen / recents — not an activity worth broadcasting, so
+    // they say nothing even with shareUnknown on (user-reported:
+    // "Nexuslauncher" showing as an activity).
+    if (_androidSuppressedPackages.contains(key)) return null;
     final hit = _androidPackageTable[key];
     if (hit != null) return hit;
-    return shareUnknown ? _titleCase(_lastSegment(key)) : null;
+    // Fallback works on the ORIGINAL casing: "GoogleCamera" splits into
+    // "Google Camera"; lowercasing first would weld it into "Googlecamera"
+    // (the exact bug the user screenshotted).
+    return shareUnknown ? _titleCase(_camelSplit(_lastSegment(trimmed))) : null;
   }
+
+  /// Home screens / system surfaces that never count as an activity.
+  static const _androidSuppressedPackages = <String>{
+    'com.google.android.apps.nexuslauncher', // Pixel Launcher
+    'com.android.launcher',
+    'com.android.launcher2',
+    'com.android.launcher3',
+    'com.sec.android.app.launcher', // Samsung One UI Home
+    'com.miui.home',
+    'com.mi.android.globallauncher',
+    'net.oneplus.launcher',
+    'com.oneplus.launcher',
+    'com.microsoft.launcher',
+    'app.lawnchair',
+    'com.teslacoilsw.launcher', // Nova
+    'com.huawei.android.launcher',
+    'com.hihonor.android.launcher',
+    'com.android.systemui', // recents / quick settings
+    'com.google.android.inputmethod.latin', // Gboard
+  };
+
+  /// Desktop shells — same reasoning as the Android launchers.
+  static const _windowsSuppressedExes = <String>{
+    'explorer', // also the Windows desktop/taskbar itself
+    'searchhost',
+    'startmenuexperiencehost',
+    'shellexperiencehost',
+    'lockapp',
+  };
+
+  static const _linuxSuppressedClasses = <String>{
+    'gnome-shell',
+    'plasmashell',
+    'ksmserver-logout-greeter',
+  };
+
+  /// "GoogleCamera" -> "Google Camera"; leaves all-lowercase input alone.
+  static String _camelSplit(String raw) =>
+      raw.replaceAllMapped(RegExp(r'(?<=[a-z0-9])(?=[A-Z])'), (_) => ' ');
 
   /// Refines the generic "browsing ☁" label using the focused window's
   /// title — Windows' `getForegroundApp` and the Linux detection chain both
@@ -224,6 +274,19 @@ class ActivityMapper {
     'com.zhiliaoapp.musically': 'scrolling TikTok',
     'com.instagram.android': 'on Instagram',
     'com.facebook.katana': 'on Facebook',
+    'com.facebook.orca': 'chatting on Messenger ✉\uFE0E',
+    'com.google.android.googlecamera': 'taking photos ◉',
+    'com.sec.android.app.camera': 'taking photos ◉',
+    'com.oneplus.camera': 'taking photos ◉',
+    'com.android.camera2': 'taking photos ◉',
+    'com.google.android.apps.photos': 'browsing photos ◉',
+    'com.google.android.gm': 'checking email ✉\uFE0E',
+    'com.google.android.apps.messaging': 'texting ✉\uFE0E',
+    'com.google.android.dialer': 'on a call ☎\uFE0E',
+    'com.android.dialer': 'on a call ☎\uFE0E',
+    'com.google.android.apps.maps': 'navigating ➤',
+    'com.android.vending': 'in the Play Store',
+    'com.android.settings': 'fiddling with settings ⚙\uFE0E',
     'com.snapchat.android': 'on Snapchat',
     'com.pinterest': 'on Pinterest',
     'com.reddit.frontpage': 'browsing Reddit',
@@ -237,7 +300,6 @@ class ActivityMapper {
     // Writing / office.
     'com.google.android.apps.docs.editors.docs': 'writing ✍\uFE0E',
     'com.microsoft.office.word': 'writing ✍\uFE0E',
-    'com.google.android.gm': 'checking email 📧',
 
     // Gaming.
     'com.king.candycrushsaga': 'gaming',

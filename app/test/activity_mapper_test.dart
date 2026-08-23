@@ -394,4 +394,52 @@ void main() {
       );
     });
   });
+  mainSuppression();
+}
+
+// Appended: launcher suppression + camelCase fallback (user-reported:
+// "Nexuslauncher", "Orca", "Googlecamera" leaking as activities).
+void mainSuppression() {
+  test('launchers and system UI say nothing, even with shareUnknown', () {
+    for (final pkg in [
+      'com.google.android.apps.nexuslauncher',
+      'com.sec.android.app.launcher',
+      'com.android.systemui',
+    ]) {
+      expect(ActivityMapper.mapAndroidPackage(pkg, shareUnknown: true), isNull);
+    }
+    expect(
+      ActivityMapper.mapWindowsExe('explorer', shareUnknown: true),
+      isNull,
+    );
+    expect(
+      ActivityMapper.mapLinuxClass('gnome-shell', shareUnknown: true),
+      isNull,
+    );
+  });
+
+  test('common apps got real names instead of package-segment guesses', () {
+    expect(
+      ActivityMapper.mapAndroidPackage('com.facebook.orca'),
+      'chatting on Messenger ✉︎',
+    );
+    expect(
+      ActivityMapper.mapAndroidPackage('com.google.android.GoogleCamera'),
+      'taking photos ◉',
+    );
+    expect(
+      ActivityMapper.mapAndroidPackage('com.google.android.gm'),
+      'checking email ✉︎',
+    );
+  });
+
+  test('unknown-app fallback splits camelCase from the original casing', () {
+    expect(
+      ActivityMapper.mapAndroidPackage(
+        'com.example.CoolNoteApp',
+        shareUnknown: true,
+      ),
+      'Cool Note App',
+    );
+  });
 }
