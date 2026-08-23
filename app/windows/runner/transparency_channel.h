@@ -15,23 +15,35 @@
 // per-pixel window transparency around the mini partner card, and to
 // restore an opaque window for the full panel.
 //
-// The technique is DWM's classic "sheet of glass": the Flutter engine's
-// Windows compositor already clears every frame to (0,0,0,0)
-// (compositor_opengl.cc) and renders through an EGL surface with an alpha
-// channel, so nothing on the Dart/engine side needs to change — the window
-// itself just needs DWM to treat its client area as compositable instead of
-// opaque. `DwmExtendFrameIntoClientArea` with all margins set to -1 does
-// exactly that; margins of 0 (the default) hands DWM back its normal
-// opaque-window behaviour. No WS_EX_LAYERED is used — that model is for
-// GDI-rendered layered windows updated via UpdateLayeredWindow, and fighting
-// it against the engine's own Direct3D/ANGLE swap chain is the mistake a
-// previous pass here correctly avoided.
+// The textbook DWM "sheet of glass" trick (DwmExtendFrameIntoClientArea with
+// all margins -1) was tried first — the Flutter engine's Windows compositor
+// already clears every frame to (0,0,0,0) (compositor_opengl.cc) through an
+// EGL surface with an alpha channel, so nothing on the Dart/engine side
+// needed to change for it. It reported success (S_OK) but did not actually
+// show through on a real machine: measured with a live build, the mini card
+// kept rendering its opaque fallback. That trick is written for a window
+// whose own GDI-redirected bitmap carries the alpha; Flutter's child window
+// presents through a hardware (ANGLE/Direct3D11) swap chain, which this
+// class's DWM redirection surface doesn't compose the same way.
+//
+// What does work — and is the technique flutter_acrylic (a widely used
+// Flutter Windows transparency/acrylic plugin) itself relies on —
+// is the undocumented `SetWindowCompositionAttribute` user32 export with an
+// `ACCENT_ENABLE_TRANSPARENTGRADIENT` policy and a zero-alpha gradient
+// colour: it asks DWM to composite the *whole* window against the desktop
+// directly, rather than relying on the app's own redirection-surface alpha,
+// which is what actually shows through a D3D-backed child surface. No
+// WS_EX_LAYERED is used either way — that model is for GDI-rendered layered
+// windows updated via UpdateLayeredWindow, and fighting it against the
+// engine's own swap chain was the mistake a previous pass here correctly
+// avoided.
 //
 // `setTransparent` replies with whether transparency is actually active
-// afterward: DWM composition has been mandatory-on since Windows 8, so in
-// practice this succeeds whenever the call reaches a live top-level window,
-// and reports false only if there's no window yet or the DWM call itself
-// fails — never throws, matching every other native channel in this app.
+// afterward: false whenever there's no window yet, the undocumented export
+// isn't present on this Windows build (SetWindowCompositionAttribute has
+// existed since Windows 10 1809's public surface but was never a documented,
+// guaranteed API), or the call itself fails — never throws, matching every
+// other native channel in this app.
 class TransparencyChannel {
  public:
   // |messenger| is owned by the engine, which outlives the FlutterWindow
