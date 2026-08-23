@@ -24,8 +24,19 @@ class CouplesApp extends StatelessWidget {
       darkTheme: AppTheme.dark(),
       // Desktop hides the OS title bar (see DesktopWindowService), so every
       // screen — dialogs included — sits inside our own window chrome.
+      // The chrome lives above the Navigator, i.e. above its Overlay — but
+      // the titlebar's Tooltips need an Overlay ancestor, so give the chrome
+      // one of its own.
       builder: (context, child) => DesktopWindowService.isSupported
-          ? _DesktopWindowChrome(child: child ?? const SizedBox.shrink())
+          ? Overlay(
+              initialEntries: [
+                OverlayEntry(
+                  builder: (_) => _DesktopWindowChrome(
+                    child: child ?? const SizedBox.shrink(),
+                  ),
+                ),
+              ],
+            )
           : child ?? const SizedBox.shrink(),
       home: const _RootSwitcher(),
     );
