@@ -148,6 +148,10 @@ class KehaiTaskHandler extends TaskHandler {
   /// was idle.
   Future<void> _applyLocationPrefs([PrefsService? loaded]) async {
     final prefs = loaded ?? await PrefsService.create();
+    // SharedPreferences caches per isolate: without this reload the UI
+    // isolate's toggle writes are invisible here and the publisher would
+    // stay disabled forever.
+    await prefs.reload();
     await _locationPublisher?.setEnabled(prefs.shareLocation);
   }
 

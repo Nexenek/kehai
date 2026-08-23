@@ -126,4 +126,11 @@ class PrefsService {
 
   Future<void> setShareLocation(bool value) =>
       _prefs.setBool(_shareLocationKey, value);
+
+  /// Re-reads the backing store from disk. SharedPreferences caches values
+  /// per isolate, so the background isolate MUST call this before re-reading
+  /// settings the UI isolate may have changed — without it, a toggle flipped
+  /// in the app never reaches the foreground service (this exact bug shipped
+  /// once: shareLocation stayed stale-false in the service forever).
+  Future<void> reload() => _prefs.reload();
 }

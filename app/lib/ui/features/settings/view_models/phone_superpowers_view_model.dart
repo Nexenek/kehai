@@ -101,6 +101,7 @@ class PhoneSuperpowersViewModel extends ChangeNotifier {
     listenerEnabled = results[2];
     serviceRunning = results[3];
     usageAccessGranted = results[4];
+    final wasGranted = locationWhileInUseGranted;
     try {
       locationPermission = await Geolocator.checkPermission();
     } catch (_) {
@@ -108,6 +109,13 @@ class PhoneSuperpowersViewModel extends ChangeNotifier {
     }
     isLoading = false;
     notifyListeners();
+
+    // Grant flipped while we were away (the settings-page path of the
+    // two-step flow): bounce the service so it picks up the location
+    // foreground-service type.
+    if (!wasGranted && locationWhileInUseGranted && shareLocation) {
+      await _restartServiceForLocation();
+    }
   }
 
   Future<void> requestNotifications() async {
@@ -188,6 +196,19 @@ class PhoneSuperpowersViewModel extends ChangeNotifier {
     shareLocation = value;
     await _onSetShareLocation(value);
     notifyListeners();
+    if (value) await _restartServiceForLocation();
+  }
+
+  /// Android grants the `location` foreground-service type only when the
+  /// service *starts* with the permission already held — a service that was
+  /// already running when the grant happened keeps its old type set and
+  /// background fixes stay blocked. So when location becomes usable (grant
+  /// flipped, or sharing turned on), bounce the running service once.
+  Future<void> _restartServiceForLocation() async {
+    if (!serviceRunning || !locationWhileInUseGranted) return;
+    await KehaiForegroundTask.stop();
+    await KehaiForegroundTask.start();
+    await refresh();
   }
 
   Future<void> toggleService() async {

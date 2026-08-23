@@ -204,7 +204,15 @@ class DesktopWindowService with WindowListener implements WindowModeEffects {
     // Ask last, once the card is actually the shape/size it'll stay: the
     // runner's answer decides whether MiniPartnerWindow gets the
     // see-through, pixel-stepped look or the opaque pastel fallback.
-    wantsTransparentMini.value = await setMiniTransparency(true);
+    //
+    // Windows is EXCLUDED for now: the accent-transparency technique reports
+    // success but paints the system accent color (a solid blue card, user-
+    // verified 2026-08-23) instead of clearing — worse than the pastel card
+    // it replaced. Revisit only with a technique that can be positively
+    // capability-checked; the channel stays in the runner for that day.
+    wantsTransparentMini.value = Platform.isWindows
+        ? false
+        : await setMiniTransparency(true);
   });
 
   /// Grows back into the companion panel from the card's corner.
