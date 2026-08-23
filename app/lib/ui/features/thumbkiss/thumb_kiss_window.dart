@@ -160,30 +160,45 @@ class _ThumbKissWindowState extends State<ThumbKissWindow>
                           constraints.maxWidth,
                           constraints.maxHeight,
                         );
-                        return GestureDetector(
+                        // Raw pointer events, not GestureDetector pans: the
+                        // pad lives inside scrollables, and on touch screens
+                        // the scroll view steals the drag from the gesture
+                        // arena moments after pointer-down — our pan gets
+                        // CANCELED mid-press, which read as "blob disappears
+                        // when I put my thumb down" on phones. Listener sits
+                        // outside the arena entirely, so a press is a press.
+                        // The inner GestureDetector claims vertical drags
+                        // with no-op handlers purely so the parent scrollable
+                        // doesn't scroll the page under a moving thumb.
+                        return Listener(
                           behavior: HitTestBehavior.opaque,
-                          onPanDown: (d) =>
-                              _handlePointer(d.localPosition, size),
-                          onPanUpdate: (d) =>
-                              _handlePointer(d.localPosition, size),
-                          onPanEnd: (_) => viewModel.onTouchEnd(),
-                          onPanCancel: viewModel.onTouchEnd,
-                          child: CustomPaint(
-                            key: const Key('thumb-kiss-canvas'),
-                            size: size,
-                            painter: ThumbKissPainter(
-                              myTouch: viewModel.myTouch,
-                              // The smoothed display position, not the raw
-                              // network point — see [_onSmoothTick].
-                              partnerTouch: viewModel.partnerVisible
-                                  ? (_partnerDisplay ??
-                                        viewModel.partnerTouch?.offset)
-                                  : null,
-                              isMet: viewModel.isMet,
-                              myColor: colors.accent,
-                              partnerColor: colors.accent2,
-                              flashColor: colors.warn,
-                              sparklePhase: _sparkle.value,
+                          onPointerDown: (e) =>
+                              _handlePointer(e.localPosition, size),
+                          onPointerMove: (e) =>
+                              _handlePointer(e.localPosition, size),
+                          onPointerUp: (_) => viewModel.onTouchEnd(),
+                          onPointerCancel: (_) => viewModel.onTouchEnd(),
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onVerticalDragStart: (_) {},
+                            onVerticalDragUpdate: (_) {},
+                            child: CustomPaint(
+                              key: const Key('thumb-kiss-canvas'),
+                              size: size,
+                              painter: ThumbKissPainter(
+                                myTouch: viewModel.myTouch,
+                                // The smoothed display position, not the raw
+                                // network point — see [_onSmoothTick].
+                                partnerTouch: viewModel.partnerVisible
+                                    ? (_partnerDisplay ??
+                                          viewModel.partnerTouch?.offset)
+                                    : null,
+                                isMet: viewModel.isMet,
+                                myColor: colors.accent,
+                                partnerColor: colors.accent2,
+                                flashColor: colors.warn,
+                                sparklePhase: _sparkle.value,
+                              ),
                             ),
                           ),
                         );
