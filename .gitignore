@@ -6,8 +6,9 @@ kb/
 .env.*
 *.local
 
-# Server
+# Server / deploy runtime state
 server/pb_data/
+deploy/data/
 server/couples-server
 server/tmp/
 
