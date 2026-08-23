@@ -86,12 +86,24 @@ void main() {
     });
 
     test(
-      'Paused now_playing still outranks activity when nothing is Playing',
+      'Paused now_playing is ignored — lingering paused sessions must not '
+      'read as listening (falls through to activity)',
       () {
         final devices = [_device(nowPlaying: _paused, activity: 'gaming')];
         final line = resolveAmbientLine(devices);
-        expect(line!.kind, AmbientLineKind.nowPlaying);
-        expect(line.text, contains('Sugar'));
+        expect(line!.kind, AmbientLineKind.activity);
+        expect(line.text, 'gaming');
+      },
+    );
+
+    test(
+      'Paused now_playing with nothing else falls through to presence',
+      () {
+        final devices = [
+          _device(kind: 'phone', nowPlaying: _paused, idleSeconds: 10),
+        ];
+        final line = resolveAmbientLine(devices);
+        expect(line!.kind, AmbientLineKind.onPhone);
       },
     );
 

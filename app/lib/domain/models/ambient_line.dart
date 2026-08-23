@@ -43,22 +43,19 @@ AmbientLine? resolveAmbientLine(List<DeviceStatus> devices) {
   final online = devices.where((d) => d.isOnline).toList();
   if (online.isEmpty) return null;
 
-  // now_playing: a Playing player anywhere beats a merely Paused one.
-  NowPlaying? bestNowPlaying;
+  // now_playing: only an actually-Playing player counts as listening.
+  // Android (and desktops) keep a lingering Paused session around long
+  // after the music was paused or the player closed — showing that as
+  // "listening" reads as stale/wrong to the partner, so paused sessions
+  // fall through to activity/presence instead.
   for (final device in online) {
     final nowPlaying = device.nowPlaying;
-    if (nowPlaying == null) continue;
-    if (nowPlaying.state == NowPlayingState.playing) {
-      bestNowPlaying = nowPlaying;
-      break;
+    if (nowPlaying != null && nowPlaying.state == NowPlayingState.playing) {
+      return AmbientLine(
+        kind: AmbientLineKind.nowPlaying,
+        text: nowPlaying.marqueeText,
+      );
     }
-    bestNowPlaying ??= nowPlaying;
-  }
-  if (bestNowPlaying != null) {
-    return AmbientLine(
-      kind: AmbientLineKind.nowPlaying,
-      text: bestNowPlaying.marqueeText,
-    );
   }
 
   for (final device in online) {
