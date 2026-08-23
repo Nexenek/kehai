@@ -19,8 +19,11 @@ import 'presence/presence_service.dart';
 /// by a `StreamController` is enough to exercise the immediate-heartbeat
 /// and now_playing-clearing logic below.
 class HeartbeatService {
-  HeartbeatService(this._deviceRepository, this._deviceInfoService, {PresenceService? presenceService})
-      : _presenceService = presenceService;
+  HeartbeatService(
+    this._deviceRepository,
+    this._deviceInfoService, {
+    PresenceService? presenceService,
+  }) : _presenceService = presenceService;
 
   final DeviceRepository _deviceRepository;
   final DeviceInfoService _deviceInfoService;
@@ -59,7 +62,8 @@ class HeartbeatService {
   void _onPresenceChanged(DevicePresence presence) {
     final trackChanged = presence.nowPlaying != _lastObservedNowPlaying;
     final away = (presence.idleSeconds ?? 0) >= _awayThresholdSeconds;
-    final awayCrossed = presence.idleSeconds != null && away != _lastObservedAway;
+    final awayCrossed =
+        presence.idleSeconds != null && away != _lastObservedAway;
 
     _lastObservedNowPlaying = presence.nowPlaying;
     if (presence.idleSeconds != null) _lastObservedAway = away;

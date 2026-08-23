@@ -4,6 +4,7 @@ import 'data/repositories/auth_repository.dart';
 import 'data/repositories/countdown_repository.dart';
 import 'data/repositories/couple_repository.dart';
 import 'data/repositories/device_repository.dart';
+import 'data/repositories/doodle_repository.dart';
 import 'data/repositories/note_repository.dart';
 import 'data/repositories/status_repository.dart';
 import 'data/services/device_info_service.dart';
@@ -44,6 +45,7 @@ class AppController extends ChangeNotifier {
   DeviceRepository? deviceRepository;
   CountdownRepository? countdownRepository;
   NoteRepository? noteRepository;
+  DoodleRepository? doodleRepository;
   HeartbeatService? heartbeatService;
 
   String get serverUrl => prefs.serverUrl ?? '';
@@ -103,11 +105,17 @@ class AppController extends ChangeNotifier {
       deviceRepository = DeviceRepository(pb);
       countdownRepository = CountdownRepository(pb);
       noteRepository = NoteRepository(pb);
-      heartbeatService = HeartbeatService(deviceRepository!, deviceInfoService, presenceService: presenceService);
+      doodleRepository = DoodleRepository(pb);
+      heartbeatService = HeartbeatService(
+        deviceRepository!,
+        deviceInfoService,
+        presenceService: presenceService,
+      );
       connectionError = null;
       return true;
     } catch (_) {
-      connectionError = "couldn't reach your server (・_・;) — check the address or Tailscale?";
+      connectionError =
+          "couldn't reach your server (・_・;) — check the address or Tailscale?";
       return false;
     }
   }
@@ -151,8 +159,11 @@ class AppController extends ChangeNotifier {
 /// Makes the [AppController] reachable from any widget below it via
 /// `AppScope.of(context)`.
 class AppScope extends InheritedNotifier<AppController> {
-  const AppScope({super.key, required AppController controller, required super.child})
-      : super(notifier: controller);
+  const AppScope({
+    super.key,
+    required AppController controller,
+    required super.child,
+  }) : super(notifier: controller);
 
   static AppController of(BuildContext context, {bool listen = true}) {
     final scope = listen

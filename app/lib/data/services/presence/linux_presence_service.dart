@@ -23,9 +23,11 @@ import 'presence_service.dart';
 /// WSLg) degrades to [DevicePresence.empty] forever, never a crash or a
 /// hung poll.
 class LinuxPresenceService implements PresenceService {
-  LinuxPresenceService({DBusClient? sessionBus, this.pollInterval = const Duration(seconds: 5)})
-      : _ownsBus = sessionBus == null,
-        _bus = sessionBus ?? DBusClient.session();
+  LinuxPresenceService({
+    DBusClient? sessionBus,
+    this.pollInterval = const Duration(seconds: 5),
+  }) : _ownsBus = sessionBus == null,
+       _bus = sessionBus ?? DBusClient.session();
 
   final DBusClient _bus;
   final bool _ownsBus;
@@ -57,7 +59,10 @@ class LinuxPresenceService implements PresenceService {
     try {
       final nowPlaying = await _pollNowPlaying();
       final idleSeconds = await _pollIdleSeconds();
-      final next = DevicePresence(nowPlaying: nowPlaying, idleSeconds: idleSeconds);
+      final next = DevicePresence(
+        nowPlaying: nowPlaying,
+        idleSeconds: idleSeconds,
+      );
       if (next != _current) {
         _current = next;
         if (!_controller.isClosed) _controller.add(next);
@@ -77,13 +82,16 @@ class LinuxPresenceService implements PresenceService {
     } catch (_) {
       return null; // no session bus, or it doesn't answer ListNames — bail
     }
-    final playerNames = names.where((n) => n.startsWith('org.mpris.MediaPlayer2.')).toList()..sort();
+    final playerNames =
+        names.where((n) => n.startsWith('org.mpris.MediaPlayer2.')).toList()
+          ..sort();
 
     NowPlaying? bestPaused;
     for (final name in playerNames) {
       final snapshot = await _readPlayer(name);
       if (snapshot == null) continue;
-      if (snapshot.state == NowPlayingState.playing) return snapshot; // Playing beats Paused
+      if (snapshot.state == NowPlayingState.playing)
+        return snapshot; // Playing beats Paused
       bestPaused ??= snapshot;
     }
     return bestPaused;
@@ -91,14 +99,25 @@ class LinuxPresenceService implements PresenceService {
 
   Future<NowPlaying?> _readPlayer(String busName) async {
     try {
-      final obj = DBusRemoteObject(_bus, name: busName, path: DBusObjectPath('/org/mpris/MediaPlayer2'));
-      final props = await obj.getAllProperties('org.mpris.MediaPlayer2.Player').timeout(_callTimeout);
+      final obj = DBusRemoteObject(
+        _bus,
+        name: busName,
+        path: DBusObjectPath('/org/mpris/MediaPlayer2'),
+      );
+      final props = await obj
+          .getAllProperties('org.mpris.MediaPlayer2.Player')
+          .timeout(_callTimeout);
       final statusValue = props['PlaybackStatus'];
       final status = statusValue is DBusString ? statusValue.value : null;
       final metadataValue = props['Metadata'];
-      final metadata =
-          metadataValue is DBusDict ? metadataValue.asStringVariantDict() : const <String, DBusValue>{};
-      return MprisMapper.map(busName: busName, playbackStatus: status, metadata: metadata);
+      final metadata = metadataValue is DBusDict
+          ? metadataValue.asStringVariantDict()
+          : const <String, DBusValue>{};
+      return MprisMapper.map(
+        busName: busName,
+        playbackStatus: status,
+        metadata: metadata,
+      );
     } catch (_) {
       // Player vanished mid-poll, doesn't fully implement the interface,
       // or is just slow to answer — skip it, not fatal to the poll.
@@ -127,7 +146,9 @@ class LinuxPresenceService implements PresenceService {
       final result = await obj
           .callMethod('org.freedesktop.ScreenSaver', 'GetSessionIdleTime', [])
           .timeout(_callTimeout);
-      final ms = result.returnValues.isEmpty ? null : _asInt(result.returnValues.first);
+      final ms = result.returnValues.isEmpty
+          ? null
+          : _asInt(result.returnValues.first);
       return ms == null ? null : ms ~/ 1000;
     } catch (_) {
       return null;
@@ -144,9 +165,12 @@ class LinuxPresenceService implements PresenceService {
         name: 'org.gnome.Mutter.IdleMonitor',
         path: DBusObjectPath('/org/gnome/Mutter/IdleMonitor/Core'),
       );
-      final result =
-          await obj.callMethod('org.gnome.Mutter.IdleMonitor', 'GetIdletime', []).timeout(_callTimeout);
-      final ms = result.returnValues.isEmpty ? null : _asInt(result.returnValues.first);
+      final result = await obj
+          .callMethod('org.gnome.Mutter.IdleMonitor', 'GetIdletime', [])
+          .timeout(_callTimeout);
+      final ms = result.returnValues.isEmpty
+          ? null
+          : _asInt(result.returnValues.first);
       return ms == null ? null : ms ~/ 1000;
     } catch (_) {
       return null;

@@ -15,7 +15,8 @@ class AppStrings {
       "enter the address of your home server (or its Tailscale name). "
       "we'll just say hi first — nothing is sent until you log in.";
   static const serverUrlLabel = 'server address';
-  static const serverUrlHint = 'https://100.x.x.x:8090 or https://couples.tail...ts.net';
+  static const serverUrlHint =
+      'https://100.x.x.x:8090 or https://couples.tail...ts.net';
   static const testConnection = 'test connection';
   static const connectionOk = "found it! (｡•̀ᴗ-)✧";
   static const connectionFailed =
@@ -58,7 +59,8 @@ class AppStrings {
 
   // Home
   static const waitingTitle = 'waiting for your person';
-  static const waitingBody = 'send them your invite code and they can join any time.';
+  static const waitingBody =
+      'send them your invite code and they can join any time.';
   static const waitingKaomoji = '(づ￣ ³￣)づ';
   static const partnerCardTitleFallback = 'your person';
   static const updatedJustNow = 'updated just now';
@@ -88,8 +90,10 @@ class AppStrings {
       "nothing counted down yet… add something to look forward to! (￣ω￣)";
   static const addCountdown = 'add';
   static const countdownToday = 'today!! ✧';
-  static String countdownInDays(int days) => 'in $days ${days == 1 ? 'day' : 'days'}';
-  static String countdownDaysAgo(int days) => '$days ${days == 1 ? 'day' : 'days'} ago';
+  static String countdownInDays(int days) =>
+      'in $days ${days == 1 ? 'day' : 'days'}';
+  static String countdownDaysAgo(int days) =>
+      '$days ${days == 1 ? 'day' : 'days'} ago';
   static const countdownTitleLabel = 'what are we counting down to?';
   static const countdownTitleHint = 'e.g. "trip to kyoto"';
   static const countdownDateLabel = 'date';
@@ -101,7 +105,8 @@ class AppStrings {
   static const deleteCountdown = 'delete';
 
   // Home — together / anniversary
-  static String togetherDays(int days) => 'together $days ${days == 1 ? 'day' : 'days'} ♡';
+  static String togetherDays(int days) =>
+      'together $days ${days == 1 ? 'day' : 'days'} ♡';
   static const setAnniversary = 'set your day ♡';
   static const anniversaryDialogTitle = 'your day together';
   static const anniversaryDialogBody = 'when did you two get together?';
@@ -123,6 +128,22 @@ class AppStrings {
   static const saveNoteButton = 'save';
   static const deleteNoteButton = 'delete';
   static const untitledNote = 'untitled';
+
+  // Home — doodles
+  static const doodleDialogTitle = 'draw something for them ♡';
+  static const doodleUndo = 'undo';
+  static const doodleClear = 'clear';
+  static const doodleSend = 'send';
+  static const doodleSending = 'sending…';
+  static const doodleSent = 'sent! (｡•̀ᴗ-)♡';
+  static const doodleSendFailed = "couldn't send that (・_・;) — try again?";
+  static const sendDoodleTooltip = 'send a doodle ✎';
+  static const drawBackButton = 'draw back ✎';
+  static const deleteDoodleTooltip = 'delete this doodle';
+  static const brushSmallTooltip = 'small brush';
+  static const brushBigTooltip = 'big brush';
+  static String fromThemCaption(String relative) => 'from them · $relative';
+  static String youSentCaption(String relative) => 'you sent · $relative';
 
   // Generic
   static const loading = 'one sec… (｡•ᴗ•｡)';

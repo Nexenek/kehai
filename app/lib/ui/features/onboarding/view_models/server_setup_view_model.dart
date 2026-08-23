@@ -48,7 +48,9 @@ class ServerSetupViewModel extends ChangeNotifier {
 
     final ok = await _controller.confirmServer(url.trim());
     _submitting = false;
-    if (!ok) _errorMessage = _controller.connectionError ?? AppStrings.connectionFailed;
+    if (!ok)
+      _errorMessage =
+          _controller.connectionError ?? AppStrings.connectionFailed;
     notifyListeners();
     return ok;
   }

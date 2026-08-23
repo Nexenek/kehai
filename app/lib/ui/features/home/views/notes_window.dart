@@ -23,12 +23,25 @@ class NotesWindow extends StatelessWidget {
       existing: existing,
       onSave: (draft) {
         if (existing != null) {
-          viewModel.updateNote(existing.id, title: draft.title, body: draft.body, color: draft.color, pinned: draft.pinned);
+          viewModel.updateNote(
+            existing.id,
+            title: draft.title,
+            body: draft.body,
+            color: draft.color,
+            pinned: draft.pinned,
+          );
         } else {
-          viewModel.addNote(title: draft.title, body: draft.body, color: draft.color, pinned: draft.pinned);
+          viewModel.addNote(
+            title: draft.title,
+            body: draft.body,
+            color: draft.color,
+            pinned: draft.pinned,
+          );
         }
       },
-      onDelete: existing != null ? () => viewModel.deleteNote(existing.id) : null,
+      onDelete: existing != null
+          ? () => viewModel.deleteNote(existing.id)
+          : null,
     );
   }
 
@@ -56,7 +69,12 @@ class NotesWindow extends StatelessWidget {
               spacing: 10,
               runSpacing: 10,
               children: notes
-                  .map((n) => NoteCard(note: n, onTap: () => _openDialog(context, existing: n)))
+                  .map(
+                    (n) => NoteCard(
+                      note: n,
+                      onTap: () => _openDialog(context, existing: n),
+                    ),
+                  )
                   .toList(),
             ),
           const SizedBox(height: 12),

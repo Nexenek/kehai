@@ -7,7 +7,11 @@ import '../theme/app_colors.dart';
 /// accessibility floor in design-language.md. Wrap any Focus-able control
 /// (buttons, fields) that doesn't already draw its own focus ring.
 class PixelFocusBorder extends StatelessWidget {
-  const PixelFocusBorder({super.key, required this.focused, required this.child});
+  const PixelFocusBorder({
+    super.key,
+    required this.focused,
+    required this.child,
+  });
 
   final bool focused;
   final Widget child;
@@ -35,7 +39,12 @@ class _DottedBorderPainter extends CustomPainter {
     final paint = Paint()
       ..color = color
       ..style = PaintingStyle.fill;
-    final rect = Rect.fromLTWH(inset, inset, size.width - inset * 2, size.height - inset * 2);
+    final rect = Rect.fromLTWH(
+      inset,
+      inset,
+      size.width - inset * 2,
+      size.height - inset * 2,
+    );
 
     void dashLine(Offset start, Offset end) {
       final total = (end - start).distance;
@@ -57,5 +66,6 @@ class _DottedBorderPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _DottedBorderPainter oldDelegate) => oldDelegate.color != color;
+  bool shouldRepaint(covariant _DottedBorderPainter oldDelegate) =>
+      oldDelegate.color != color;
 }

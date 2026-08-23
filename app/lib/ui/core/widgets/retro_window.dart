@@ -92,7 +92,11 @@ class _TitleBar extends StatelessWidget {
 }
 
 class _WinDecoration extends StatelessWidget {
-  const _WinDecoration({required this.glyph, required this.tooltip, this.onTap});
+  const _WinDecoration({
+    required this.glyph,
+    required this.tooltip,
+    this.onTap,
+  });
 
   final String glyph;
   final String tooltip;
@@ -112,7 +116,10 @@ class _WinDecoration extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
             child: Text(
               glyph,
-              style: AppTextStyles.caption.copyWith(color: colors.accent, height: 1),
+              style: AppTextStyles.caption.copyWith(
+                color: colors.accent,
+                height: 1,
+              ),
             ),
           ),
         ),

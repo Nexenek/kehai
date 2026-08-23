@@ -7,7 +7,11 @@ import '../../../core/widgets/device_glyph.dart';
 /// element: "tiny pixel phone/monitor glyphs — lit = that device online
 /// now, both lit = both".
 class DeviceIndicator extends StatelessWidget {
-  const DeviceIndicator({super.key, required this.phoneOnline, required this.desktopOnline});
+  const DeviceIndicator({
+    super.key,
+    required this.phoneOnline,
+    required this.desktopOnline,
+  });
 
   final bool phoneOnline;
   final bool desktopOnline;
@@ -26,9 +30,17 @@ class DeviceIndicator extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        DeviceGlyph(kind: DeviceGlyphKind.phone, lit: phoneOnline, tooltip: _combinedTooltip),
+        DeviceGlyph(
+          kind: DeviceGlyphKind.phone,
+          lit: phoneOnline,
+          tooltip: _combinedTooltip,
+        ),
         const SizedBox(width: 6),
-        DeviceGlyph(kind: DeviceGlyphKind.desktop, lit: desktopOnline, tooltip: _combinedTooltip),
+        DeviceGlyph(
+          kind: DeviceGlyphKind.desktop,
+          lit: desktopOnline,
+          tooltip: _combinedTooltip,
+        ),
       ],
     );
   }

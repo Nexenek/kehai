@@ -13,8 +13,8 @@ class NotesViewModel extends ChangeNotifier {
   NotesViewModel({
     required AuthRepository authRepository,
     required NoteRepository noteRepository,
-  })  : _authRepository = authRepository,
-        _noteRepository = noteRepository;
+  }) : _authRepository = authRepository,
+       _noteRepository = noteRepository;
 
   final AuthRepository _authRepository;
   final NoteRepository _noteRepository;
@@ -67,7 +67,13 @@ class NotesViewModel extends ChangeNotifier {
   }) {
     final coupleId = _coupleId;
     if (coupleId == null) return Future.value();
-    return _noteRepository.create(coupleId: coupleId, title: title, body: body, color: color, pinned: pinned);
+    return _noteRepository.create(
+      coupleId: coupleId,
+      title: title,
+      body: body,
+      color: color,
+      pinned: pinned,
+    );
   }
 
   Future<void> updateNote(
@@ -77,7 +83,13 @@ class NotesViewModel extends ChangeNotifier {
     required NoteColor color,
     bool pinned = false,
   }) {
-    return _noteRepository.update(id, title: title, body: body, color: color, pinned: pinned);
+    return _noteRepository.update(
+      id,
+      title: title,
+      body: body,
+      color: color,
+      pinned: pinned,
+    );
   }
 
   Future<void> deleteNote(String id) => _noteRepository.delete(id);

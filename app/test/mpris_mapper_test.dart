@@ -26,7 +26,11 @@ void main() {
       final result = MprisMapper.map(
         busName: 'org.mpris.MediaPlayer2.spotify',
         playbackStatus: 'Playing',
-        metadata: _metadata(title: 'Marigold', artists: ['yeule'], album: 'softscars'),
+        metadata: _metadata(
+          title: 'Marigold',
+          artists: ['yeule'],
+          album: 'softscars',
+        ),
       );
 
       expect(result, isNotNull);
@@ -69,14 +73,17 @@ void main() {
       expect(result, isNull);
     });
 
-    test('Playing with no title (empty metadata dict between tracks) maps to null', () {
-      final result = MprisMapper.map(
-        busName: 'org.mpris.MediaPlayer2.spotify',
-        playbackStatus: 'Playing',
-        metadata: const {},
-      );
-      expect(result, isNull);
-    });
+    test(
+      'Playing with no title (empty metadata dict between tracks) maps to null',
+      () {
+        final result = MprisMapper.map(
+          busName: 'org.mpris.MediaPlayer2.spotify',
+          playbackStatus: 'Playing',
+          metadata: const {},
+        );
+        expect(result, isNull);
+      },
+    );
 
     test('empty-string title also maps to null', () {
       final result = MprisMapper.map(
@@ -91,36 +98,48 @@ void main() {
       final result = MprisMapper.map(
         busName: 'org.mpris.MediaPlayer2.spotify',
         playbackStatus: 'Playing',
-        metadata: _metadata(title: 'Collab', artists: ['', 'Real Artist', 'Feature']),
+        metadata: _metadata(
+          title: 'Collab',
+          artists: ['', 'Real Artist', 'Feature'],
+        ),
       );
       expect(result!.artist, 'Real Artist');
     });
 
-    test('strips the Chromium-style .instanceNNNN suffix from the player label', () {
-      final result = MprisMapper.map(
-        busName: 'org.mpris.MediaPlayer2.chromium.instance1234',
-        playbackStatus: 'Playing',
-        metadata: _metadata(title: 'Video'),
-      );
-      expect(result!.player, 'chromium');
-    });
+    test(
+      'strips the Chromium-style .instanceNNNN suffix from the player label',
+      () {
+        final result = MprisMapper.map(
+          busName: 'org.mpris.MediaPlayer2.chromium.instance1234',
+          playbackStatus: 'Playing',
+          metadata: _metadata(title: 'Video'),
+        );
+        expect(result!.player, 'chromium');
+      },
+    );
 
-    test('a busName with no MPRIS prefix is used as-is for the player label', () {
-      final result = MprisMapper.map(
-        busName: 'com.example.SomeWeirdPlayer',
-        playbackStatus: 'Playing',
-        metadata: _metadata(title: 'Video'),
-      );
-      expect(result!.player, 'com.example.SomeWeirdPlayer');
-    });
+    test(
+      'a busName with no MPRIS prefix is used as-is for the player label',
+      () {
+        final result = MprisMapper.map(
+          busName: 'com.example.SomeWeirdPlayer',
+          playbackStatus: 'Playing',
+          metadata: _metadata(title: 'Video'),
+        );
+        expect(result!.player, 'com.example.SomeWeirdPlayer');
+      },
+    );
 
-    test('a wrong-typed title value (not DBusString) is treated as missing', () {
-      final result = MprisMapper.map(
-        busName: 'org.mpris.MediaPlayer2.weird',
-        playbackStatus: 'Playing',
-        metadata: {'xesam:title': DBusUint32(42)},
-      );
-      expect(result, isNull);
-    });
+    test(
+      'a wrong-typed title value (not DBusString) is treated as missing',
+      () {
+        final result = MprisMapper.map(
+          busName: 'org.mpris.MediaPlayer2.weird',
+          playbackStatus: 'Playing',
+          metadata: {'xesam:title': DBusUint32(42)},
+        );
+        expect(result, isNull);
+      },
+    );
   });
 }

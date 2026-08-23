@@ -71,11 +71,14 @@ void main() {
       expect(daysTogether(today, now: today), 0);
     });
 
-    test('an anniversary mistakenly set in the future clamps to 0, not negative', () {
-      final anniversary = DateTime(2027, 1, 1);
-      final now = DateTime(2026, 8, 23);
-      expect(daysTogether(anniversary, now: now), 0);
-    });
+    test(
+      'an anniversary mistakenly set in the future clamps to 0, not negative',
+      () {
+        final anniversary = DateTime(2027, 1, 1);
+        final now = DateTime(2026, 8, 23);
+        expect(daysTogether(anniversary, now: now), 0);
+      },
+    );
   });
 
   group('friendlyDate', () {

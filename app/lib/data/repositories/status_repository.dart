@@ -11,16 +11,20 @@ class StatusRepository {
   final PocketBase _pb;
 
   PartnerStatus _fromRecord(RecordModel r) => PartnerStatus(
-        userId: r.get<String>('user'),
-        moodId: r.get<String>('mood'),
-        note: r.get<String>('note'),
-        sourceKind: SourceKind.fromString(r.get<String>('source_kind')),
-        updated: DateTime.tryParse(r.get<String>('updated'))?.toLocal() ?? DateTime.now(),
-      );
+    userId: r.get<String>('user'),
+    moodId: r.get<String>('mood'),
+    note: r.get<String>('note'),
+    sourceKind: SourceKind.fromString(r.get<String>('source_kind')),
+    updated:
+        DateTime.tryParse(r.get<String>('updated'))?.toLocal() ??
+        DateTime.now(),
+  );
 
   Future<PartnerStatus?> fetchStatus(String userId) async {
     try {
-      final record = await _pb.collection('statuses').getFirstListItem('user = "$userId"');
+      final record = await _pb
+          .collection('statuses')
+          .getFirstListItem('user = "$userId"');
       return _fromRecord(record);
     } on ClientException catch (e) {
       if (e.statusCode == 404) return null;
@@ -43,7 +47,9 @@ class StatusRepository {
     };
 
     try {
-      final existing = await _pb.collection('statuses').getFirstListItem('user = "$userId"');
+      final existing = await _pb
+          .collection('statuses')
+          .getFirstListItem('user = "$userId"');
       await _pb.collection('statuses').update(existing.id, body: body);
     } on ClientException catch (e) {
       if (e.statusCode != 404) rethrow;
@@ -53,7 +59,9 @@ class StatusRepository {
 
   /// Subscribes to all changes in `statuses` (rules already scope this to
   /// the caller's couple). Fires with the freshly-parsed [PartnerStatus].
-  Future<UnsubscribeFunc> subscribe(void Function(PartnerStatus status) onChange) {
+  Future<UnsubscribeFunc> subscribe(
+    void Function(PartnerStatus status) onChange,
+  ) {
     return _pb.collection('statuses').subscribe('*', (e) {
       if (e.record != null) onChange(_fromRecord(e.record!));
     });

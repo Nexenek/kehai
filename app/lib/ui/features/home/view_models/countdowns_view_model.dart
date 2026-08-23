@@ -15,9 +15,9 @@ class CountdownsViewModel extends ChangeNotifier {
     required AuthRepository authRepository,
     required CoupleRepository coupleRepository,
     required CountdownRepository countdownRepository,
-  })  : _authRepository = authRepository,
-        _coupleRepository = coupleRepository,
-        _countdownRepository = countdownRepository;
+  }) : _authRepository = authRepository,
+       _coupleRepository = coupleRepository,
+       _countdownRepository = countdownRepository;
 
   final AuthRepository _authRepository;
   final CoupleRepository _coupleRepository;
@@ -67,7 +67,10 @@ class CountdownsViewModel extends ChangeNotifier {
       if (action == 'delete') {
         countdowns = countdowns.where((c) => c.id != countdown.id).toList();
       } else {
-        countdowns = [...countdowns.where((c) => c.id != countdown.id), countdown];
+        countdowns = [
+          ...countdowns.where((c) => c.id != countdown.id),
+          countdown,
+        ];
       }
       notifyListeners();
     });
@@ -78,10 +81,19 @@ class CountdownsViewModel extends ChangeNotifier {
     });
   }
 
-  Future<void> addCountdown({required String title, required DateTime date, String kaomoji = ''}) {
+  Future<void> addCountdown({
+    required String title,
+    required DateTime date,
+    String kaomoji = '',
+  }) {
     final coupleId = _coupleId;
     if (coupleId == null) return Future.value();
-    return _countdownRepository.create(coupleId: coupleId, title: title, date: date, kaomoji: kaomoji);
+    return _countdownRepository.create(
+      coupleId: coupleId,
+      title: title,
+      date: date,
+      kaomoji: kaomoji,
+    );
   }
 
   Future<void> updateCountdown(
@@ -90,7 +102,12 @@ class CountdownsViewModel extends ChangeNotifier {
     required DateTime date,
     String kaomoji = '',
   }) {
-    return _countdownRepository.update(id, title: title, date: date, kaomoji: kaomoji);
+    return _countdownRepository.update(
+      id,
+      title: title,
+      date: date,
+      kaomoji: kaomoji,
+    );
   }
 
   Future<void> deleteCountdown(String id) => _countdownRepository.delete(id);

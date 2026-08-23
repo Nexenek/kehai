@@ -44,9 +44,7 @@ class AppTheme {
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: c.surface,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.zero,
-        ),
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       ),
       textTheme: const TextTheme(
         titleLarge: AppTextStyles.heading,
@@ -84,8 +82,6 @@ class AppTheme {
       ),
     );
 
-    return base.copyWith(
-      extensions: [AppColorsTheme(c)],
-    );
+    return base.copyWith(extensions: [AppColorsTheme(c)]);
   }
 }

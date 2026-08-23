@@ -5,17 +5,21 @@ import 'package:flutter/foundation.dart';
 /// record after that.
 @immutable
 class CoupleInfo {
-  const CoupleInfo({required this.coupleId, required this.name, required this.inviteCode});
+  const CoupleInfo({
+    required this.coupleId,
+    required this.name,
+    required this.inviteCode,
+  });
 
   final String coupleId;
   final String name;
   final String inviteCode;
 
   factory CoupleInfo.fromJson(Map<String, dynamic> json) => CoupleInfo(
-        coupleId: json['couple_id'] as String? ?? '',
-        name: json['name'] as String? ?? '',
-        inviteCode: json['invite_code'] as String? ?? '',
-      );
+    coupleId: json['couple_id'] as String? ?? '',
+    name: json['name'] as String? ?? '',
+    inviteCode: json['invite_code'] as String? ?? '',
+  );
 }
 
 /// Clean view of the partner's `users` record (name + couple only — the

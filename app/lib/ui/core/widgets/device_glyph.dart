@@ -31,7 +31,11 @@ class DeviceGlyph extends StatelessWidget {
         width: size,
         height: size,
         child: CustomPaint(
-          painter: _DeviceGlyphPainter(kind: kind, color: color, outline: colors.ink),
+          painter: _DeviceGlyphPainter(
+            kind: kind,
+            color: color,
+            outline: colors.ink,
+          ),
         ),
       ),
     );
@@ -39,7 +43,11 @@ class DeviceGlyph extends StatelessWidget {
 }
 
 class _DeviceGlyphPainter extends CustomPainter {
-  _DeviceGlyphPainter({required this.kind, required this.color, required this.outline});
+  _DeviceGlyphPainter({
+    required this.kind,
+    required this.color,
+    required this.outline,
+  });
 
   final DeviceGlyphKind kind;
   final Color color;
@@ -64,7 +72,12 @@ class _DeviceGlyphPainter extends CustomPainter {
       canvas.drawRect(rect, line);
       // notch
       canvas.drawRect(
-        Rect.fromLTWH(size.width * 0.42, size.height * 0.12, size.width * 0.16, size.height * 0.03),
+        Rect.fromLTWH(
+          size.width * 0.42,
+          size.height * 0.12,
+          size.width * 0.16,
+          size.height * 0.03,
+        ),
         Paint()..color = outline,
       );
     } else {
@@ -97,6 +110,8 @@ class _DeviceGlyphPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DeviceGlyphPainter oldDelegate) {
-    return oldDelegate.kind != kind || oldDelegate.color != color || oldDelegate.outline != outline;
+    return oldDelegate.kind != kind ||
+        oldDelegate.color != color ||
+        oldDelegate.outline != outline;
   }
 }

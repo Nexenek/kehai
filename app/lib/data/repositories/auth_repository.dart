@@ -25,14 +25,16 @@ class AuthRepository {
     required String password,
     required String name,
   }) async {
-    await _pb.collection('users').create(
-      body: {
-        'email': email,
-        'password': password,
-        'passwordConfirm': password,
-        'name': name,
-      },
-    );
+    await _pb
+        .collection('users')
+        .create(
+          body: {
+            'email': email,
+            'password': password,
+            'passwordConfirm': password,
+            'name': name,
+          },
+        );
     await login(email: email, password: password);
   }
 

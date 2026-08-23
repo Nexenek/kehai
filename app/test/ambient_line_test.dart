@@ -28,8 +28,16 @@ DeviceStatus _device({
   );
 }
 
-const _playing = NowPlaying(title: 'Marigold', artist: 'yeule', state: NowPlayingState.playing);
-const _paused = NowPlaying(title: 'Sugar', artist: 'System', state: NowPlayingState.paused);
+const _playing = NowPlaying(
+  title: 'Marigold',
+  artist: 'yeule',
+  state: NowPlayingState.playing,
+);
+const _paused = NowPlaying(
+  title: 'Sugar',
+  artist: 'System',
+  state: NowPlayingState.paused,
+);
 
 void main() {
   group('resolveAmbientLine precedence', () {
@@ -38,13 +46,20 @@ void main() {
     });
 
     test('all devices offline -> null, even with a stale now_playing', () {
-      final devices = [_device(sinceLastSeen: const Duration(hours: 1), nowPlaying: _playing)];
+      final devices = [
+        _device(sinceLastSeen: const Duration(hours: 1), nowPlaying: _playing),
+      ];
       expect(resolveAmbientLine(devices), isNull);
     });
 
     test('now_playing beats everything else', () {
       final devices = [
-        _device(kind: 'desktop', nowPlaying: _playing, activity: 'gaming', idleSeconds: 0),
+        _device(
+          kind: 'desktop',
+          nowPlaying: _playing,
+          activity: 'gaming',
+          idleSeconds: 0,
+        ),
       ];
       final line = resolveAmbientLine(devices);
       expect(line, isNotNull);
@@ -53,7 +68,10 @@ void main() {
     });
 
     test('now_playing with no artist omits the dash', () {
-      const track = NowPlaying(title: 'Solo Track', state: NowPlayingState.playing);
+      const track = NowPlaying(
+        title: 'Solo Track',
+        state: NowPlayingState.playing,
+      );
       final line = resolveAmbientLine([_device(nowPlaying: track)]);
       expect(line!.text, '♪ Solo Track');
     });
@@ -67,12 +85,15 @@ void main() {
       expect(line!.text, contains('Marigold'));
     });
 
-    test('Paused now_playing still outranks activity when nothing is Playing', () {
-      final devices = [_device(nowPlaying: _paused, activity: 'gaming')];
-      final line = resolveAmbientLine(devices);
-      expect(line!.kind, AmbientLineKind.nowPlaying);
-      expect(line.text, contains('Sugar'));
-    });
+    test(
+      'Paused now_playing still outranks activity when nothing is Playing',
+      () {
+        final devices = [_device(nowPlaying: _paused, activity: 'gaming')];
+        final line = resolveAmbientLine(devices);
+        expect(line!.kind, AmbientLineKind.nowPlaying);
+        expect(line.text, contains('Sugar'));
+      },
+    );
 
     test('activity beats presence/away when no now_playing', () {
       final devices = [_device(activity: 'gaming', idleSeconds: 400)];
@@ -108,11 +129,14 @@ void main() {
       expect(line.text, AppStrings.ambientAway);
     });
 
-    test('idle exactly at the 5-minute boundary counts as away, not present', () {
-      final devices = [_device(idleSeconds: 300)];
-      final line = resolveAmbientLine(devices);
-      expect(line!.kind, AmbientLineKind.away);
-    });
+    test(
+      'idle exactly at the 5-minute boundary counts as away, not present',
+      () {
+        final devices = [_device(idleSeconds: 300)];
+        final line = resolveAmbientLine(devices);
+        expect(line!.kind, AmbientLineKind.away);
+      },
+    );
 
     test('two online devices: the freshest (lowest idle) wins over away', () {
       final devices = [
@@ -147,19 +171,42 @@ void main() {
       expect(resolvePhoneBattery(devices).kind, BatteryGlyphKind.charging);
     });
 
-    test('picks the most-recently-seen phone device when there are several', () {
-      final devices = [
-        _device(kind: 'phone', sinceLastSeen: const Duration(minutes: 10), battery: 90, charging: false),
-        _device(kind: 'phone', sinceLastSeen: Duration.zero, battery: 5, charging: false),
-      ];
-      final info = resolvePhoneBattery(devices);
-      expect(info.kind, BatteryGlyphKind.low);
-      expect(info.percent, 5);
-    });
+    test(
+      'picks the most-recently-seen phone device when there are several',
+      () {
+        final devices = [
+          _device(
+            kind: 'phone',
+            sinceLastSeen: const Duration(minutes: 10),
+            battery: 90,
+            charging: false,
+          ),
+          _device(
+            kind: 'phone',
+            sinceLastSeen: Duration.zero,
+            battery: 5,
+            charging: false,
+          ),
+        ];
+        final info = resolvePhoneBattery(devices);
+        expect(info.kind, BatteryGlyphKind.low);
+        expect(info.percent, 5);
+      },
+    );
 
-    test('an offline low-battery phone still gets flagged (not gated on isOnline)', () {
-      final devices = [_device(kind: 'phone', sinceLastSeen: const Duration(hours: 2), battery: 4, charging: false)];
-      expect(resolvePhoneBattery(devices).kind, BatteryGlyphKind.low);
-    });
+    test(
+      'an offline low-battery phone still gets flagged (not gated on isOnline)',
+      () {
+        final devices = [
+          _device(
+            kind: 'phone',
+            sinceLastSeen: const Duration(hours: 2),
+            battery: 4,
+            charging: false,
+          ),
+        ];
+        expect(resolvePhoneBattery(devices).kind, BatteryGlyphKind.low);
+      },
+    );
   });
 }

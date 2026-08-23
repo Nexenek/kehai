@@ -28,18 +28,29 @@ void main() {
     });
 
     test('butter is the fixed one-off constant in both themes', () {
-      expect(NoteColor.butter.colorOf(AppColors.light), NoteColor.butterConstant);
-      expect(NoteColor.butter.colorOf(AppColors.dark), NoteColor.butterConstant);
+      expect(
+        NoteColor.butter.colorOf(AppColors.light),
+        NoteColor.butterConstant,
+      );
+      expect(
+        NoteColor.butter.colorOf(AppColors.dark),
+        NoteColor.butterConstant,
+      );
     });
 
-    test('lavender is a distinct tint, not identical to chromeAlt or accent2', () {
-      final lavender = NoteColor.lavender.colorOf(AppColors.light);
-      expect(lavender, isNot(AppColors.light.chromeAlt));
-      expect(lavender, isNot(AppColors.light.accent2));
-    });
+    test(
+      'lavender is a distinct tint, not identical to chromeAlt or accent2',
+      () {
+        final lavender = NoteColor.lavender.colorOf(AppColors.light);
+        expect(lavender, isNot(AppColors.light.chromeAlt));
+        expect(lavender, isNot(AppColors.light.accent2));
+      },
+    );
 
     test('every color resolves to a different value from the others (dark theme too)', () {
-      final colors = NoteColor.values.map((c) => c.colorOf(AppColors.dark)).toSet();
+      final colors = NoteColor.values
+          .map((c) => c.colorOf(AppColors.dark))
+          .toSet();
       expect(colors.length, NoteColor.values.length);
     });
   });

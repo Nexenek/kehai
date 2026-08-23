@@ -27,12 +27,21 @@ class BevelBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final light = style == BevelStyle.raised ? colors.bevelLight : colors.bevelDark;
-    final dark = style == BevelStyle.raised ? colors.bevelDark : colors.bevelLight;
+    final light = style == BevelStyle.raised
+        ? colors.bevelLight
+        : colors.bevelDark;
+    final dark = style == BevelStyle.raised
+        ? colors.bevelDark
+        : colors.bevelLight;
     final fill = color ?? colors.surface;
 
     return CustomPaint(
-      painter: _BevelPainter(light: light, dark: dark, thickness: thickness, fill: fill),
+      painter: _BevelPainter(
+        light: light,
+        dark: dark,
+        thickness: thickness,
+        fill: fill,
+      ),
       child: Padding(
         padding: padding ?? EdgeInsets.all(thickness),
         child: child,
@@ -69,8 +78,14 @@ class _BevelPainter extends CustomPainter {
 
     // Bottom + right = dark edge.
     strokePaint.color = dark;
-    canvas.drawRect(Rect.fromLTWH(0, size.height - t, size.width, t), strokePaint);
-    canvas.drawRect(Rect.fromLTWH(size.width - t, 0, t, size.height), strokePaint);
+    canvas.drawRect(
+      Rect.fromLTWH(0, size.height - t, size.width, t),
+      strokePaint,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(size.width - t, 0, t, size.height),
+      strokePaint,
+    );
   }
 
   @override

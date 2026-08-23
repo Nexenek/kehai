@@ -12,7 +12,12 @@ import '../../../core/widgets/retro_window.dart';
 /// "set your day ♡" empty-state prompt the first time. Tapping either opens
 /// [showAnniversaryDialog].
 class AnniversaryChip extends StatelessWidget {
-  const AnniversaryChip({super.key, required this.anniversary, required this.onTap, this.now});
+  const AnniversaryChip({
+    super.key,
+    required this.anniversary,
+    required this.onTap,
+    this.now,
+  });
 
   final DateTime? anniversary;
   final VoidCallback onTap;
@@ -37,9 +42,14 @@ class AnniversaryChip extends StatelessWidget {
               Expanded(
                 child: Text(
                   anniversary != null
-                      ? AppStrings.togetherDays(daysTogether(anniversary, now: now))
+                      ? AppStrings.togetherDays(
+                          daysTogether(anniversary, now: now),
+                        )
                       : AppStrings.setAnniversary,
-                  style: AppTextStyles.body2.copyWith(color: colors.ink, fontWeight: FontWeight.bold),
+                  style: AppTextStyles.body2.copyWith(
+                    color: colors.ink,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
               if (anniversary != null)
@@ -80,7 +90,8 @@ class _AnniversaryDialogContent extends StatefulWidget {
   final ValueChanged<DateTime> onSave;
 
   @override
-  State<_AnniversaryDialogContent> createState() => _AnniversaryDialogContentState();
+  State<_AnniversaryDialogContent> createState() =>
+      _AnniversaryDialogContentState();
 }
 
 class _AnniversaryDialogContentState extends State<_AnniversaryDialogContent> {
@@ -117,7 +128,10 @@ class _AnniversaryDialogContentState extends State<_AnniversaryDialogContent> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(AppStrings.anniversaryDialogBody, style: AppTextStyles.body2.copyWith(color: colors.ink)),
+          Text(
+            AppStrings.anniversaryDialogBody,
+            style: AppTextStyles.body2.copyWith(color: colors.ink),
+          ),
           const SizedBox(height: 10),
           GestureDetector(
             onTap: _pickDate,
@@ -125,15 +139,25 @@ class _AnniversaryDialogContentState extends State<_AnniversaryDialogContent> {
               cursor: SystemMouseCursors.click,
               child: BevelBox(
                 color: colors.surface,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                child: Text(friendlyDate(_date), style: AppTextStyles.body1.copyWith(color: colors.ink)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 12,
+                ),
+                child: Text(
+                  friendlyDate(_date),
+                  style: AppTextStyles.body1.copyWith(color: colors.ink),
+                ),
               ),
             ),
           ),
           const SizedBox(height: 16),
           Align(
             alignment: Alignment.centerRight,
-            child: PixelButton(primary: true, label: AppStrings.saveAnniversary, onPressed: _save),
+            child: PixelButton(
+              primary: true,
+              label: AppStrings.saveAnniversary,
+              onPressed: _save,
+            ),
           ),
         ],
       ),

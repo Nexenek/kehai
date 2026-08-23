@@ -36,13 +36,21 @@ class NoteCard extends StatelessWidget {
                 Row(
                   children: [
                     if (note.pinned) ...[
-                      Text('✦', style: AppTextStyles.caption.copyWith(color: colors.ink)),
+                      Text(
+                        '✦',
+                        style: AppTextStyles.caption.copyWith(
+                          color: colors.ink,
+                        ),
+                      ),
                       const SizedBox(width: 4),
                     ],
                     Expanded(
                       child: Text(
                         title,
-                        style: AppTextStyles.body2.copyWith(color: colors.ink, fontWeight: FontWeight.bold),
+                        style: AppTextStyles.body2.copyWith(
+                          color: colors.ink,
+                          fontWeight: FontWeight.bold,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),

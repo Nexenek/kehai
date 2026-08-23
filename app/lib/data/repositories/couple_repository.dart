@@ -37,9 +37,9 @@ class CoupleRepository {
     if (coupleId == null) return null;
 
     try {
-      final record = await _pb.collection('users').getFirstListItem(
-            'couple = "$coupleId" && id != "$myId"',
-          );
+      final record = await _pb
+          .collection('users')
+          .getFirstListItem('couple = "$coupleId" && id != "$myId"');
       return Partner(id: record.id, name: record.get<String>('name'));
     } on ClientException catch (e) {
       // 404 just means the partner hasn't joined yet.
@@ -62,15 +62,20 @@ class CoupleRepository {
   Future<void> updateAnniversary(DateTime date) async {
     final coupleId = _authRepository.coupleId;
     if (coupleId == null) return;
-    await _pb.collection('couples').update(coupleId, body: {
-      'anniversary': date.toUtc().toIso8601String(),
-    });
+    await _pb
+        .collection('couples')
+        .update(
+          coupleId,
+          body: {'anniversary': date.toUtc().toIso8601String()},
+        );
   }
 
   /// Live updates to the couple record (currently just [anniversary]) so
   /// either partner setting/changing the day updates both screens without a
   /// refresh.
-  Future<UnsubscribeFunc> subscribeAnniversary(void Function(DateTime? anniversary) onChange) {
+  Future<UnsubscribeFunc> subscribeAnniversary(
+    void Function(DateTime? anniversary) onChange,
+  ) {
     final coupleId = _authRepository.coupleId ?? '*';
     return _pb.collection('couples').subscribe(coupleId, (e) {
       if (e.record != null) onChange(_parseAnniversary(e.record!));

@@ -55,7 +55,10 @@ AmbientLine? resolveAmbientLine(List<DeviceStatus> devices) {
     bestNowPlaying ??= nowPlaying;
   }
   if (bestNowPlaying != null) {
-    return AmbientLine(kind: AmbientLineKind.nowPlaying, text: bestNowPlaying.marqueeText);
+    return AmbientLine(
+      kind: AmbientLineKind.nowPlaying,
+      text: bestNowPlaying.marqueeText,
+    );
   }
 
   for (final device in online) {
@@ -68,19 +71,27 @@ AmbientLine? resolveAmbientLine(List<DeviceStatus> devices) {
   // "at their computer"/"on their phone": online with low (or unreported —
   // no signal to say otherwise) idle. Sort so the freshest device wins
   // when more than one is online.
-  final byFreshness = [...online]..sort((a, b) => (a.idleSeconds ?? 0).compareTo(b.idleSeconds ?? 0));
+  final byFreshness = [...online]
+    ..sort((a, b) => (a.idleSeconds ?? 0).compareTo(b.idleSeconds ?? 0));
   for (final device in byFreshness) {
     final idle = device.idleSeconds;
     if (idle == null || idle < awayIdleThreshold.inSeconds) {
       return AmbientLine(
-        kind: device.kind == 'phone' ? AmbientLineKind.onPhone : AmbientLineKind.atComputer,
-        text: device.kind == 'phone' ? AppStrings.ambientOnPhone : AppStrings.ambientAtComputer,
+        kind: device.kind == 'phone'
+            ? AmbientLineKind.onPhone
+            : AmbientLineKind.atComputer,
+        text: device.kind == 'phone'
+            ? AppStrings.ambientOnPhone
+            : AppStrings.ambientAtComputer,
       );
     }
   }
 
   // Every online device is idle >= 5 min.
-  return const AmbientLine(kind: AmbientLineKind.away, text: AppStrings.ambientAway);
+  return const AmbientLine(
+    kind: AmbientLineKind.away,
+    text: AppStrings.ambientAway,
+  );
 }
 
 /// The low-battery/charging glyph kind for the partner's phone, per
@@ -107,7 +118,8 @@ BatteryGlyphInfo resolvePhoneBattery(List<DeviceStatus> devices) {
   DeviceStatus? phone;
   for (final device in devices) {
     if (device.kind != 'phone' || device.battery == null) continue;
-    if (phone == null || device.lastSeen.isAfter(phone.lastSeen)) phone = device;
+    if (phone == null || device.lastSeen.isAfter(phone.lastSeen))
+      phone = device;
   }
   if (phone == null) return BatteryGlyphInfo.none;
 

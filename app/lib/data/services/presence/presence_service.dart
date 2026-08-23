@@ -16,13 +16,16 @@ class DevicePresence {
 
   @override
   bool operator ==(Object other) =>
-      other is DevicePresence && other.nowPlaying == nowPlaying && other.idleSeconds == idleSeconds;
+      other is DevicePresence &&
+      other.nowPlaying == nowPlaying &&
+      other.idleSeconds == idleSeconds;
 
   @override
   int get hashCode => Object.hash(nowPlaying, idleSeconds);
 
   @override
-  String toString() => 'DevicePresence(nowPlaying: $nowPlaying, idleSeconds: $idleSeconds)';
+  String toString() =>
+      'DevicePresence(nowPlaying: $nowPlaying, idleSeconds: $idleSeconds)';
 }
 
 /// Observes device presence for the heartbeat. Implementations must

@@ -12,7 +12,11 @@ import '../../../core/widgets/retro_window.dart';
 /// The result of the countdown add/edit dialog — title/date/kaomoji, ready
 /// to hand straight to [CountdownsViewModel.addCountdown]/`updateCountdown`.
 class CountdownDraft {
-  const CountdownDraft({required this.title, required this.date, required this.kaomoji});
+  const CountdownDraft({
+    required this.title,
+    required this.date,
+    required this.kaomoji,
+  });
 
   final String title;
   final DateTime date;
@@ -33,20 +37,29 @@ Future<void> showCountdownDialog(
     builder: (context) => Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.all(20),
-      child: _CountdownDialogContent(existing: existing, onSave: onSave, onDelete: onDelete),
+      child: _CountdownDialogContent(
+        existing: existing,
+        onSave: onSave,
+        onDelete: onDelete,
+      ),
     ),
   );
 }
 
 class _CountdownDialogContent extends StatefulWidget {
-  const _CountdownDialogContent({this.existing, required this.onSave, this.onDelete});
+  const _CountdownDialogContent({
+    this.existing,
+    required this.onSave,
+    this.onDelete,
+  });
 
   final Countdown? existing;
   final ValueChanged<CountdownDraft> onSave;
   final VoidCallback? onDelete;
 
   @override
-  State<_CountdownDialogContent> createState() => _CountdownDialogContentState();
+  State<_CountdownDialogContent> createState() =>
+      _CountdownDialogContentState();
 }
 
 class _CountdownDialogContentState extends State<_CountdownDialogContent> {
@@ -57,9 +70,14 @@ class _CountdownDialogContentState extends State<_CountdownDialogContent> {
   @override
   void initState() {
     super.initState();
-    _titleController = TextEditingController(text: widget.existing?.title ?? '');
-    _kaomojiController = TextEditingController(text: widget.existing?.kaomoji ?? '');
-    _date = widget.existing?.date ?? DateTime.now().add(const Duration(days: 7));
+    _titleController = TextEditingController(
+      text: widget.existing?.title ?? '',
+    );
+    _kaomojiController = TextEditingController(
+      text: widget.existing?.kaomoji ?? '',
+    );
+    _date =
+        widget.existing?.date ?? DateTime.now().add(const Duration(days: 7));
   }
 
   @override
@@ -82,7 +100,13 @@ class _CountdownDialogContentState extends State<_CountdownDialogContent> {
   void _save() {
     final title = _titleController.text.trim();
     if (title.isEmpty) return;
-    widget.onSave(CountdownDraft(title: title, date: _date, kaomoji: _kaomojiController.text.trim()));
+    widget.onSave(
+      CountdownDraft(
+        title: title,
+        date: _date,
+        kaomoji: _kaomojiController.text.trim(),
+      ),
+    );
     Navigator.of(context).pop();
   }
 
@@ -97,22 +121,32 @@ class _CountdownDialogContentState extends State<_CountdownDialogContent> {
     final isEdit = widget.existing != null;
 
     return RetroWindow(
-      title: isEdit ? AppStrings.editCountdownTitle : AppStrings.newCountdownTitle,
+      title: isEdit
+          ? AppStrings.editCountdownTitle
+          : AppStrings.newCountdownTitle,
       onClose: () => Navigator.of(context).pop(),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(AppStrings.countdownTitleLabel, style: AppTextStyles.caption.copyWith(color: colors.ink)),
+          Text(
+            AppStrings.countdownTitleLabel,
+            style: AppTextStyles.caption.copyWith(color: colors.ink),
+          ),
           const SizedBox(height: 4),
           TextField(
             controller: _titleController,
             style: AppTextStyles.body1,
-            decoration: const InputDecoration(hintText: AppStrings.countdownTitleHint),
+            decoration: const InputDecoration(
+              hintText: AppStrings.countdownTitleHint,
+            ),
             autofocus: !isEdit,
           ),
           const SizedBox(height: 12),
-          Text(AppStrings.countdownDateLabel, style: AppTextStyles.caption.copyWith(color: colors.ink)),
+          Text(
+            AppStrings.countdownDateLabel,
+            style: AppTextStyles.caption.copyWith(color: colors.ink),
+          ),
           const SizedBox(height: 4),
           GestureDetector(
             onTap: _pickDate,
@@ -120,26 +154,44 @@ class _CountdownDialogContentState extends State<_CountdownDialogContent> {
               cursor: SystemMouseCursors.click,
               child: BevelBox(
                 color: colors.surface,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                child: Text(friendlyDate(_date), style: AppTextStyles.body1.copyWith(color: colors.ink)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 12,
+                ),
+                child: Text(
+                  friendlyDate(_date),
+                  style: AppTextStyles.body1.copyWith(color: colors.ink),
+                ),
               ),
             ),
           ),
           const SizedBox(height: 12),
-          Text(AppStrings.countdownKaomojiLabel, style: AppTextStyles.caption.copyWith(color: colors.ink)),
+          Text(
+            AppStrings.countdownKaomojiLabel,
+            style: AppTextStyles.caption.copyWith(color: colors.ink),
+          ),
           const SizedBox(height: 4),
           TextField(
             controller: _kaomojiController,
             style: AppTextStyles.body1,
-            decoration: const InputDecoration(hintText: AppStrings.countdownKaomojiHint),
+            decoration: const InputDecoration(
+              hintText: AppStrings.countdownKaomojiHint,
+            ),
           ),
           const SizedBox(height: 16),
           Row(
             children: [
               if (isEdit)
-                PixelButton(label: AppStrings.deleteCountdown, onPressed: _delete),
+                PixelButton(
+                  label: AppStrings.deleteCountdown,
+                  onPressed: _delete,
+                ),
               const Spacer(),
-              PixelButton(primary: true, label: AppStrings.saveCountdown, onPressed: _save),
+              PixelButton(
+                primary: true,
+                label: AppStrings.saveCountdown,
+                onPressed: _save,
+              ),
             ],
           ),
         ],

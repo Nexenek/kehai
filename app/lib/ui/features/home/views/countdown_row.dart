@@ -56,13 +56,21 @@ class CountdownRow extends StatelessWidget {
                         Row(
                           children: [
                             if (countdown.kaomoji.isNotEmpty) ...[
-                              Text(countdown.kaomoji, style: AppTextStyles.caption.copyWith(color: fg)),
+                              Text(
+                                countdown.kaomoji,
+                                style: AppTextStyles.caption.copyWith(
+                                  color: fg,
+                                ),
+                              ),
                               const SizedBox(width: 6),
                             ],
                             Expanded(
                               child: Text(
                                 countdown.title,
-                                style: AppTextStyles.body2.copyWith(color: fg, fontWeight: FontWeight.bold),
+                                style: AppTextStyles.body2.copyWith(
+                                  color: fg,
+                                  fontWeight: FontWeight.bold,
+                                ),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
@@ -72,7 +80,9 @@ class CountdownRow extends StatelessWidget {
                         Text(
                           friendlyDate(countdown.date),
                           style: AppTextStyles.caption.copyWith(
-                            color: highlighted ? colors.surface.withValues(alpha: 0.85) : colors.chromeAlt,
+                            color: highlighted
+                                ? colors.surface.withValues(alpha: 0.85)
+                                : colors.chromeAlt,
                           ),
                         ),
                       ],

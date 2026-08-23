@@ -21,12 +21,17 @@ class Note {
   final NoteColor color;
   final bool pinned;
 
-  Note copyWith({String? title, String? body, NoteColor? color, bool? pinned}) => Note(
-        id: id,
-        coupleId: coupleId,
-        title: title ?? this.title,
-        body: body ?? this.body,
-        color: color ?? this.color,
-        pinned: pinned ?? this.pinned,
-      );
+  Note copyWith({
+    String? title,
+    String? body,
+    NoteColor? color,
+    bool? pinned,
+  }) => Note(
+    id: id,
+    coupleId: coupleId,
+    title: title ?? this.title,
+    body: body ?? this.body,
+    color: color ?? this.color,
+    pinned: pinned ?? this.pinned,
+  );
 }

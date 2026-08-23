@@ -10,10 +10,7 @@ void main() {
       MaterialApp(
         theme: AppTheme.light(),
         home: const Scaffold(
-          body: RetroWindow(
-            title: 'our desktop',
-            child: Text('hello, love'),
-          ),
+          body: RetroWindow(title: 'our desktop', child: Text('hello, love')),
         ),
       ),
     );

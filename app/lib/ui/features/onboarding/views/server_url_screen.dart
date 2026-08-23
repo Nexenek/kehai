@@ -51,48 +51,68 @@ class _ServerUrlScreenState extends State<ServerUrlScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(AppStrings.serverStepTitle, style: AppTextStyles.heading),
+                      Text(
+                        AppStrings.serverStepTitle,
+                        style: AppTextStyles.heading,
+                      ),
                       const SizedBox(height: 10),
                       Text(
                         AppStrings.serverStepBody,
                         style: AppTextStyles.body2.copyWith(color: colors.ink),
                       ),
                       const SizedBox(height: 18),
-                      Text(AppStrings.serverUrlLabel, style: AppTextStyles.caption),
+                      Text(
+                        AppStrings.serverUrlLabel,
+                        style: AppTextStyles.caption,
+                      ),
                       const SizedBox(height: 6),
                       TextField(
                         controller: _controller,
                         keyboardType: TextInputType.url,
                         style: AppTextStyles.body1,
-                        decoration: const InputDecoration(hintText: AppStrings.serverUrlHint),
+                        decoration: const InputDecoration(
+                          hintText: AppStrings.serverUrlHint,
+                        ),
                       ),
                       const SizedBox(height: 12),
                       if (_viewModel.testSucceeded)
                         Text(
                           AppStrings.connectionOk,
-                          style: AppTextStyles.body2.copyWith(color: colors.mint),
+                          style: AppTextStyles.body2.copyWith(
+                            color: colors.mint,
+                          ),
                         )
                       else if (_viewModel.errorMessage != null)
                         Text(
                           _viewModel.errorMessage!,
-                          style: AppTextStyles.body2.copyWith(color: colors.warn),
+                          style: AppTextStyles.body2.copyWith(
+                            color: colors.warn,
+                          ),
                         ),
                       const SizedBox(height: 14),
                       Row(
                         children: [
                           PixelButton(
-                            label: _viewModel.isTesting ? AppStrings.loading : AppStrings.testConnection,
+                            label: _viewModel.isTesting
+                                ? AppStrings.loading
+                                : AppStrings.testConnection,
                             onPressed: _viewModel.isTesting
                                 ? null
-                                : () => _viewModel.testConnection(_controller.text),
+                                : () => _viewModel.testConnection(
+                                    _controller.text,
+                                  ),
                           ),
                           const SizedBox(width: 10),
                           PixelButton(
                             primary: true,
-                            label: _viewModel.isSubmitting ? AppStrings.loading : AppStrings.continueLabel,
+                            label: _viewModel.isSubmitting
+                                ? AppStrings.loading
+                                : AppStrings.continueLabel,
                             onPressed: _viewModel.isSubmitting
                                 ? null
-                                : () => _viewModel.confirmAndContinue(_controller.text),
+                                : () => _viewModel.confirmAndContinue(
+                                    _controller.text,
+                                  ),
                           ),
                         ],
                       ),

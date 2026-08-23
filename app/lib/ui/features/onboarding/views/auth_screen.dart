@@ -67,15 +67,23 @@ class _AuthScreenState extends State<AuthScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(AppStrings.authStepTitle, style: AppTextStyles.heading),
+                      Text(
+                        AppStrings.authStepTitle,
+                        style: AppTextStyles.heading,
+                      ),
                       const SizedBox(height: 8),
                       Text(
-                        isRegister ? AppStrings.authStepBodyRegister : AppStrings.authStepBodyLogin,
+                        isRegister
+                            ? AppStrings.authStepBodyRegister
+                            : AppStrings.authStepBodyLogin,
                         style: AppTextStyles.body2,
                       ),
                       const SizedBox(height: 16),
                       if (isRegister) ...[
-                        Text(AppStrings.nameLabel, style: AppTextStyles.caption),
+                        Text(
+                          AppStrings.nameLabel,
+                          style: AppTextStyles.caption,
+                        ),
                         const SizedBox(height: 6),
                         TextField(
                           controller: _nameController,
@@ -91,7 +99,10 @@ class _AuthScreenState extends State<AuthScreen> {
                         style: AppTextStyles.body1,
                       ),
                       const SizedBox(height: 12),
-                      Text(AppStrings.passwordLabel, style: AppTextStyles.caption),
+                      Text(
+                        AppStrings.passwordLabel,
+                        style: AppTextStyles.caption,
+                      ),
                       const SizedBox(height: 6),
                       TextField(
                         controller: _passwordController,
@@ -104,7 +115,9 @@ class _AuthScreenState extends State<AuthScreen> {
                           padding: const EdgeInsets.only(bottom: 10),
                           child: Text(
                             _viewModel.errorMessage!,
-                            style: AppTextStyles.body2.copyWith(color: colors.warn),
+                            style: AppTextStyles.body2.copyWith(
+                              color: colors.warn,
+                            ),
                           ),
                         ),
                       Row(
@@ -113,7 +126,9 @@ class _AuthScreenState extends State<AuthScreen> {
                             primary: true,
                             label: _viewModel.isSubmitting
                                 ? AppStrings.loading
-                                : (isRegister ? AppStrings.registerButton : AppStrings.loginButton),
+                                : (isRegister
+                                      ? AppStrings.registerButton
+                                      : AppStrings.loginButton),
                             onPressed: _viewModel.isSubmitting ? null : _submit,
                           ),
                         ],
@@ -122,7 +137,9 @@ class _AuthScreenState extends State<AuthScreen> {
                       GestureDetector(
                         onTap: _viewModel.toggleMode,
                         child: Text(
-                          isRegister ? AppStrings.switchToLogin : AppStrings.switchToRegister,
+                          isRegister
+                              ? AppStrings.switchToLogin
+                              : AppStrings.switchToRegister,
                           style: AppTextStyles.caption.copyWith(
                             color: colors.accent,
                             decoration: TextDecoration.underline,

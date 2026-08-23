@@ -27,5 +27,6 @@ class PrefsService {
   /// can keep showing it after an app restart.
   String? get inviteCode => _prefs.getString(_inviteCodeKey);
 
-  Future<void> setInviteCode(String code) => _prefs.setString(_inviteCodeKey, code);
+  Future<void> setInviteCode(String code) =>
+      _prefs.setString(_inviteCodeKey, code);
 }

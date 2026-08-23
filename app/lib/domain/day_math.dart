@@ -8,8 +8,18 @@ library;
 import '../ui/core/strings/app_strings.dart';
 
 const _monthAbbr = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
 ];
 
 /// Whole calendar days from [from]'s date to [to]'s date, ignoring
@@ -43,4 +53,5 @@ int daysTogether(DateTime anniversary, {DateTime? now}) {
 
 /// "24 Dec 2026" — local, friendly, no locale library needed for this one
 /// format.
-String friendlyDate(DateTime date) => '${date.day} ${_monthAbbr[date.month - 1]} ${date.year}';
+String friendlyDate(DateTime date) =>
+    '${date.day} ${_monthAbbr[date.month - 1]} ${date.year}';

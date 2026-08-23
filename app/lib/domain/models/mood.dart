@@ -29,42 +29,17 @@ class MoodCatalog {
   const MoodCatalog._();
 
   static const List<Mood> all = [
-    Mood(
-      id: 'happy',
-      kaomoji: '(´｡• ᵕ •｡`) ♡',
-      label: 'happy',
-      colorOf: _mint,
-    ),
+    Mood(id: 'happy', kaomoji: '(´｡• ᵕ •｡`) ♡', label: 'happy', colorOf: _mint),
     Mood(
       id: 'sleepy',
       kaomoji: '(￣o￣) zzZ',
       label: 'sleepy',
       colorOf: _accent2,
     ),
-    Mood(
-      id: 'excited',
-      kaomoji: 'ヾ(＾-＾)ノ',
-      label: 'excited',
-      colorOf: _accent,
-    ),
-    Mood(
-      id: 'sad',
-      kaomoji: '(｡•́︿•̀｡)',
-      label: 'sad',
-      colorOf: _sky,
-    ),
-    Mood(
-      id: 'hungry',
-      kaomoji: '(｡•ˇ‸ˇ•｡)',
-      label: 'hungry',
-      colorOf: _warn,
-    ),
-    Mood(
-      id: 'gaming',
-      kaomoji: '(⌐■_■)',
-      label: 'gaming',
-      colorOf: _accent,
-    ),
+    Mood(id: 'excited', kaomoji: 'ヾ(＾-＾)ノ', label: 'excited', colorOf: _accent),
+    Mood(id: 'sad', kaomoji: '(｡•́︿•̀｡)', label: 'sad', colorOf: _sky),
+    Mood(id: 'hungry', kaomoji: '(｡•ˇ‸ˇ•｡)', label: 'hungry', colorOf: _warn),
+    Mood(id: 'gaming', kaomoji: '(⌐■_■)', label: 'gaming', colorOf: _accent),
     Mood(
       id: 'working',
       kaomoji: '(-_-;)',
@@ -77,25 +52,12 @@ class MoodCatalog {
       label: 'missing you',
       colorOf: _warn,
     ),
-    Mood(
-      id: 'cozy',
-      kaomoji: '(｡- ｡)',
-      label: 'cozy',
-      colorOf: _mint,
-    ),
-    Mood(
-      id: 'meh',
-      kaomoji: '(－ω－)',
-      label: 'meh',
-      colorOf: _chromeAlt,
-    ),
+    Mood(id: 'cozy', kaomoji: '(｡- ｡)', label: 'cozy', colorOf: _mint),
+    Mood(id: 'meh', kaomoji: '(－ω－)', label: 'meh', colorOf: _chromeAlt),
   ];
 
   static Mood byId(String? id) {
-    return all.firstWhere(
-      (m) => m.id == id,
-      orElse: () => all.first,
-    );
+    return all.firstWhere((m) => m.id == id, orElse: () => all.first);
   }
 
   static Color _mint(AppColors c) => c.mint;

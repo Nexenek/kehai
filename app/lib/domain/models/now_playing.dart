@@ -53,12 +53,12 @@ class NowPlaying {
   }
 
   Map<String, dynamic> toJson() => {
-        'title': title,
-        'artist': artist,
-        'album': album,
-        'player': player,
-        'state': state.wireValue,
-      };
+    'title': title,
+    'artist': artist,
+    'album': album,
+    'player': player,
+    'state': state.wireValue,
+  };
 
   /// Parses a `devices.now_playing` json value. Null/empty per the
   /// contract means "nothing playing"; a title-less or state-less payload
@@ -80,7 +80,10 @@ class NowPlaying {
 
   @override
   bool operator ==(Object other) =>
-      other is NowPlaying && other.title == title && other.artist == artist && other.state == state;
+      other is NowPlaying &&
+      other.title == title &&
+      other.artist == artist &&
+      other.state == state;
 
   @override
   int get hashCode => Object.hash(title, artist, state);

@@ -14,20 +14,24 @@ class DeviceRepository {
   final PocketBase _pb;
 
   DeviceStatus _fromRecord(RecordModel r) => DeviceStatus(
-        id: r.id,
-        ownerId: r.get<String>('owner'),
-        name: r.get<String>('name'),
-        kind: r.get<String>('kind'),
-        lastSeen: DateTime.tryParse(r.get<String>('last_seen'))?.toLocal() ?? DateTime.fromMillisecondsSinceEpoch(0),
-        nowPlaying: NowPlaying.fromJson(r.get<Map<String, dynamic>?>('now_playing', null)),
-        idleSeconds: r.get<int?>('idle_seconds', null),
-        // The server's NumberField stores 0 for devices that never reported
-        // battery (and 0 is also its clear-on-null value), so 0 means
-        // "unknown", not "0%" — a phone at a real 0% is off, not heartbeating.
-        battery: _zeroAsUnreported(r.get<double?>('battery', null)),
-        charging: r.get<bool?>('charging', null),
-        activity: r.get<String?>('activity', null),
-      );
+    id: r.id,
+    ownerId: r.get<String>('owner'),
+    name: r.get<String>('name'),
+    kind: r.get<String>('kind'),
+    lastSeen:
+        DateTime.tryParse(r.get<String>('last_seen'))?.toLocal() ??
+        DateTime.fromMillisecondsSinceEpoch(0),
+    nowPlaying: NowPlaying.fromJson(
+      r.get<Map<String, dynamic>?>('now_playing', null),
+    ),
+    idleSeconds: r.get<int?>('idle_seconds', null),
+    // The server's NumberField stores 0 for devices that never reported
+    // battery (and 0 is also its clear-on-null value), so 0 means
+    // "unknown", not "0%" — a phone at a real 0% is off, not heartbeating.
+    battery: _zeroAsUnreported(r.get<double?>('battery', null)),
+    charging: r.get<bool?>('charging', null),
+    activity: r.get<String?>('activity', null),
+  );
 
   static double? _zeroAsUnreported(double? battery) =>
       (battery == null || battery <= 0) ? null : battery;
@@ -51,11 +55,15 @@ class DeviceRepository {
   }
 
   Future<List<DeviceStatus>> fetchDevicesForOwner(String ownerId) async {
-    final records = await _pb.collection('devices').getFullList(filter: 'owner = "$ownerId"');
+    final records = await _pb
+        .collection('devices')
+        .getFullList(filter: 'owner = "$ownerId"');
     return records.map(_fromRecord).toList();
   }
 
-  Future<UnsubscribeFunc> subscribe(void Function(DeviceStatus device) onChange) {
+  Future<UnsubscribeFunc> subscribe(
+    void Function(DeviceStatus device) onChange,
+  ) {
     return _pb.collection('devices').subscribe('*', (e) {
       if (e.record != null) onChange(_fromRecord(e.record!));
     });

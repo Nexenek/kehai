@@ -9,7 +9,11 @@ import '../../../core/widgets/pixel_focus_border.dart';
 /// A grid of kaomoji mood tiles. Each tile is icon(kaomoji)+text — never
 /// color alone — per the accessibility floor.
 class MoodPicker extends StatelessWidget {
-  const MoodPicker({super.key, required this.selectedId, required this.onSelect});
+  const MoodPicker({
+    super.key,
+    required this.selectedId,
+    required this.onSelect,
+  });
 
   final String selectedId;
   final ValueChanged<String> onSelect;
@@ -40,7 +44,11 @@ class MoodPicker extends StatelessWidget {
 }
 
 class _MoodTile extends StatefulWidget {
-  const _MoodTile({required this.mood, required this.selected, required this.onTap});
+  const _MoodTile({
+    required this.mood,
+    required this.selected,
+    required this.onTap,
+  });
 
   final Mood mood;
   final bool selected;
@@ -76,14 +84,19 @@ class _MoodTileState extends State<_MoodTile> {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 child: Row(
                   children: [
-                    Text(widget.mood.kaomoji, style: AppTextStyles.caption.copyWith(color: colors.ink)),
+                    Text(
+                      widget.mood.kaomoji,
+                      style: AppTextStyles.caption.copyWith(color: colors.ink),
+                    ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         widget.mood.label,
                         style: AppTextStyles.caption.copyWith(
                           color: colors.ink,
-                          fontWeight: widget.selected ? FontWeight.bold : FontWeight.normal,
+                          fontWeight: widget.selected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),

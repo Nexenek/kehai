@@ -59,7 +59,9 @@ class MprisMapper {
   /// append to their bus name.
   static String playerLabel(String busName) {
     const prefix = 'org.mpris.MediaPlayer2.';
-    var label = busName.startsWith(prefix) ? busName.substring(prefix.length) : busName;
+    var label = busName.startsWith(prefix)
+        ? busName.substring(prefix.length)
+        : busName;
     final instanceIndex = label.indexOf('.instance');
     if (instanceIndex != -1) label = label.substring(0, instanceIndex);
     return label;

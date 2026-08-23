@@ -28,13 +28,13 @@ class HomeViewModel extends ChangeNotifier with WidgetsBindingObserver {
     required HeartbeatService heartbeatService,
     required DeviceInfoService deviceInfoService,
     required PrefsService prefs,
-  })  : _authRepository = authRepository,
-        _coupleRepository = coupleRepository,
-        _statusRepository = statusRepository,
-        _deviceRepository = deviceRepository,
-        _heartbeatService = heartbeatService,
-        _deviceInfoService = deviceInfoService,
-        _prefs = prefs;
+  }) : _authRepository = authRepository,
+       _coupleRepository = coupleRepository,
+       _statusRepository = statusRepository,
+       _deviceRepository = deviceRepository,
+       _heartbeatService = heartbeatService,
+       _deviceInfoService = deviceInfoService,
+       _prefs = prefs;
 
   final AuthRepository _authRepository;
   final CoupleRepository _coupleRepository;
@@ -72,7 +72,8 @@ class HomeViewModel extends ChangeNotifier with WidgetsBindingObserver {
   AmbientLine? get partnerAmbientLine => resolveAmbientLine(partnerDevices);
 
   /// Partner's phone low-battery/charging glyph — see [resolvePhoneBattery].
-  BatteryGlyphInfo get partnerBatteryInfo => resolvePhoneBattery(partnerDevices);
+  BatteryGlyphInfo get partnerBatteryInfo =>
+      resolvePhoneBattery(partnerDevices);
 
   Future<void> init() async {
     WidgetsBinding.instance.addObserver(this);
@@ -80,9 +81,14 @@ class HomeViewModel extends ChangeNotifier with WidgetsBindingObserver {
 
     // Re-render every 20s so "updated Xm ago" stays fresh without a manual
     // pull-to-refresh.
-    _tickTimer = Timer.periodic(const Duration(seconds: 20), (_) => notifyListeners());
+    _tickTimer = Timer.periodic(
+      const Duration(seconds: 20),
+      (_) => notifyListeners(),
+    );
 
-    final myStatus = await _statusRepository.fetchStatus(_authRepository.currentUserId);
+    final myStatus = await _statusRepository.fetchStatus(
+      _authRepository.currentUserId,
+    );
     if (myStatus != null) {
       myMoodId = myStatus.moodId.isEmpty ? myMoodId : myStatus.moodId;
       myNote = myStatus.note;
@@ -120,7 +126,9 @@ class HomeViewModel extends ChangeNotifier with WidgetsBindingObserver {
     partner = await _coupleRepository.fetchPartner();
     if (partner != null) {
       partnerStatus = await _statusRepository.fetchStatus(partner!.id);
-      partnerDevices = await _deviceRepository.fetchDevicesForOwner(partner!.id);
+      partnerDevices = await _deviceRepository.fetchDevicesForOwner(
+        partner!.id,
+      );
     }
   }
 

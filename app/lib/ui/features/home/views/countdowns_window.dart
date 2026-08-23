@@ -24,12 +24,23 @@ class CountdownsWindow extends StatelessWidget {
       existing: existing,
       onSave: (draft) {
         if (existing != null) {
-          viewModel.updateCountdown(existing.id, title: draft.title, date: draft.date, kaomoji: draft.kaomoji);
+          viewModel.updateCountdown(
+            existing.id,
+            title: draft.title,
+            date: draft.date,
+            kaomoji: draft.kaomoji,
+          );
         } else {
-          viewModel.addCountdown(title: draft.title, date: draft.date, kaomoji: draft.kaomoji);
+          viewModel.addCountdown(
+            title: draft.title,
+            date: draft.date,
+            kaomoji: draft.kaomoji,
+          );
         }
       },
-      onDelete: existing != null ? () => viewModel.deleteCountdown(existing.id) : null,
+      onDelete: existing != null
+          ? () => viewModel.deleteCountdown(existing.id)
+          : null,
     );
   }
 

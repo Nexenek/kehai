@@ -46,5 +46,6 @@ class DeviceStatus {
 
   static const onlineWindow = Duration(minutes: 2);
 
-  bool get isOnline => DateTime.now().toUtc().difference(lastSeen.toUtc()) <= onlineWindow;
+  bool get isOnline =>
+      DateTime.now().toUtc().difference(lastSeen.toUtc()) <= onlineWindow;
 }

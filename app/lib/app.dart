@@ -46,8 +46,6 @@ class _LoadingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text(AppStrings.loading)),
-    );
+    return const Scaffold(body: Center(child: Text(AppStrings.loading)));
   }
 }

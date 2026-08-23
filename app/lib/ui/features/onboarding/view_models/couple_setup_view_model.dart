@@ -84,7 +84,8 @@ class CoupleSetupViewModel extends ChangeNotifier {
   String _friendlyMessage(Object e) {
     if (e is ClientException) {
       final serverMessage = e.response['message'] as String?;
-      if (serverMessage != null && serverMessage.isNotEmpty) return '$serverMessage (・_・;)';
+      if (serverMessage != null && serverMessage.isNotEmpty)
+        return '$serverMessage (・_・;)';
     }
     return AppStrings.coupleFailed;
   }

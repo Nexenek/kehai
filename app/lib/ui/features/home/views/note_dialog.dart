@@ -12,7 +12,12 @@ import '../../../core/widgets/retro_window.dart';
 /// The result of the note add/edit dialog — ready to hand straight to
 /// [NotesViewModel.addNote]/`updateNote`.
 class NoteDraft {
-  const NoteDraft({required this.title, required this.body, required this.color, required this.pinned});
+  const NoteDraft({
+    required this.title,
+    required this.body,
+    required this.color,
+    required this.pinned,
+  });
 
   final String title;
   final String body;
@@ -34,13 +39,21 @@ Future<void> showNoteDialog(
     builder: (context) => Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.all(20),
-      child: _NoteDialogContent(existing: existing, onSave: onSave, onDelete: onDelete),
+      child: _NoteDialogContent(
+        existing: existing,
+        onSave: onSave,
+        onDelete: onDelete,
+      ),
     ),
   );
 }
 
 class _NoteDialogContent extends StatefulWidget {
-  const _NoteDialogContent({this.existing, required this.onSave, this.onDelete});
+  const _NoteDialogContent({
+    this.existing,
+    required this.onSave,
+    this.onDelete,
+  });
 
   final Note? existing;
   final ValueChanged<NoteDraft> onSave;
@@ -59,7 +72,9 @@ class _NoteDialogContentState extends State<_NoteDialogContent> {
   @override
   void initState() {
     super.initState();
-    _titleController = TextEditingController(text: widget.existing?.title ?? '');
+    _titleController = TextEditingController(
+      text: widget.existing?.title ?? '',
+    );
     _bodyController = TextEditingController(text: widget.existing?.body ?? '');
     _color = widget.existing?.color ?? NoteColor.pink;
     _pinned = widget.existing?.pinned ?? false;
@@ -73,12 +88,14 @@ class _NoteDialogContentState extends State<_NoteDialogContent> {
   }
 
   void _save() {
-    widget.onSave(NoteDraft(
-      title: _titleController.text.trim(),
-      body: _bodyController.text.trim(),
-      color: _color,
-      pinned: _pinned,
-    ));
+    widget.onSave(
+      NoteDraft(
+        title: _titleController.text.trim(),
+        body: _bodyController.text.trim(),
+        color: _color,
+        pinned: _pinned,
+      ),
+    );
     Navigator.of(context).pop();
   }
 
@@ -99,26 +116,39 @@ class _NoteDialogContentState extends State<_NoteDialogContent> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(AppStrings.noteTitleLabel, style: AppTextStyles.caption.copyWith(color: colors.ink)),
+          Text(
+            AppStrings.noteTitleLabel,
+            style: AppTextStyles.caption.copyWith(color: colors.ink),
+          ),
           const SizedBox(height: 4),
           TextField(
             controller: _titleController,
             style: AppTextStyles.body1,
-            decoration: const InputDecoration(hintText: AppStrings.noteTitleHint),
+            decoration: const InputDecoration(
+              hintText: AppStrings.noteTitleHint,
+            ),
             autofocus: !isEdit,
           ),
           const SizedBox(height: 12),
-          Text(AppStrings.noteBodyLabel, style: AppTextStyles.caption.copyWith(color: colors.ink)),
+          Text(
+            AppStrings.noteBodyLabel,
+            style: AppTextStyles.caption.copyWith(color: colors.ink),
+          ),
           const SizedBox(height: 4),
           TextField(
             controller: _bodyController,
             style: AppTextStyles.body1,
             minLines: 3,
             maxLines: 6,
-            decoration: const InputDecoration(hintText: AppStrings.noteBodyHint),
+            decoration: const InputDecoration(
+              hintText: AppStrings.noteBodyHint,
+            ),
           ),
           const SizedBox(height: 12),
-          Text(AppStrings.noteColorLabel, style: AppTextStyles.caption.copyWith(color: colors.ink)),
+          Text(
+            AppStrings.noteColorLabel,
+            style: AppTextStyles.caption.copyWith(color: colors.ink),
+          ),
           const SizedBox(height: 6),
           Row(
             children: NoteColor.values.map((c) {
@@ -158,13 +188,26 @@ class _NoteDialogContentState extends State<_NoteDialogContent> {
                 child: BevelBox(
                   color: _pinned ? colors.chrome : colors.surface,
                   style: _pinned ? BevelStyle.sunken : BevelStyle.raised,
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 6,
+                  ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text('✦', style: AppTextStyles.caption.copyWith(color: colors.ink)),
+                      Text(
+                        '✦',
+                        style: AppTextStyles.caption.copyWith(
+                          color: colors.ink,
+                        ),
+                      ),
                       const SizedBox(width: 6),
-                      Text(AppStrings.notePinLabel, style: AppTextStyles.caption.copyWith(color: colors.ink)),
+                      Text(
+                        AppStrings.notePinLabel,
+                        style: AppTextStyles.caption.copyWith(
+                          color: colors.ink,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -175,9 +218,16 @@ class _NoteDialogContentState extends State<_NoteDialogContent> {
           Row(
             children: [
               if (isEdit)
-                PixelButton(label: AppStrings.deleteNoteButton, onPressed: _delete),
+                PixelButton(
+                  label: AppStrings.deleteNoteButton,
+                  onPressed: _delete,
+                ),
               const Spacer(),
-              PixelButton(primary: true, label: AppStrings.saveNoteButton, onPressed: _save),
+              PixelButton(
+                primary: true,
+                label: AppStrings.saveNoteButton,
+                onPressed: _save,
+              ),
             ],
           ),
         ],

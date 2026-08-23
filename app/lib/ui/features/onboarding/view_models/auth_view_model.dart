@@ -21,7 +21,11 @@ class AuthViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> submit({required String email, required String password, String name = ''}) async {
+  Future<bool> submit({
+    required String email,
+    required String password,
+    String name = '',
+  }) async {
     if (email.trim().isEmpty || password.isEmpty) {
       errorMessage = AppStrings.authFailed;
       notifyListeners();

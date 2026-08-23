@@ -13,7 +13,12 @@ enum BatteryGlyphVisual { low, charging }
 /// bolt", shown next to the device-source indicator on the partner card
 /// when their phone is low (≤20%, not charging) or actively charging.
 class BatteryGlyph extends StatelessWidget {
-  const BatteryGlyph({super.key, required this.kind, required this.tooltip, this.size = 16});
+  const BatteryGlyph({
+    super.key,
+    required this.kind,
+    required this.tooltip,
+    this.size = 16,
+  });
 
   final BatteryGlyphVisual kind;
   final String tooltip;
@@ -29,7 +34,11 @@ class BatteryGlyph extends StatelessWidget {
         width: size,
         height: size,
         child: CustomPaint(
-          painter: _BatteryGlyphPainter(kind: kind, fill: fill, outline: colors.ink),
+          painter: _BatteryGlyphPainter(
+            kind: kind,
+            fill: fill,
+            outline: colors.ink,
+          ),
         ),
       ),
     );
@@ -37,7 +46,11 @@ class BatteryGlyph extends StatelessWidget {
 }
 
 class _BatteryGlyphPainter extends CustomPainter {
-  _BatteryGlyphPainter({required this.kind, required this.fill, required this.outline});
+  _BatteryGlyphPainter({
+    required this.kind,
+    required this.fill,
+    required this.outline,
+  });
 
   final BatteryGlyphVisual kind;
   final Color fill;
@@ -52,16 +65,36 @@ class _BatteryGlyphPainter extends CustomPainter {
 
     // Battery body (sideways, terminal nub on the right) — same blocky
     // rect style as DeviceGlyph, nearest-sampling per design-language.md.
-    final body = Rect.fromLTWH(size.width * 0.04, size.height * 0.22, size.width * 0.76, size.height * 0.56);
+    final body = Rect.fromLTWH(
+      size.width * 0.04,
+      size.height * 0.22,
+      size.width * 0.76,
+      size.height * 0.56,
+    );
     canvas.drawRect(body, line);
-    final terminal = Rect.fromLTWH(size.width * 0.8, size.height * 0.38, size.width * 0.14, size.height * 0.24);
+    final terminal = Rect.fromLTWH(
+      size.width * 0.8,
+      size.height * 0.38,
+      size.width * 0.14,
+      size.height * 0.24,
+    );
     canvas.drawRect(terminal, Paint()..color = outline);
 
     if (kind == BatteryGlyphVisual.low) {
-      final level = Rect.fromLTWH(size.width * 0.09, size.height * 0.28, size.width * 0.16, size.height * 0.44);
+      final level = Rect.fromLTWH(
+        size.width * 0.09,
+        size.height * 0.28,
+        size.width * 0.16,
+        size.height * 0.44,
+      );
       canvas.drawRect(level, Paint()..color = fill);
     } else {
-      final level = Rect.fromLTWH(size.width * 0.09, size.height * 0.28, size.width * 0.62, size.height * 0.44);
+      final level = Rect.fromLTWH(
+        size.width * 0.09,
+        size.height * 0.28,
+        size.width * 0.62,
+        size.height * 0.44,
+      );
       canvas.drawRect(level, Paint()..color = fill.withValues(alpha: 0.55));
       // bolt, drawn in outline ink so it reads against the mint fill
       final bolt = Path()
@@ -78,5 +111,7 @@ class _BatteryGlyphPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _BatteryGlyphPainter oldDelegate) =>
-      oldDelegate.kind != kind || oldDelegate.fill != fill || oldDelegate.outline != outline;
+      oldDelegate.kind != kind ||
+      oldDelegate.fill != fill ||
+      oldDelegate.outline != outline;
 }

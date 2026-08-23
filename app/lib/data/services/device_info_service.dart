@@ -25,11 +25,15 @@ class DeviceInfoService {
       }
       if (Platform.isLinux) {
         final info = await plugin.linuxInfo;
-        return info.prettyName.isNotEmpty ? info.prettyName : _hostnameOrFallback('linux desktop');
+        return info.prettyName.isNotEmpty
+            ? info.prettyName
+            : _hostnameOrFallback('linux desktop');
       }
       if (Platform.isWindows) {
         final info = await plugin.windowsInfo;
-        return info.computerName.isNotEmpty ? info.computerName : _hostnameOrFallback('windows desktop');
+        return info.computerName.isNotEmpty
+            ? info.computerName
+            : _hostnameOrFallback('windows desktop');
       }
     } catch (_) {
       // Fall through to hostname fallback below — heartbeats shouldn't

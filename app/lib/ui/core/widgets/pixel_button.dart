@@ -48,13 +48,18 @@ class _PixelButtonState extends State<PixelButton> {
           onTapCancel: enabled ? () => setState(() => _pressed = false) : null,
           onTap: widget.onPressed,
           child: MouseRegion(
-            cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.forbidden,
+            cursor: enabled
+                ? SystemMouseCursors.click
+                : SystemMouseCursors.forbidden,
             child: Opacity(
               opacity: enabled ? 1 : 0.5,
               child: BevelBox(
                 color: fill,
                 style: _pressed ? BevelStyle.sunken : BevelStyle.raised,
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 12,
+                ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [

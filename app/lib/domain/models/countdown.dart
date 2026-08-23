@@ -25,7 +25,8 @@ class Countdown {
   /// "(๑˃ᴗ˂)ﻭ".
   final String kaomoji;
 
-  Countdown copyWith({String? title, DateTime? date, String? kaomoji}) => Countdown(
+  Countdown copyWith({String? title, DateTime? date, String? kaomoji}) =>
+      Countdown(
         id: id,
         coupleId: coupleId,
         title: title ?? this.title,

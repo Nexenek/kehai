@@ -9,7 +9,16 @@ import (
 // plus the couple id.
 func pairedCouple(t *testing.T, baseURL string) (tokenA, tokenB, coupleID string) {
 	t.Helper()
-	_, tokenA = registerAndLogin(t, baseURL, uniqueEmail(t), "password1234")
+	_, tokenA, _, tokenB, coupleID = pairedCoupleWithIDs(t, baseURL)
+	return tokenA, tokenB, coupleID
+}
+
+// pairedCoupleWithIDs is pairedCouple, also exposing the user ids (needed by
+// tests that must author records as a specific member — resolving ids from
+// the users list instead is order-dependent and flaky).
+func pairedCoupleWithIDs(t *testing.T, baseURL string) (idA, tokenA, idB, tokenB, coupleID string) {
+	t.Helper()
+	idA, tokenA = registerAndLogin(t, baseURL, uniqueEmail(t), "password1234")
 	res := doJSON(t, http.MethodPost, baseURL+"/api/couple/create", tokenA, map[string]any{"name": "test"})
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("create couple: %d", res.StatusCode)
@@ -17,12 +26,12 @@ func pairedCouple(t *testing.T, baseURL string) (tokenA, tokenB, coupleID string
 	created := decodeJSON(t, res)
 	coupleID = created["couple_id"].(string)
 
-	_, tokenB = registerAndLogin(t, baseURL, uniqueEmail(t), "password1234")
+	idB, tokenB = registerAndLogin(t, baseURL, uniqueEmail(t), "password1234")
 	res = doJSON(t, http.MethodPost, baseURL+"/api/couple/join", tokenB, map[string]any{"code": created["invite_code"]})
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("join couple: %d", res.StatusCode)
 	}
-	return tokenA, tokenB, coupleID
+	return idA, tokenA, idB, tokenB, coupleID
 }
 
 func TestSharedContentRules(t *testing.T) {

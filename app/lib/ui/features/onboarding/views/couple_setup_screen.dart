@@ -27,7 +27,10 @@ class _CoupleSetupScreenState extends State<CoupleSetupScreen> {
   void initState() {
     super.initState();
     final controller = AppScope.of(context, listen: false);
-    _viewModel = CoupleSetupViewModel(controller.coupleRepository!, controller.prefs);
+    _viewModel = CoupleSetupViewModel(
+      controller.coupleRepository!,
+      controller.prefs,
+    );
   }
 
   @override
@@ -67,7 +70,9 @@ class _CoupleSetupScreenState extends State<CoupleSetupScreen> {
         code: _viewModel.createdCouple!.inviteCode,
         copied: _justCopied,
         onCopy: () async {
-          await Clipboard.setData(ClipboardData(text: _viewModel.createdCouple!.inviteCode));
+          await Clipboard.setData(
+            ClipboardData(text: _viewModel.createdCouple!.inviteCode),
+          );
           setState(() => _justCopied = true);
         },
         onContinue: () => AppScope.of(context, listen: false).onCoupleReady(),
@@ -84,9 +89,16 @@ class _CoupleSetupScreenState extends State<CoupleSetupScreen> {
             const SizedBox(height: 8),
             Text(AppStrings.coupleStepBody, style: AppTextStyles.body2),
             const SizedBox(height: 18),
-            PixelButton(primary: true, label: AppStrings.createCoupleButton, onPressed: _viewModel.showCreate),
+            PixelButton(
+              primary: true,
+              label: AppStrings.createCoupleButton,
+              onPressed: _viewModel.showCreate,
+            ),
             const SizedBox(height: 10),
-            PixelButton(label: AppStrings.joinCoupleButton, onPressed: _viewModel.showJoin),
+            PixelButton(
+              label: AppStrings.joinCoupleButton,
+              onPressed: _viewModel.showJoin,
+            ),
           ],
         );
       case CoupleSetupMode.create:
@@ -99,13 +111,18 @@ class _CoupleSetupScreenState extends State<CoupleSetupScreen> {
             TextField(
               controller: _nameController,
               style: AppTextStyles.body1,
-              decoration: const InputDecoration(hintText: AppStrings.coupleNameHint),
+              decoration: const InputDecoration(
+                hintText: AppStrings.coupleNameHint,
+              ),
             ),
             const SizedBox(height: 12),
             if (_viewModel.errorMessage != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: Text(_viewModel.errorMessage!, style: AppTextStyles.body2.copyWith(color: colors.warn)),
+                child: Text(
+                  _viewModel.errorMessage!,
+                  style: AppTextStyles.body2.copyWith(color: colors.warn),
+                ),
               ),
             Row(
               children: [
@@ -113,8 +130,12 @@ class _CoupleSetupScreenState extends State<CoupleSetupScreen> {
                 const SizedBox(width: 10),
                 PixelButton(
                   primary: true,
-                  label: _viewModel.isSubmitting ? AppStrings.loading : AppStrings.createButton,
-                  onPressed: _viewModel.isSubmitting ? null : () => _viewModel.create(_nameController.text),
+                  label: _viewModel.isSubmitting
+                      ? AppStrings.loading
+                      : AppStrings.createButton,
+                  onPressed: _viewModel.isSubmitting
+                      ? null
+                      : () => _viewModel.create(_nameController.text),
                 ),
               ],
             ),
@@ -131,13 +152,18 @@ class _CoupleSetupScreenState extends State<CoupleSetupScreen> {
               controller: _codeController,
               style: AppTextStyles.body1,
               textCapitalization: TextCapitalization.characters,
-              decoration: const InputDecoration(hintText: AppStrings.enterCodeHint),
+              decoration: const InputDecoration(
+                hintText: AppStrings.enterCodeHint,
+              ),
             ),
             const SizedBox(height: 12),
             if (_viewModel.errorMessage != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: Text(_viewModel.errorMessage!, style: AppTextStyles.body2.copyWith(color: colors.warn)),
+                child: Text(
+                  _viewModel.errorMessage!,
+                  style: AppTextStyles.body2.copyWith(color: colors.warn),
+                ),
               ),
             Row(
               children: [
@@ -145,11 +171,15 @@ class _CoupleSetupScreenState extends State<CoupleSetupScreen> {
                 const SizedBox(width: 10),
                 PixelButton(
                   primary: true,
-                  label: _viewModel.isSubmitting ? AppStrings.loading : AppStrings.joinButton,
+                  label: _viewModel.isSubmitting
+                      ? AppStrings.loading
+                      : AppStrings.joinButton,
                   onPressed: _viewModel.isSubmitting
                       ? null
                       : () async {
-                          final ok = await _viewModel.join(_codeController.text);
+                          final ok = await _viewModel.join(
+                            _codeController.text,
+                          );
                           if (ok && context.mounted) {
                             AppScope.of(context, listen: false).onCoupleReady();
                           }
@@ -183,7 +213,10 @@ class _InviteCodeReveal extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text('(｡♥‿♥｡)', style: AppTextStyles.kaomojiMedium.copyWith(color: colors.accent)),
+        Text(
+          '(｡♥‿♥｡)',
+          style: AppTextStyles.kaomojiMedium.copyWith(color: colors.accent),
+        ),
         const SizedBox(height: 12),
         Text(AppStrings.inviteCodeLabel, style: AppTextStyles.caption),
         const SizedBox(height: 6),
@@ -193,19 +226,34 @@ class _InviteCodeReveal extends StatelessWidget {
           child: Center(
             child: Text(
               code,
-              style: AppTextStyles.heading.copyWith(fontSize: 32, letterSpacing: 6, color: colors.ink),
+              style: AppTextStyles.heading.copyWith(
+                fontSize: 32,
+                letterSpacing: 6,
+                color: colors.ink,
+              ),
             ),
           ),
         ),
         const SizedBox(height: 10),
-        Text(AppStrings.inviteCodeExplainer, style: AppTextStyles.body2, textAlign: TextAlign.center),
+        Text(
+          AppStrings.inviteCodeExplainer,
+          style: AppTextStyles.body2,
+          textAlign: TextAlign.center,
+        ),
         const SizedBox(height: 14),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            PixelButton(label: copied ? AppStrings.codeCopied : AppStrings.copyCode, onPressed: onCopy),
+            PixelButton(
+              label: copied ? AppStrings.codeCopied : AppStrings.copyCode,
+              onPressed: onCopy,
+            ),
             const SizedBox(width: 10),
-            PixelButton(primary: true, label: AppStrings.continueLabel, onPressed: onContinue),
+            PixelButton(
+              primary: true,
+              label: AppStrings.continueLabel,
+              onPressed: onContinue,
+            ),
           ],
         ),
       ],
