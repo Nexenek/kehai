@@ -5,6 +5,7 @@ import 'package:pocketbase/pocketbase.dart';
 
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/instant_repository.dart';
+import '../../../data/services/notifications/notification_hub.dart';
 import '../../../domain/models/instant.dart';
 
 /// Drives the "instants" feed: a reverse-chronological photo grid,
@@ -19,11 +20,18 @@ class InstantsViewModel extends ChangeNotifier {
   InstantsViewModel({
     required AuthRepository authRepository,
     required InstantRepository instantRepository,
+    KehaiNotifications? notifications,
   }) : _authRepository = authRepository,
-       _instantRepository = instantRepository;
+       _instantRepository = instantRepository,
+       _notifications = notifications;
 
   final AuthRepository _authRepository;
   final InstantRepository _instantRepository;
+
+  /// Where "an instant arrived" becomes a notification — optional, and
+  /// muted on Android once the foreground service owns the subscriptions.
+  /// See [KehaiNotifications].
+  final KehaiNotifications? _notifications;
 
   bool isLoading = true;
   bool isLoadingMore = false;
@@ -59,6 +67,12 @@ class InstantsViewModel extends ChangeNotifier {
       } else if (!instants.any((i) => i.id == instant.id)) {
         instants = [instant, ...instants]
           ..sort((a, b) => b.created.compareTo(a.created));
+        final notifications = _notifications;
+        if (notifications != null) {
+          notifications.report(
+            () => notifications.reportInstant(authorId: instant.authorId),
+          );
+        }
       }
       notifyListeners();
     });

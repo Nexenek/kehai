@@ -208,6 +208,33 @@ class KehaiForegroundTask {
     }
   }
 
+  /// Payload prefix for the app-foreground push below. Kept as a prefix (not
+  /// a bare constant) so [KehaiTaskHandler.onReceiveData] can tell it apart
+  /// from the prefs nudge above with a `startsWith`.
+  static const foregroundSignalPrefix = 'app_foreground:';
+
+  /// Tells the background isolate whether the app is currently on screen.
+  ///
+  /// It needs to know because it — not the UI isolate — is what raises
+  /// notifications on Android once the service is up, and a notification
+  /// about a doodle you're watching arrive is noise ([decideNotification]'s
+  /// rule 2). The service has no window to observe, so this is the only way
+  /// it can find out.
+  ///
+  /// Swallowed on failure like [notifyPrefsChanged]: the worst case is a
+  /// notification you didn't strictly need, which is the right direction to
+  /// fail in.
+  static void notifyAppForeground(bool foreground) {
+    if (!isSupported) return;
+    try {
+      FlutterForegroundTask.sendDataToTask(
+        '$foregroundSignalPrefix${foreground ? '1' : '0'}',
+      );
+    } catch (_) {
+      // No running service / no communication port yet.
+    }
+  }
+
   /// Pushes finished strings into the notification. Called from the
   /// background isolate; the Kotlin side just renders them.
   static Future<void> render(PartnerNotificationContent content) async {

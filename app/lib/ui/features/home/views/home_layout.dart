@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../data/services/prefs_service.dart';
 import '../../../core/strings/app_strings.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -127,13 +128,23 @@ class HomeSections {
 /// `HomeScreen` so the switch can be tested with stub sections instead of a
 /// full set of live view models.
 class HomeBody extends StatelessWidget {
-  const HomeBody({super.key, required this.sections, required this.desktop});
+  const HomeBody({
+    super.key,
+    required this.sections,
+    required this.desktop,
+    required this.prefs,
+  });
 
   final HomeSections sections;
 
   /// Whether desktop layouts apply at all — [DesktopWindowService.isSupported]
   /// in the app, a fixed value in tests.
   final bool desktop;
+
+  /// Only [HomeColumn] uses this (to persist which sections are collapsed) —
+  /// threaded through here rather than reached via an inherited widget so
+  /// the layouts stay pure composition, same as [sections].
+  final PrefsService prefs;
 
   @override
   Widget build(BuildContext context) {
@@ -144,7 +155,7 @@ class HomeBody extends StatelessWidget {
           desktop: desktop,
         );
         return switch (mode) {
-          HomeLayoutMode.column => HomeColumn(sections: sections),
+          HomeLayoutMode.column => HomeColumn(sections: sections, prefs: prefs),
           HomeLayoutMode.companion => CompanionHome(sections: sections),
           HomeLayoutMode.spread => HomeSpread(sections: sections),
         };
@@ -177,15 +188,87 @@ class HomeHeader extends StatelessWidget {
   }
 }
 
-/// The original phone layout: one centred, scrolling column. Untouched —
-/// Android and portrait windows keep exactly what they had.
-class HomeColumn extends StatelessWidget {
-  const HomeColumn({super.key, required this.sections});
+/// One entry in [HomeColumn]'s list of collapsible sections: which
+/// [TraySection] it corresponds to (for its glyph/label and its saved
+/// collapsed/expanded state) and the builder that produces its content.
+typedef _ColumnEntry = ({TraySection section, HomeSectionBuilder builder});
+
+/// Every [HomeColumn] section other than the partner card, in display
+/// order. The partner card itself isn't here — it's never collapsible and
+/// always renders first, straight from [HomeSections.partner].
+List<_ColumnEntry> _columnEntries(HomeSections sections) => [
+  (section: TraySection.mood, builder: sections.mood),
+  (section: TraySection.pet, builder: sections.pet),
+  (section: TraySection.question, builder: sections.question),
+  (section: TraySection.thumbkiss, builder: sections.thumbkiss),
+  (section: TraySection.countdowns, builder: sections.countdowns),
+  (section: TraySection.calendar, builder: sections.calendar),
+  (section: TraySection.notes, builder: sections.notes),
+  (section: TraySection.instants, builder: sections.instants),
+  (section: TraySection.files, builder: sections.files),
+  (section: TraySection.board, builder: sections.board),
+  (section: TraySection.art, builder: sections.art),
+  (section: TraySection.map, builder: sections.map),
+];
+
+/// Sections collapsed on first run — everything except mood, the one
+/// section worth seeing at a glance every time.
+final Set<TraySection> _defaultCollapsedSections = {
+  for (final section in TraySection.values)
+    if (section != TraySection.mood) section,
+};
+
+/// The original phone layout: one centred, scrolling column — now with
+/// every section but the partner card and mood collapsible, so thirteen
+/// stacked windows don't turn into one long scroll (kb/design-language.md
+/// "smooth ≠ busy": a slim strip you open on purpose beats a wall of
+/// windows you have to scroll past). Android and portrait windows are the
+/// only ones that ever see this.
+class HomeColumn extends StatefulWidget {
+  const HomeColumn({super.key, required this.sections, required this.prefs});
 
   final HomeSections sections;
 
+  /// Where the collapsed/expanded state persists across launches.
+  final PrefsService prefs;
+
+  @override
+  State<HomeColumn> createState() => _HomeColumnState();
+}
+
+class _HomeColumnState extends State<HomeColumn> {
+  late Set<TraySection> _collapsed;
+
+  @override
+  void initState() {
+    super.initState();
+    final saved = widget.prefs.collapsedHomeSections;
+    _collapsed = saved == null
+        ? _defaultCollapsedSections.toSet()
+        : {for (final name in saved) ?_traySectionNamed(name)};
+  }
+
+  TraySection? _traySectionNamed(String name) {
+    for (final section in TraySection.values) {
+      if (section.name == name) return section;
+    }
+    return null;
+  }
+
+  void _toggle(TraySection section) {
+    setState(() {
+      if (!_collapsed.remove(section)) _collapsed.add(section);
+    });
+    widget.prefs.setCollapsedHomeSections([
+      for (final section in _collapsed) section.name,
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 180);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Center(
@@ -194,38 +277,86 @@ class HomeColumn extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              HomeHeader(onLogOut: sections.onLogOut),
-              for (final extra in sections.extras) ...[
+              HomeHeader(onLogOut: widget.sections.onLogOut),
+              for (final extra in widget.sections.extras) ...[
                 const SizedBox(height: 10),
                 Align(alignment: Alignment.centerLeft, child: extra),
               ],
               const SizedBox(height: 16),
-              sections.partner,
-              const SizedBox(height: 20),
-              sections.mood(context, null),
-              const SizedBox(height: 20),
-              sections.pet(context, null),
-              const SizedBox(height: 20),
-              sections.question(context, null),
-              const SizedBox(height: 20),
-              sections.thumbkiss(context, null),
-              const SizedBox(height: 20),
-              sections.countdowns(context, null),
-              const SizedBox(height: 20),
-              sections.calendar(context, null),
-              const SizedBox(height: 20),
-              sections.notes(context, null),
-              const SizedBox(height: 20),
-              sections.instants(context, null),
-              const SizedBox(height: 20),
-              sections.files(context, null),
-              const SizedBox(height: 20),
-              sections.board(context, null),
-              const SizedBox(height: 20),
-              sections.art(context, null),
-              const SizedBox(height: 20),
-              sections.map(context, null),
+              widget.sections.partner,
+              for (final entry in _columnEntries(widget.sections)) ...[
+                const SizedBox(height: 20),
+                AnimatedSize(
+                  duration: duration,
+                  curve: Curves.easeOutCubic,
+                  alignment: Alignment.topCenter,
+                  child: _collapsed.contains(entry.section)
+                      ? _CollapsedSectionStrip(
+                          section: entry.section,
+                          onTap: () => _toggle(entry.section),
+                        )
+                      : entry.builder(context, () => _toggle(entry.section)),
+                ),
+              ],
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The collapsed stand-in for a section: a slim title-bar-style strip
+/// (design-language.md's window chrome, pared down to one line) showing the
+/// section's tray glyph and label with a ▸ to invite opening it. Tapping
+/// anywhere on the strip expands the section; its own ♥ close (wired to
+/// [HomeSectionBuilder]'s `onClose` when expanded) collapses it again.
+class _CollapsedSectionStrip extends StatelessWidget {
+  const _CollapsedSectionStrip({required this.section, required this.onTap});
+
+  final TraySection section;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final art = traySectionArt[section]!;
+    return Tooltip(
+      message: AppStrings.trayOpenTooltip(art.label),
+      child: Semantics(
+        button: true,
+        label: art.label,
+        child: GestureDetector(
+          key: Key('home-collapsed-${section.name}'),
+          onTap: onTap,
+          behavior: HitTestBehavior.opaque,
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 44),
+              decoration: BoxDecoration(
+                color: colors.chrome,
+                border: Border.all(color: colors.ink, width: 2),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: Row(
+                children: [
+                  art.glyph(colors.ink),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      art.label,
+                      style: AppTextStyles.titleBar.copyWith(color: colors.ink),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Text(
+                    '▸',
+                    style: AppTextStyles.titleBar.copyWith(color: colors.ink),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),

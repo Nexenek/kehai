@@ -30,6 +30,9 @@ void main() {
     bool phoneOnline = false,
     bool desktopOnline = false,
     bool transparentCorners = false,
+    VoidCallback? onSendPing,
+    bool canSendPing = true,
+    bool pingJustSent = false,
   }) async {
     // The real thing: 240×150, the size DesktopWindowService gives it.
     tester.view.devicePixelRatio = 1.0;
@@ -47,6 +50,9 @@ void main() {
             phoneOnline: phoneOnline,
             desktopOnline: desktopOnline,
             ambientLine: ambientLine,
+            onSendPing: onSendPing,
+            canSendPing: canSendPing,
+            pingJustSent: pingJustSent,
             onExpand: onExpand,
             onDragStart: onDragStart,
             transparentCorners: transparentCorners,
@@ -209,6 +215,47 @@ void main() {
         ),
       );
       expect(kaomoji.style?.shadows, isNull);
+    });
+  });
+
+  group('the little ♥', () {
+    testWidgets('is absent until there is somewhere to send it', (
+      tester,
+    ) async {
+      await pumpCard(tester, status: _status('happy'));
+      expect(find.byKey(const Key('mini-ping-heart')), findsNothing);
+    });
+
+    testWidgets('sends without also expanding the window', (tester) async {
+      var pinged = 0;
+      var expanded = 0;
+      await pumpCard(
+        tester,
+        status: _status('happy'),
+        onSendPing: () => pinged++,
+        onExpand: () => expanded++,
+      );
+
+      await tester.tap(find.byKey(const Key('mini-ping-heart')));
+      await tester.pump();
+
+      expect(pinged, 1);
+      expect(expanded, 0, reason: 'the tap must not fall through to the card');
+    });
+
+    testWidgets('still fits the real 240x150 card', (tester) async {
+      await pumpCard(
+        tester,
+        status: _status('cozy'),
+        ambientLine: const AmbientLine(
+          kind: AmbientLineKind.nowPlaying,
+          text: 'a long enough now-playing line to squeeze the row',
+        ),
+        phoneOnline: true,
+        desktopOnline: true,
+        onSendPing: () {},
+      );
+      expect(tester.takeException(), isNull);
     });
   });
 }

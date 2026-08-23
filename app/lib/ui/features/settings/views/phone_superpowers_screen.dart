@@ -8,6 +8,7 @@ import '../../../core/widgets/bevel_box.dart';
 import '../../../core/widgets/pixel_button.dart';
 import '../../../core/widgets/retro_window.dart';
 import '../view_models/phone_superpowers_view_model.dart';
+import 'sound_settings_dialog.dart';
 
 /// The Android permissions screen, in the retro-window vocabulary the rest
 /// of the app uses. One window per capability: what it unlocks, what it
@@ -222,6 +223,25 @@ class _PhoneSuperpowersScreenState extends State<PhoneSuperpowersScreen>
                           alwaysActionable: true,
                           onAction: () => _viewModel.setShareLocation(
                             !_viewModel.shareLocation,
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        // Android's way in to the "sounds ♪" window — the
+                        // desktop reaches it from the ✧ title-bar window
+                        // instead (see showSoundSettingsDialog's doc
+                        // comment on why it's its own window either way).
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: PixelButton(
+                            key: const Key('superpowers-open-sounds'),
+                            label: AppStrings.soundsOpen,
+                            onPressed: () => showSoundSettingsDialog(
+                              context,
+                              notifier: AppScope.of(
+                                context,
+                                listen: false,
+                              ).notifier,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 18),

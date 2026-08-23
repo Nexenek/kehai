@@ -5,6 +5,7 @@ import 'package:pocketbase/pocketbase.dart';
 
 import '../../../../data/repositories/auth_repository.dart';
 import '../../../../data/repositories/doodle_repository.dart';
+import '../../../../data/services/notifications/notification_hub.dart';
 import '../../../../domain/models/doodle.dart';
 
 /// Drives the doodle-to-partner feature: my latest doodle + the partner's,
@@ -18,11 +19,19 @@ class DoodleViewModel extends ChangeNotifier {
   DoodleViewModel({
     required AuthRepository authRepository,
     required DoodleRepository doodleRepository,
+    KehaiNotifications? notifications,
   }) : _authRepository = authRepository,
-       _doodleRepository = doodleRepository;
+       _doodleRepository = doodleRepository,
+       _notifications = notifications;
 
   final AuthRepository _authRepository;
   final DoodleRepository _doodleRepository;
+
+  /// Where "a doodle arrived" becomes a notification. Optional so every
+  /// existing caller and test keeps compiling; null simply means nothing
+  /// gets raised. Muted on Android once the foreground service owns the
+  /// subscriptions — see [KehaiNotifications].
+  final KehaiNotifications? _notifications;
 
   bool isLoading = true;
   Doodle? myDoodle;
@@ -53,6 +62,12 @@ class DoodleViewModel extends ChangeNotifier {
         if (partnerDoodle?.id == doodle.id) partnerDoodle = null;
       } else {
         _apply(doodle);
+        final notifications = _notifications;
+        if (notifications != null) {
+          notifications.report(
+            () => notifications.reportDoodle(authorId: doodle.authorId),
+          );
+        }
       }
       notifyListeners();
     });

@@ -9,6 +9,7 @@ kb/
 # Server / deploy runtime state
 server/pb_data/
 deploy/data/
+deploy/backups/
 server/couples-server
 server/tmp/
 

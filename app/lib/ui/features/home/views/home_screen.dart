@@ -25,6 +25,7 @@ import '../../location/view_models/location_view_model.dart';
 import '../../location/views/location_window.dart';
 import '../../pet/pet_view_model.dart';
 import '../../pet/pet_window.dart';
+import '../../pings/ping_view_model.dart';
 import '../../questions/daily_question_window.dart';
 import '../../questions/questions_view_model.dart';
 import '../../settings/views/phone_superpowers_screen.dart';
@@ -63,6 +64,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late final ThumbKissViewModel _thumbKissViewModel;
   late final BoardViewModel _boardViewModel;
   late final QuestionsViewModel _questionsViewModel;
+  late final PingViewModel _pingViewModel;
   late final ArtViewModel _artViewModel;
   late final FilesViewModel _filesViewModel;
   final _noteController = TextEditingController();
@@ -105,6 +107,13 @@ class _HomeScreenState extends State<HomeScreen> {
     _doodleViewModel = DoodleViewModel(
       authRepository: controller.authRepository!,
       doodleRepository: controller.doodleRepository!,
+      notifications: controller.notifications,
+    )..init();
+
+    _pingViewModel = PingViewModel(
+      authRepository: controller.authRepository!,
+      pingRepository: controller.pingRepository!,
+      notifications: controller.notifications,
     )..init();
 
     _locationViewModel = LocationViewModel(
@@ -115,6 +124,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _instantsViewModel = InstantsViewModel(
       authRepository: controller.authRepository!,
       instantRepository: controller.instantRepository!,
+      notifications: controller.notifications,
     )..init();
 
     _petViewModel = PetViewModel(
@@ -134,6 +144,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     _questionsViewModel = QuestionsViewModel(
       questionRepository: controller.questionRepository!,
+      notifications: controller.notifications,
     )..init();
 
     _artViewModel = ArtViewModel(
@@ -153,6 +164,14 @@ class _HomeScreenState extends State<HomeScreen> {
       _noteController.text = _viewModel.myNote;
     }
     _doodleViewModel.updatePartner(_viewModel.partner?.id);
+    _pingViewModel.updatePartner(_viewModel.partner?.id);
+    // The reveal has no author record of its own, so the notifier needs the
+    // partner's id handed to it explicitly (see QuestionsViewModel.partnerId).
+    _questionsViewModel.partnerId = _viewModel.partner?.id;
+    // Notification headlines say their name; this is the one place that
+    // knows it.
+    AppScope.of(context, listen: false).notifications.partnerName =
+        _viewModel.partner?.name ?? '';
     // The partner's record carries their `ghost_until` along with their
     // name, so this hands over both at once.
     _locationViewModel.updatePartner(_viewModel.partner);
@@ -177,6 +196,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _thumbKissViewModel.dispose();
     _boardViewModel.dispose();
     _questionsViewModel.dispose();
+    _pingViewModel.dispose();
     _artViewModel.dispose();
     _filesViewModel.dispose();
     super.dispose();
@@ -200,6 +220,10 @@ class _HomeScreenState extends State<HomeScreen> {
               partnerDoodle: _doodleViewModel.partnerDoodle,
               onSendDoodle: _openDoodleCanvas,
               partnerDevices: _viewModel.partnerDevices,
+              onSendPing: _pingViewModel.send,
+              canSendPing: _pingViewModel.canSend,
+              pingJustSent: _pingViewModel.justSent,
+              receivedPing: _pingViewModel.lastReceived,
             )
           : _WaitingForPartner(
               inviteCode: _viewModel.inviteCode,
@@ -301,6 +325,9 @@ class _HomeScreenState extends State<HomeScreen> {
     desktopOnline: _viewModel.partnerDesktopOnline,
     ambientLine: _viewModel.partnerAmbientLine,
     artScene: _viewModel.partnerArtScene,
+    onSendPing: _viewModel.hasPartner ? _pingViewModel.send : null,
+    canSendPing: _pingViewModel.canSend,
+    pingJustSent: _pingViewModel.justSent,
   );
 
   @override
@@ -328,25 +355,37 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   );
                 }
-                if (mini) return _buildMini();
                 return ListenableBuilder(
-                  listenable: _doodleViewModel,
-                  // The location view model feeds the partner card's
-                  // distance line as well as its own section, so the card
-                  // has to rebuild when a new point lands.
-                  builder: (context, _) => ListenableBuilder(
-                    listenable: _locationViewModel,
-                    builder: (context, _) => HomeBody(
-                      sections: _buildSections(context),
-                      desktop: DesktopWindowService.isSupported,
-                    ),
-                  ),
+                  listenable: _pingViewModel,
+                  builder: (context, _) {
+                    if (mini) return _buildMini();
+                    return _buildFull(context);
+                  },
                 );
               },
             ),
           ),
         );
       },
+    );
+  }
+
+  /// The non-mini body. Split out only so the ping view model's
+  /// ListenableBuilder above can wrap both shapes without duplicating this.
+  Widget _buildFull(BuildContext context) {
+    return ListenableBuilder(
+      listenable: _doodleViewModel,
+      // The location view model feeds the partner card's distance line as
+      // well as its own section, so the card has to rebuild when a new point
+      // lands.
+      builder: (context, _) => ListenableBuilder(
+        listenable: _locationViewModel,
+        builder: (context, _) => HomeBody(
+          sections: _buildSections(context),
+          desktop: DesktopWindowService.isSupported,
+          prefs: AppScope.of(context, listen: false).prefs,
+        ),
+      ),
     );
   }
 }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'app.dart';
 import 'app_controller.dart';
+import 'data/services/autostart_service.dart';
 import 'data/services/background/kehai_foreground_task.dart';
 import 'data/services/desktop_window_service.dart';
 import 'data/services/kehai_tray.dart';
@@ -14,6 +15,11 @@ Future<void> main() async {
   // isolate talks back on, and registers the notification channel/task
   // options. No-op everywhere else.
   KehaiForegroundTask.bootstrap();
+  // Windows/Linux only, cheap and synchronous: points the "start with the
+  // computer" backend (tray menu checkbox, KehaiTray) at this process's own
+  // executable. Nothing is written to the registry/disk until the user
+  // actually flips the checkbox.
+  AutostartService.instance.bootstrap();
   // Windows/Linux only: sizes and docks the companion window (and restores
   // where the user left it) before the first frame, so it never flashes at
   // the default 1280×720. No-op on Android.

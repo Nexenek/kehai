@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:couples_app/data/services/prefs_service.dart';
 import 'package:couples_app/ui/core/strings/app_strings.dart';
 import 'package:couples_app/ui/core/theme/app_theme.dart';
 import 'package:couples_app/ui/features/home/views/home_layout.dart';
@@ -9,6 +11,14 @@ import 'package:couples_app/ui/features/home/views/my_mood_window.dart';
 
 import 'support/home_sections_stub.dart';
 import 'support/pixel_fonts.dart';
+
+/// These tests all pump `HomeBody` at desktop sizes (the tray/drawer), where
+/// [HomeColumn] — the only layout that reads/writes prefs — never mounts, so
+/// a fresh, unseeded store is all `HomeBody` needs to satisfy its contract.
+Future<PrefsService> fakePrefs() async {
+  SharedPreferences.setMockInitialValues({});
+  return PrefsService.create();
+}
 
 /// The drawer's slide state: [Offset.zero] is fully up, (0, 1) is parked
 /// below the tray bar.
@@ -28,6 +38,7 @@ Future<void> pumpTray(
   tester.view.devicePixelRatio = 1.0;
   tester.view.physicalSize = const Size(400, 640);
   addTearDown(tester.view.reset);
+  final prefs = await fakePrefs();
 
   await tester.pumpWidget(
     MaterialApp(
@@ -37,7 +48,11 @@ Future<void> pumpTray(
           data: MediaQuery.of(context)
               .copyWith(disableAnimations: disableAnimations),
           child: Scaffold(
-            body: HomeBody(sections: stubSections(taps: taps), desktop: true),
+            body: HomeBody(
+              sections: stubSections(taps: taps),
+              desktop: true,
+              prefs: prefs,
+            ),
           ),
         ),
       ),
@@ -260,6 +275,7 @@ void main() {
     addTearDown(tester.view.reset);
     final controller = TextEditingController();
     addTearDown(controller.dispose);
+    final prefs = await fakePrefs();
 
     await tester.pumpWidget(
       MaterialApp(
@@ -267,6 +283,7 @@ void main() {
         home: Scaffold(
           body: HomeBody(
             desktop: true,
+            prefs: prefs,
             sections: stubSections(
               mood: (context, onClose) => MyMoodWindow(
                 selectedMoodId: 'happy',
@@ -295,11 +312,14 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = const Size(360, 480);
     addTearDown(tester.view.reset);
+    final prefs = await fakePrefs();
 
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light(),
-        home: Scaffold(body: HomeBody(sections: stubSections(), desktop: true)),
+        home: Scaffold(
+          body: HomeBody(sections: stubSections(), desktop: true, prefs: prefs),
+        ),
       ),
     );
 

@@ -91,4 +91,31 @@ void main() {
       expect(prefs.shareUnknownApps, isFalse);
     });
   });
+
+  group('PrefsService — autostartEnabled (tray "start with the computer")', () {
+    test('defaults to off', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await PrefsService.create();
+      expect(prefs.autostartEnabled, isFalse);
+    });
+
+    test('round-trips across a fresh PrefsService', () async {
+      SharedPreferences.setMockInitialValues({});
+      final first = await PrefsService.create();
+      await first.setAutostartEnabled(true);
+
+      final reloaded = await PrefsService.create();
+      expect(reloaded.autostartEnabled, isTrue);
+    });
+
+    test('turning it back off persists too', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await PrefsService.create();
+      await prefs.setAutostartEnabled(true);
+      await prefs.setAutostartEnabled(false);
+
+      final reloaded = await PrefsService.create();
+      expect(reloaded.autostartEnabled, isFalse);
+    });
+  });
 }

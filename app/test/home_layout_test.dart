@@ -1,12 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:couples_app/data/services/prefs_service.dart';
 import 'package:couples_app/ui/core/theme/app_theme.dart';
 import 'package:couples_app/ui/features/home/views/home_layout.dart';
 
 import 'support/home_sections_stub.dart';
 
+/// A fresh [PrefsService] over a fresh (optionally pre-seeded) mock
+/// SharedPreferences store — same pattern as prefs_service_test.dart.
+Future<PrefsService> fakePrefs([Map<String, Object> seed = const {}]) async {
+  SharedPreferences.setMockInitialValues(seed);
+  return PrefsService.create();
+}
+
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('resolveHomeLayoutMode', () {
     test('anything non-desktop keeps the original single column', () {
       expect(
@@ -61,15 +72,25 @@ void main() {
   });
 
   group('HomeBody switches layout with the window', () {
-    Future<void> pumpAt(WidgetTester tester, Size size, {bool desktop = true}) {
+    Future<void> pumpAt(
+      WidgetTester tester,
+      Size size, {
+      bool desktop = true,
+      PrefsService? prefs,
+    }) async {
       tester.view.devicePixelRatio = 1.0;
       tester.view.physicalSize = size;
       addTearDown(tester.view.reset);
-      return tester.pumpWidget(
+      final resolvedPrefs = prefs ?? await fakePrefs();
+      await tester.pumpWidget(
         MaterialApp(
           theme: AppTheme.light(),
           home: Scaffold(
-            body: HomeBody(sections: stubSections(), desktop: desktop),
+            body: HomeBody(
+              sections: stubSections(),
+              desktop: desktop,
+              prefs: resolvedPrefs,
+            ),
           ),
         ),
       );
@@ -138,25 +159,158 @@ void main() {
       expect(find.byKey(const Key('home-spread')), findsNothing);
     });
 
-    testWidgets('Android/portrait is untouched: one scrolling column', (
+    testWidgets(
+      'Android/portrait is untouched in shape: one scrolling column',
+      (tester) async {
+        await pumpAt(tester, const Size(400, 800), desktop: false);
+
+        expect(find.byKey(const Key('home-tray')), findsNothing);
+        expect(find.byKey(const Key('home-spread')), findsNothing);
+        expect(find.byType(SingleChildScrollView), findsOneWidget);
+        // The partner card is always on screen, uncollapsible.
+        expect(find.text(stubPartnerText), findsOneWidget);
+        // Mood is the one section expanded by default.
+        expect(find.text(stubMoodText), findsOneWidget);
+      },
+    );
+  });
+
+  group('HomeColumn section collapsing', () {
+    Future<void> pumpColumn(
+      WidgetTester tester, {
+      required PrefsService prefs,
+    }) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(400, 800);
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          home: Scaffold(
+            body: HomeBody(
+              sections: stubSections(),
+              desktop: false,
+              prefs: prefs,
+            ),
+          ),
+        ),
+      );
+    }
+
+    testWidgets('partner card is always present, never a collapsed strip', (
       tester,
     ) async {
-      await pumpAt(tester, const Size(400, 800), desktop: false);
+      await pumpColumn(tester, prefs: await fakePrefs());
 
-      expect(find.byKey(const Key('home-tray')), findsNothing);
-      expect(find.byKey(const Key('home-spread')), findsNothing);
-      expect(find.byType(SingleChildScrollView), findsOneWidget);
       expect(find.text(stubPartnerText), findsOneWidget);
+    });
+
+    testWidgets('everything but mood starts collapsed, as a labeled strip', (
+      tester,
+    ) async {
+      await pumpColumn(tester, prefs: await fakePrefs());
+
+      // Mood is expanded by default…
       expect(find.text(stubMoodText), findsOneWidget);
-      expect(find.text(stubPetText), findsOneWidget);
-      expect(find.text(stubThumbKissText), findsOneWidget);
+      expect(find.byKey(const Key('home-collapsed-mood')), findsNothing);
+
+      // …everything else starts as a collapsed strip, glyph + label
+      // showing, its content nowhere in the tree.
+      for (final entry in {
+        'pet': stubPetText,
+        'question': stubQuestionText,
+        'thumbkiss': stubThumbKissText,
+        'countdowns': stubCountdownsText,
+        'calendar': stubCalendarText,
+        'notes': stubNotesText,
+        'instants': stubInstantsText,
+        'files': stubFilesText,
+        'board': stubBoardText,
+        'art': stubArtText,
+        'map': stubMapText,
+      }.entries) {
+        expect(
+          find.byKey(Key('home-collapsed-${entry.key}')),
+          findsOneWidget,
+          reason: '${entry.key} should start collapsed',
+        );
+        expect(find.text(entry.value), findsNothing);
+      }
+    });
+
+    testWidgets('tapping a collapsed strip expands that section', (
+      tester,
+    ) async {
+      await pumpColumn(tester, prefs: await fakePrefs());
+
+      expect(find.text(stubCountdownsText), findsNothing);
+      await tester.tap(find.byKey(const Key('home-collapsed-countdowns')));
+      await tester.pumpAndSettle();
+
       expect(find.text(stubCountdownsText), findsOneWidget);
-      expect(find.text(stubCalendarText), findsOneWidget);
-      expect(find.text(stubNotesText), findsOneWidget);
-      expect(find.text(stubBoardText), findsOneWidget);
-      expect(find.text(stubQuestionText), findsOneWidget);
-      expect(find.text(stubInstantsText), findsOneWidget);
-      expect(find.text(stubMapText), findsOneWidget);
+      expect(find.byKey(const Key('home-collapsed-countdowns')), findsNothing);
+    });
+
+    testWidgets("tapping the expanded section's close collapses it again", (
+      tester,
+    ) async {
+      await pumpColumn(tester, prefs: await fakePrefs());
+      await tester.tap(find.byKey(const Key('home-collapsed-countdowns')));
+      await tester.pumpAndSettle();
+      expect(find.text(stubCountdownsText), findsOneWidget);
+
+      // The stub's own content is the "close" — same contract as the real
+      // sections wiring their RetroWindow ♥ to onClose.
+      await tester.tap(find.text(stubCountdownsText));
+      await tester.pumpAndSettle();
+
+      expect(find.text(stubCountdownsText), findsNothing);
+      expect(
+        find.byKey(const Key('home-collapsed-countdowns')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('collapsed/expanded state persists across a fresh prefs load', (
+      tester,
+    ) async {
+      SharedPreferences.setMockInitialValues({});
+      final firstPrefs = await PrefsService.create();
+      await pumpColumn(tester, prefs: firstPrefs);
+
+      // Expand countdowns, collapse mood.
+      await tester.tap(find.byKey(const Key('home-collapsed-countdowns')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(stubMoodText));
+      await tester.pumpAndSettle();
+
+      expect(find.text(stubCountdownsText), findsOneWidget);
+      expect(find.byKey(const Key('home-collapsed-mood')), findsOneWidget);
+
+      // A fresh PrefsService, backed by the same (mocked) disk, should
+      // reproduce exactly that layout on the next launch.
+      final reloadedPrefs = await PrefsService.create();
+      await pumpColumn(tester, prefs: reloadedPrefs);
+
+      expect(find.text(stubCountdownsText), findsOneWidget);
+      expect(find.byKey(const Key('home-collapsed-countdowns')), findsNothing);
+      expect(find.byKey(const Key('home-collapsed-mood')), findsOneWidget);
+      expect(find.text(stubMoodText), findsNothing);
+    });
+
+    testWidgets('an unrecognised saved section name is tolerated, not fatal', (
+      tester,
+    ) async {
+      final prefs = await fakePrefs({
+        'collapsed_home_sections': ['mood', 'some_future_section'],
+      });
+
+      await pumpColumn(tester, prefs: prefs);
+
+      // Mood collapsed as saved, and the app doesn't crash on the name it
+      // doesn't recognise.
+      expect(find.byKey(const Key('home-collapsed-mood')), findsOneWidget);
+      expect(find.text(stubMoodText), findsNothing);
     });
   });
 }

@@ -65,6 +65,35 @@ services:
       retries: 3
 
   # ---------------------------------------------------------------------
+  # backup: nightly tar.gz of ./data (deploy/README.md "Backups"). SQLite
+  # dbs are hot-copied via `sqlite3 .backup` (deploy/backup.sh), not a raw
+  # file copy, so a live WAL-mode db never gets caught mid-write. Keeps the
+  # last 14 nightly archives in ./backups. This is the "good enough for a
+  # home server" tier — see deploy/README.md for the borgmatic upgrade path
+  # (encrypted, offsite, the real 3-2-1 story from kb/selfhosting.md).
+  # ---------------------------------------------------------------------
+  backup:
+    image: alpine:3.22
+    container_name: kehai-backup
+    restart: unless-stopped
+    depends_on:
+      - server
+    volumes:
+      - ./data/pb:/pb_data
+      - ./backups:/backups
+      - ./backup.sh:/backup.sh:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        apk add --no-cache sqlite >/dev/null
+        chmod +x /backup.sh
+        mkdir -p /var/spool/cron/crontabs
+        echo "0 3 * * * /backup.sh >> /proc/1/fd/1 2>&1" > /var/spool/cron/crontabs/root
+        echo "backup sidecar up — nightly at 03:00, keeping last 14"
+        crond -f -d 8
+
+  # ---------------------------------------------------------------------
   # Phase 4 — CalDAV shared calendar (kb/decisions.md ADR-7).
   # ---------------------------------------------------------------------
   # baikal:

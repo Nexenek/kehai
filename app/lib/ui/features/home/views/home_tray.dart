@@ -38,6 +38,73 @@ const Set<TraySection> _primarySections = {
   TraySection.thumbkiss,
 };
 
+/// A glyph drawn in whatever colour reads on its current background.
+typedef GlyphBuilder = Widget Function(Color color);
+
+/// One section's glyph + label, as shown wherever that section needs to
+/// identify itself outside its own window: a tray button, a ✚ grid tile, or
+/// (see `home_layout.dart`'s `HomeColumn`) a collapsed section strip in the
+/// phone column. Kept in one table so those places can't drift apart.
+class TraySectionArt {
+  const TraySectionArt({required this.glyph, required this.label});
+
+  final GlyphBuilder glyph;
+  final String label;
+}
+
+/// Every home section's glyph + label, keyed by [TraySection]. Built from
+/// the same glyph widgets/labels the tray bar and ✚ grid always used —
+/// gathered here so nothing else has to redeclare them.
+final Map<TraySection, TraySectionArt> traySectionArt = {
+  TraySection.mood: TraySectionArt(
+    glyph: _textGlyph('♥︎'),
+    label: AppStrings.trayMood,
+  ),
+  TraySection.pet: TraySectionArt(glyph: _petGlyph, label: AppStrings.trayPet),
+  TraySection.thumbkiss: TraySectionArt(
+    glyph: _thumbKissGlyph,
+    label: AppStrings.trayThumbKiss,
+  ),
+  TraySection.countdowns: TraySectionArt(
+    glyph: (color) => PixelHourglass(color: color),
+    label: AppStrings.trayCountdowns,
+  ),
+  TraySection.calendar: TraySectionArt(
+    glyph: (color) => PixelCalendarGlyph(color: color),
+    label: AppStrings.trayCalendar,
+  ),
+  TraySection.notes: TraySectionArt(
+    glyph: _textGlyph('≡'),
+    label: AppStrings.trayNotes,
+  ),
+  TraySection.instants: TraySectionArt(
+    // ◉ (BMP "fisheye") reads as a camera lens and, unlike an emoji camera,
+    // can't be hijacked by Android's color-emoji font.
+    glyph: _textGlyph('◉'),
+    label: AppStrings.trayInstants,
+  ),
+  TraySection.map: TraySectionArt(
+    glyph: (color) => PixelMapPin(color: color),
+    label: AppStrings.trayMap,
+  ),
+  TraySection.board: TraySectionArt(
+    glyph: _textGlyph('▦'),
+    label: AppStrings.trayBoard,
+  ),
+  TraySection.question: TraySectionArt(
+    glyph: _textGlyph('✉'),
+    label: AppStrings.trayQuestion,
+  ),
+  TraySection.art: TraySectionArt(
+    glyph: _textGlyph('✿'),
+    label: AppStrings.trayArt,
+  ),
+  TraySection.files: TraySectionArt(
+    glyph: _textGlyph('▤'),
+    label: AppStrings.trayFiles,
+  ),
+};
+
 /// Slide-up timing for the drawer. One short, well-behaved move, per
 /// design-language.md's "smooth ≠ busy".
 const Duration kDrawerDuration = Duration(milliseconds: 200);
@@ -286,8 +353,8 @@ class _TrayBar extends StatelessWidget {
             Expanded(
               child: _TrayButton(
                 buttonKey: const Key('tray-mood'),
-                glyph: _textGlyph('♥︎'),
-                label: AppStrings.trayMood,
+                glyph: traySectionArt[TraySection.mood]!.glyph,
+                label: traySectionArt[TraySection.mood]!.label,
                 selected: moodSelected,
                 onTap: onSelectMood,
               ),
@@ -306,8 +373,8 @@ class _TrayBar extends StatelessWidget {
             Expanded(
               child: _TrayButton(
                 buttonKey: const Key('tray-pet'),
-                glyph: _petGlyph,
-                label: AppStrings.trayPet,
+                glyph: traySectionArt[TraySection.pet]!.glyph,
+                label: traySectionArt[TraySection.pet]!.label,
                 selected: petSelected,
                 onTap: onSelectPet,
               ),
@@ -316,8 +383,8 @@ class _TrayBar extends StatelessWidget {
             Expanded(
               child: _TrayButton(
                 buttonKey: const Key('tray-thumbkiss'),
-                glyph: _thumbKissGlyph,
-                label: AppStrings.trayThumbKiss,
+                glyph: traySectionArt[TraySection.thumbkiss]!.glyph,
+                label: traySectionArt[TraySection.thumbkiss]!.label,
                 selected: thumbKissSelected,
                 onTap: onSelectThumbKiss,
               ),
@@ -339,79 +406,19 @@ class _TrayBar extends StatelessWidget {
   }
 }
 
-/// One entry in the ✚ grid: the section it opens, its key suffix, glyph and
-/// label — everything [_MoreGrid] needs to lay a tile out.
-class _GridEntry {
-  const _GridEntry({
-    required this.section,
-    required this.keySuffix,
-    required this.glyph,
-    required this.label,
-  });
-
-  final TraySection section;
-  final String keySuffix;
-  final _GlyphBuilder glyph;
-  final String label;
-}
-
-final List<_GridEntry> _gridEntries = [
-  _GridEntry(
-    section: TraySection.countdowns,
-    keySuffix: 'countdowns',
-    glyph: (color) => PixelHourglass(color: color),
-    label: AppStrings.trayCountdowns,
-  ),
-  _GridEntry(
-    section: TraySection.calendar,
-    keySuffix: 'calendar',
-    glyph: (color) => PixelCalendarGlyph(color: color),
-    label: AppStrings.trayCalendar,
-  ),
-  _GridEntry(
-    section: TraySection.notes,
-    keySuffix: 'notes',
-    glyph: _textGlyph('≡'),
-    label: AppStrings.trayNotes,
-  ),
-  _GridEntry(
-    section: TraySection.instants,
-    keySuffix: 'instants',
-    // ◉ (BMP "fisheye") reads as a camera lens and, unlike an emoji camera,
-    // can't be hijacked by Android's color-emoji font.
-    glyph: _textGlyph('◉'),
-    label: AppStrings.trayInstants,
-  ),
-  _GridEntry(
-    section: TraySection.map,
-    keySuffix: 'map',
-    glyph: (color) => PixelMapPin(color: color),
-    label: AppStrings.trayMap,
-  ),
-  _GridEntry(
-    section: TraySection.board,
-    keySuffix: 'board',
-    glyph: _textGlyph('▦'),
-    label: AppStrings.trayBoard,
-  ),
-  _GridEntry(
-    section: TraySection.question,
-    keySuffix: 'question',
-    glyph: _textGlyph('✉'),
-    label: AppStrings.trayQuestion,
-  ),
-  _GridEntry(
-    section: TraySection.art,
-    keySuffix: 'art',
-    glyph: _textGlyph('✿'),
-    label: AppStrings.trayArt,
-  ),
-  _GridEntry(
-    section: TraySection.files,
-    keySuffix: 'files',
-    glyph: _textGlyph('▤'),
-    label: AppStrings.trayFiles,
-  ),
+/// The sections shown as ✚ grid tiles, in tile order — everything not on
+/// the primary bar. Glyph and label for each come out of [traySectionArt];
+/// a tile's key is just `tray-grid-<section.name>`.
+const List<TraySection> _gridSections = [
+  TraySection.countdowns,
+  TraySection.calendar,
+  TraySection.notes,
+  TraySection.instants,
+  TraySection.map,
+  TraySection.board,
+  TraySection.question,
+  TraySection.art,
+  TraySection.files,
 ];
 
 /// The grid the ✚ button opens: a labeled pixel button per section that no
@@ -432,13 +439,13 @@ class _MoreGrid extends StatelessWidget {
       crossAxisSpacing: 6,
       childAspectRatio: 1,
       children: [
-        for (final entry in _gridEntries)
+        for (final section in _gridSections)
           _TrayButton(
-            buttonKey: Key('tray-grid-${entry.keySuffix}'),
-            glyph: entry.glyph,
-            label: entry.label,
+            buttonKey: Key('tray-grid-${section.name}'),
+            glyph: traySectionArt[section]!.glyph,
+            label: traySectionArt[section]!.label,
             selected: false,
-            onTap: () => onSelect(entry.section),
+            onTap: () => onSelect(section),
           ),
       ],
     );
@@ -477,10 +484,7 @@ class _BackToGridButton extends StatelessWidget {
   }
 }
 
-/// A glyph drawn in whatever colour reads on the button's current fill.
-typedef _GlyphBuilder = Widget Function(Color color);
-
-_GlyphBuilder _textGlyph(String glyph) =>
+GlyphBuilder _textGlyph(String glyph) =>
     (color) => Text(
       glyph,
       style: AppTextStyles.caption.copyWith(color: color, height: 1),
@@ -561,7 +565,7 @@ class _TrayButton extends StatelessWidget {
   });
 
   final Key buttonKey;
-  final _GlyphBuilder glyph;
+  final GlyphBuilder glyph;
   final String label;
   final bool selected;
   final VoidCallback onTap;

@@ -10,6 +10,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/marquee_text.dart';
 import '../../art/art_scene_view.dart';
+import '../../pings/ping_button.dart';
 import 'device_indicator.dart';
 
 /// The little always-there window: the whole app, shrunk to a glanceable
@@ -30,6 +31,9 @@ class MiniPartnerWindow extends StatefulWidget {
     this.onExpand,
     this.onDragStart,
     this.transparentCorners = false,
+    this.onSendPing,
+    this.canSendPing = true,
+    this.pingJustSent = false,
   });
 
   final String partnerName;
@@ -55,6 +59,15 @@ class MiniPartnerWindow extends StatefulWidget {
   /// isn't available they'd just show the window's own background, so we
   /// leave the card square instead.
   final bool transparentCorners;
+
+  /// Sends the default ping ([PingKind.thinking]) — one tap on the little ♥
+  /// beside the device glyphs. No kind picker here: a menu would be bigger
+  /// than the 240×150 card it belongs to (the big card's button has that).
+  /// Null hides the heart.
+  final VoidCallback? onSendPing;
+
+  final bool canSendPing;
+  final bool pingJustSent;
 
   @override
   State<MiniPartnerWindow> createState() => _MiniPartnerWindowState();
@@ -106,6 +119,15 @@ class _MiniPartnerWindowState extends State<MiniPartnerWindow> {
                   ),
                 ),
               ),
+              if (widget.onSendPing != null) ...[
+                MiniPingHeart(
+                  onSend: widget.onSendPing!,
+                  canSend: widget.canSendPing,
+                  justSent: widget.pingJustSent,
+                  legible: transparent,
+                ),
+                const SizedBox(width: 4),
+              ],
               DeviceIndicator(
                 phoneOnline: widget.phoneOnline,
                 desktopOnline: widget.desktopOnline,
@@ -293,6 +315,9 @@ class MiniWindowHost extends StatelessWidget {
     required this.desktopOnline,
     this.ambientLine,
     this.artScene = const [],
+    this.onSendPing,
+    this.canSendPing = true,
+    this.pingJustSent = false,
   });
 
   final String partnerName;
@@ -301,6 +326,9 @@ class MiniWindowHost extends StatelessWidget {
   final bool desktopOnline;
   final AmbientLine? ambientLine;
   final List<ArtLayer> artScene;
+  final VoidCallback? onSendPing;
+  final bool canSendPing;
+  final bool pingJustSent;
 
   @override
   Widget build(BuildContext context) {
@@ -319,6 +347,9 @@ class MiniWindowHost extends StatelessWidget {
         ambientLine: ambientLine,
         artScene: artScene,
         transparentCorners: transparent,
+        onSendPing: onSendPing,
+        canSendPing: canSendPing,
+        pingJustSent: pingJustSent,
         onExpand: service.windowMode.expand,
         onDragStart: service.startDragging,
       ),

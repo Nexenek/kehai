@@ -4,6 +4,7 @@ import '../../../app_controller.dart';
 import '../../../app_navigator.dart';
 import '../../../data/services/desktop_window_service.dart';
 import '../../features/settings/views/sharing_settings_dialog.dart';
+import '../../features/settings/views/sound_settings_dialog.dart';
 import '../strings/app_strings.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
@@ -107,6 +108,13 @@ class KehaiTitleBar extends StatelessWidget {
                 initialShareUnknownApps: controller.shareUnknownApps,
                 onSetShareFocusedApp: controller.setShareFocusedApp,
                 onSetShareUnknownApps: controller.setShareUnknownApps,
+                // Routed through the app navigator for the same reason the
+                // sharing window itself is: the title bar sits above the
+                // Navigator, so a showDialog from this context finds none.
+                onOpenSounds: () => showSoundSettingsDialog(
+                  kehaiNavigatorKey.currentContext ?? context,
+                  notifier: controller.notifier,
+                ),
               ),
             ),
             const SizedBox(width: 6),

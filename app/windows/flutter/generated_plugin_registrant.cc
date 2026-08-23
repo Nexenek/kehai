@@ -8,6 +8,7 @@
 
 #include <file_selector_windows/file_selector_windows.h>
 #include <geolocator_windows/geolocator_windows.h>
+#include <launch_at_startup/launch_at_startup_plugin.h>
 #include <screen_retriever_windows/screen_retriever_windows_plugin_c_api.h>
 #include <tray_manager/tray_manager_plugin.h>
 #include <url_launcher_windows/url_launcher_windows.h>
@@ -18,6 +19,8 @@ void RegisterPlugins(flutter::PluginRegistry* registry) {
       registry->GetRegistrarForPlugin("FileSelectorWindows"));
   GeolocatorWindowsRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("GeolocatorWindows"));
+  LaunchAtStartupPluginRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("LaunchAtStartupPlugin"));
   ScreenRetrieverWindowsPluginCApiRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("ScreenRetrieverWindowsPluginCApi"));
   TrayManagerPluginRegisterWithRegistrar(

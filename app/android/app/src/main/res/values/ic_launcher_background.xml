@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Adaptive icon background — kb/design-language.md `chrome` token.
+         Generated alongside the icon set by tool/generate_tray_icon.py. -->
+    <color name="ic_launcher_background">#F4CBDC</color>
+</resources>

@@ -66,19 +66,124 @@ consider `fail2ban`.
 
 Everything persistent lives under `./data/` (one tree — `data/pb`,
 `data/ntfy`, and so on as more services come online), so backing up the
-stack means backing up that one directory. Recommended approach:
+stack means backing up that one directory.
 
-- Use PocketBase's built-in backup mechanism (via the admin dashboard or
-  its backup API) rather than copying the live SQLite file directly, to
-  avoid grabbing it mid-write.
-- Run a nightly encrypted backup job (e.g. `restic` or `borgmatic`) of
-  `./data/` to a second machine or drive — don't rely on a single copy.
-- Periodically test that a backup actually restores. A backup you've
-  never restored isn't a backup.
+### Built in: the `backup` sidecar
 
-This is deliberately a generic summary — if you're the project's
-maintainer, your local knowledgebase has the fuller stack/security
-write-up this repo doesn't otherwise carry.
+`docker-compose.yml` ships a `backup` service — a plain `alpine` container
+that runs `deploy/backup.sh` on a cron schedule (`crond`, 03:00 nightly,
+nothing to install beyond the `sqlite` apk package it grabs on first
+start). Bring it up alongside the server:
+
+```sh
+docker compose up -d server backup
+```
+
+It writes `./backups/kehai-YYYYMMDD.tar.gz` and keeps the most recent 14.
+The one thing that makes a naive `tar ./data` wrong — `data/pb/data.db` and
+`data/pb/auxiliary.db` are live SQLite databases in WAL mode while the
+server is running, so a raw file copy can grab a torn page or miss
+WAL frames that haven't been checkpointed yet — is handled with SQLite's
+own online backup API: `sqlite3 "$db" ".backup '...'"` takes a consistent
+snapshot while the server keeps writing, no downtime, no stop-the-world.
+(The alternative would be PocketBase's own `POST /api/backups` — it does
+the same `.backup` trick internally, but needs a superuser auth token
+threaded into the sidecar, which is more moving parts for the same
+result. `sqlite3 .backup` gets there directly.) Everything else under
+`data/pb/` — `storage/` (uploaded files), `.notify/` — isn't a database,
+so it's copied as-is.
+
+Verify a specific archive is actually sound before you need it:
+
+```sh
+tar -xzf backups/kehai-20260823.tar.gz -C /tmp/verify
+sqlite3 /tmp/verify/data.db "PRAGMA integrity_check;"        # expect: ok
+sqlite3 /tmp/verify/auxiliary.db "PRAGMA integrity_check;"   # expect: ok
+```
+
+Restoring: stop the server, replace `./data/pb/` with the extracted
+archive's contents (drop any stray `-wal`/`-shm` files first — the backup
+already checkpointed, so the plain `.db` files are the whole story), start
+the server back up.
+
+```sh
+docker compose stop server
+rm -rf data/pb && mkdir -p data/pb
+tar -xzf backups/kehai-20260823.tar.gz -C data/pb
+docker compose start server
+```
+
+This tier is "good enough for a home server with a spare drive" — it's
+one archive on the same box's disk, which protects against a bad
+migration or a fat-fingered delete, not against the disk itself dying.
+For the real 3-2-1 story (kb/selfhosting.md's Backups section: live copy +
+local backup + **encrypted offsite** copy), upgrade to borgmatic below.
+
+### Upgrade path: borgmatic (encrypted, offsite, real 3-2-1)
+
+[borgmatic](https://torsion.org/borgmatic/) wraps BorgBackup with
+scheduling, retention, and encryption config in one YAML file. It runs
+fine as its own container next to this stack, pointed at the same
+`./data/`; no changes to the `backup` service above are needed — borgmatic
+replaces it outright when you're ready for offsite.
+
+`deploy/borgmatic/config.yaml` (create this file; not shipped by default
+since it needs a passphrase and a real remote target):
+
+```yaml
+source_directories:
+  - /data
+
+repositories:
+  - path: ssh://user@your-second-machine/./kehai-backups
+    label: offsite
+
+# generate one: openssl rand -base64 48
+encryption_passphrase: "put a real generated passphrase here, not this text"
+
+keep_daily: 14
+keep_weekly: 8
+keep_monthly: 12
+
+before_backup:
+  - sqlite3 /data/pb/data.db ".backup '/tmp/data.db.borg'"
+  - sqlite3 /data/pb/auxiliary.db ".backup '/tmp/auxiliary.db.borg'"
+```
+
+(Same reasoning as the sidecar above — hot-copy the SQLite files instead
+of trusting borg to catch a live WAL-mode db mid-write; point
+`source_directories` at the hot-copy location instead of `/data/pb`
+directly if you want to be strict about never archiving the live files.)
+
+Add it to `docker-compose.yml`:
+
+```yaml
+  borgmatic:
+    image: b3vis/borgmatic
+    container_name: kehai-borgmatic
+    restart: unless-stopped
+    volumes:
+      - ./data:/data:ro
+      - ./borgmatic/config.yaml:/etc/borgmatic.d/config.yaml
+      - ./borgmatic/ssh:/root/.ssh:ro   # key auth to the offsite target
+      - borgmatic-cache:/root/.cache/borg
+volumes:
+  borgmatic-cache:
+```
+
+First run initializes the repo (`docker compose exec borgmatic borgmatic
+init --encryption repokey`), then it schedules itself off the config's
+`keep_*` retention. Test a restore *before* you need one:
+
+```sh
+docker compose exec borgmatic borgmatic list                     # archives
+docker compose exec borgmatic borgmatic extract --archive latest \
+  --destination /tmp/restore-test
+sqlite3 /tmp/restore-test/data/pb/data.db "PRAGMA integrity_check;"
+```
+
+A backup you've never restored isn't a backup — run that check
+periodically, not just once at setup.
 
 ## Webhooks (smart home)
 

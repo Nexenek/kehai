@@ -19,6 +19,9 @@ class PrefsService {
   static const _shareFocusedAppKey = 'share_focused_app';
   static const _shareUnknownAppsKey = 'share_unknown_apps';
   static const _shareLocationKey = 'share_location';
+  static const _collapsedHomeSectionsKey = 'collapsed_home_sections';
+  static const _autostartEnabledKey = 'autostart_enabled';
+  static const _notificationSoundKeyPrefix = 'notification_sound_';
 
   final SharedPreferences _prefs;
 
@@ -127,10 +130,51 @@ class PrefsService {
   Future<void> setShareLocation(bool value) =>
       _prefs.setBool(_shareLocationKey, value);
 
+  /// Which phone-column home sections are collapsed, stored by name (the
+  /// section's enum `.name`, e.g. "countdowns"). Null means "never saved" —
+  /// the caller applies its own first-run defaults rather than us baking
+  /// UI-layer defaults into this data-layer service. An empty (non-null)
+  /// list is a legitimate saved state: everything expanded. Unknown names
+  /// (an older/newer build's section that this build doesn't recognise) are
+  /// simply ignored by the reader, never dropped from what we write back.
+  List<String>? get collapsedHomeSections =>
+      _prefs.getStringList(_collapsedHomeSectionsKey);
+
+  Future<void> setCollapsedHomeSections(List<String> sectionNames) =>
+      _prefs.setStringList(_collapsedHomeSectionsKey, sectionNames);
+
   /// Re-reads the backing store from disk. SharedPreferences caches values
   /// per isolate, so the background isolate MUST call this before re-reading
   /// settings the UI isolate may have changed — without it, a toggle flipped
   /// in the app never reaches the foreground service (this exact bug shipped
   /// once: shareLocation stayed stale-false in the service forever).
   Future<void> reload() => _prefs.reload();
+
+  /// Desktop only (see [AutostartService]): whether "start with the
+  /// computer" is turned on, from the tray menu's checkbox. This is what
+  /// the checkbox itself renders as checked — the source of truth for the
+  /// UI — separate from whatever the OS actually has registered right now,
+  /// which [AutostartService.isEnabledOnSystem] checks fresh. Off by
+  /// default, like every other opt-in in this app.
+  bool get autostartEnabled => _prefs.getBool(_autostartEnabledKey) ?? false;
+
+  Future<void> setAutostartEnabled(bool value) =>
+      _prefs.setBool(_autostartEnabledKey, value);
+
+  /// Which bundled sound plays for one notification event type
+  /// (kb/features.md "Custom notification sounds"). [eventId] is a
+  /// `KehaiEventKind.id` ("ping", "doodle", "instant", "reveal") and the
+  /// value is a `KehaiSound.id`.
+  ///
+  /// Stored as one key per event rather than a map/JSON blob: it's four
+  /// scalar strings that are read individually and written individually, and
+  /// a blob would only add a parse step that can fail. Null means "never
+  /// chosen" — the caller substitutes the event's own default
+  /// (`KehaiEventKind.defaultSound`) rather than this layer knowing about
+  /// them, same reasoning as [collapsedHomeSections].
+  String? notificationSound(String eventId) =>
+      _prefs.getString('$_notificationSoundKeyPrefix$eventId');
+
+  Future<void> setNotificationSound(String eventId, String soundId) =>
+      _prefs.setString('$_notificationSoundKeyPrefix$eventId', soundId);
 }

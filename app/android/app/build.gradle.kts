@@ -19,6 +19,12 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // flutter_local_notifications uses java.time on its scheduling path,
+        // which doesn't exist below API 26 — so the plugin requires core
+        // library desugaring (its README makes this a hard requirement, and
+        // the APK build fails outright without it). Kehai never schedules a
+        // notification, but desugaring is an all-or-nothing build flag.
+        isCoreLibraryDesugaringEnabled = true
     }
 
     defaultConfig {
@@ -52,6 +58,12 @@ kotlin {
 }
 
 dependencies {
+    // Backports java.time (and friends) to older API levels — paired with
+    // `isCoreLibraryDesugaringEnabled` above, required by
+    // flutter_local_notifications. 2.1.5 is the version its own README and
+    // example app pin; anything 2.1.4+ satisfies the plugin.
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
+
     // Jetpack Glance — renders the partner-status home-screen widget
     // (android/app/src/main/kotlin/app/kehai/widget/PartnerWidget.kt).
     // 1.1.1 is the current stable release; 1.2.0 is still rc-only as of

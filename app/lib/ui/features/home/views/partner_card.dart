@@ -8,6 +8,7 @@ import '../../../../domain/models/device_status.dart';
 import '../../../../domain/models/doodle.dart';
 import '../../../../domain/models/mood.dart';
 import '../../../../domain/models/partner_status.dart';
+import '../../../../domain/models/ping.dart';
 import '../../../../domain/models/utc_offset.dart';
 import '../../../core/strings/app_strings.dart';
 import '../../../core/theme/app_colors.dart';
@@ -18,6 +19,7 @@ import '../../../core/widgets/bevel_box.dart';
 import '../../../core/widgets/pixel_button.dart';
 import '../../../core/widgets/retro_window.dart';
 import '../../art/art_scene_view.dart';
+import '../../pings/ping_button.dart';
 import 'device_indicator.dart';
 
 /// The signature partner window: mood kaomoji, note, "updated X ago", the
@@ -37,6 +39,10 @@ class PartnerCard extends StatefulWidget {
     this.partnerDoodle,
     this.onSendDoodle,
     this.partnerDevices = const [],
+    this.onSendPing,
+    this.canSendPing = true,
+    this.pingJustSent = false,
+    this.receivedPing,
   });
 
   final String partnerName;
@@ -77,6 +83,23 @@ class PartnerCard extends StatefulWidget {
   /// compiling unchanged; the line simply stays hidden until a caller
   /// starts passing the partner's device list.
   final List<DeviceStatus> partnerDevices;
+
+  /// Sends a ping (kb/features.md "One-tap 'thinking of you'"). Null hides
+  /// the button entirely, which is what happens before there's a couple to
+  /// send into.
+  final void Function(PingKind kind)? onSendPing;
+
+  /// False during the 3s debounce — the button greys out rather than
+  /// silently eating taps. See `shouldSendPing`.
+  final bool canSendPing;
+
+  /// True while the "sent ♡" flourish is up.
+  final bool pingJustSent;
+
+  /// The most recent ping *they* sent, if one landed in the last little
+  /// while. Shown as one quiet line, then it fades: a ping is a moment, and
+  /// a running list of them would be a different feature.
+  final Ping? receivedPing;
 
   @override
   State<PartnerCard> createState() => _PartnerCardState();
@@ -223,6 +246,29 @@ class _PartnerCardState extends State<PartnerCard> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTextStyles.caption.copyWith(color: colors.accent2),
+            ),
+          ],
+          // The ping button sits directly under the ambient/distance/clock
+          // block — the "how they are right now" cluster — because that's
+          // the moment it answers: you've just read that they're away, or
+          // 400km off, or that it's 2am there, and the thing you want is a
+          // one-tap way to say you noticed.
+          if (widget.onSendPing != null) ...[
+            const SizedBox(height: 12),
+            ThinkingOfYouButton(
+              onSend: widget.onSendPing!,
+              canSend: widget.canSendPing,
+              justSent: widget.pingJustSent,
+            ),
+          ],
+          if (widget.receivedPing != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              AppStrings.pingReceivedLine(widget.receivedPing!.kind),
+              key: const Key('partner-received-ping'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.body2.copyWith(color: colors.accent),
             ),
           ],
           if (partnerDoodle != null) ...[

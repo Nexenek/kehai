@@ -17,6 +17,7 @@ Future<void> showSharingSettingsDialog(
   required bool initialShareUnknownApps,
   required Future<void> Function(bool value) onSetShareFocusedApp,
   required Future<void> Function(bool value) onSetShareUnknownApps,
+  VoidCallback? onOpenSounds,
 }) {
   return showDialog<void>(
     context: context,
@@ -29,6 +30,7 @@ Future<void> showSharingSettingsDialog(
         initialShareUnknownApps: initialShareUnknownApps,
         onSetShareFocusedApp: onSetShareFocusedApp,
         onSetShareUnknownApps: onSetShareUnknownApps,
+        onOpenSounds: onOpenSounds,
       ),
     ),
   );
@@ -40,12 +42,17 @@ class _SharingSettingsContent extends StatefulWidget {
     required this.initialShareUnknownApps,
     required this.onSetShareFocusedApp,
     required this.onSetShareUnknownApps,
+    this.onOpenSounds,
   });
 
   final bool initialShareFocusedApp;
   final bool initialShareUnknownApps;
   final Future<void> Function(bool value) onSetShareFocusedApp;
   final Future<void> Function(bool value) onSetShareUnknownApps;
+
+  /// Opens the "sounds ♪" window. Null leaves the row out entirely (tests,
+  /// and any surface with no notifier to hand it).
+  final VoidCallback? onOpenSounds;
 
   @override
   State<_SharingSettingsContent> createState() =>
@@ -132,6 +139,22 @@ class _SharingSettingsContentState extends State<_SharingSettingsContent> {
                       color: colors.accent,
                     ),
                   ),
+                  if (widget.onOpenSounds != null) ...[
+                    const SizedBox(height: 18),
+                    // Sounds are about what this device does when something
+                    // *arrives*, which is the other half of the same
+                    // question this window answers — so it's the natural
+                    // doorway, even though the window itself is separate
+                    // (see showSoundSettingsDialog's doc comment).
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: PixelButton(
+                        key: const Key('sharing-open-sounds'),
+                        label: AppStrings.soundsOpen,
+                        onPressed: widget.onOpenSounds,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 18),
                   Align(
                     alignment: Alignment.centerRight,

@@ -73,6 +73,14 @@ func bindRoutes(app core.App) {
 			}
 		})
 
+		// Pings keep a week (see pings.go), so hourly would be wasted work
+		// — once a day, in the same quiet hours as the locations sweep.
+		se.App.Cron().MustAdd("pings_purge", "0 4 * * *", func() {
+			if err := purgeOldPings(se.App); err != nil {
+				se.App.Logger().Error("pings purge failed", "error", err)
+			}
+		})
+
 		return se.Next()
 	})
 }

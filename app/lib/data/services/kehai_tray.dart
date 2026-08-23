@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:tray_manager/tray_manager.dart';
 
 import '../../ui/core/strings/app_strings.dart';
+import 'autostart_service.dart';
 import 'desktop_window_service.dart';
+import 'prefs_service.dart';
 import 'window_mode.dart';
 
 /// The little pixel heart in the system tray — Kehai's real home on desktop.
@@ -22,6 +25,7 @@ class KehaiTray with TrayListener {
   /// Menu item keys — also what [onTrayMenuItemClick] switches on.
   static const _expandKey = 'expand';
   static const _miniKey = 'mini';
+  static const _autostartKey = 'autostart';
   static const _quitKey = 'quit';
 
   /// Windows wants a real .ico; GTK's status icon takes the PNG. Both are
@@ -32,11 +36,16 @@ class KehaiTray with TrayListener {
       : 'assets/tray/kehai_heart.png';
 
   WindowModeController? _mode;
+  PrefsService? _prefs;
   bool _ready = false;
 
   Future<void> bootstrap(WindowModeController mode) async {
     if (!DesktopWindowService.isSupported || _ready) return;
     _mode = mode;
+    // Read once up front so the checkbox's very first render already shows
+    // the right state — the menu below is built off this, not fetched on
+    // demand, since tray_manager builds it synchronously.
+    _prefs = await PrefsService.create();
     trayManager.addListener(this);
 
     // Each step is attempted on its own. tray_manager implements a different
@@ -82,6 +91,11 @@ class KehaiTray with TrayListener {
       MenuItem(key: _expandKey, label: AppStrings.trayOpen),
       MenuItem(key: _miniKey, label: AppStrings.trayMini),
       MenuItem.separator(),
+      MenuItem.checkbox(
+        key: _autostartKey,
+        label: AppStrings.trayAutostart,
+        checked: _prefs?.autostartEnabled ?? false,
+      ),
       MenuItem(key: _quitKey, label: AppStrings.trayQuit),
     ],
   );
@@ -120,8 +134,30 @@ class KehaiTray with TrayListener {
         mode.expand();
       case _miniKey:
         mode.collapse();
+      case _autostartKey:
+        // Mutating .checked here (rather than after the fact) is what tells
+        // tray_manager's own click handler the state changed, so it pushes
+        // the refreshed menu back to the OS on its own — see
+        // TrayManager._methodCallHandler's oldChecked/newChecked diff.
+        final enabled = !(menuItem.checked ?? false);
+        menuItem.checked = enabled;
+        unawaited(_setAutostart(enabled));
       case _quitKey:
         mode.quit();
+    }
+  }
+
+  /// Persists the choice first (so the checkbox never lies about what's
+  /// saved even if the OS call below fails) and then asks the OS to
+  /// actually do it — see [AutostartService] for the per-platform mechanics
+  /// and the honest Linux/WSLg caveat.
+  Future<void> _setAutostart(bool enabled) async {
+    await _prefs?.setAutostartEnabled(enabled);
+    final ok = enabled
+        ? await AutostartService.instance.enable()
+        : await AutostartService.instance.disable();
+    if (!ok) {
+      debugPrint('autostart ${enabled ? 'enable' : 'disable'} did not confirm success');
     }
   }
 }

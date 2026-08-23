@@ -1,8 +1,16 @@
+import '../../../data/services/notifications/kehai_sound.dart';
+import '../../../domain/models/ping.dart';
+
 /// Centralized user-facing copy. Keeping every string here (instead of
 /// inline in widgets) means swapping to real l10n (ARB files, per
 /// design-language.md "Polish + English localization from day one") later
 /// is a mechanical move, not a rewrite. Voice: warm, plain, sentence case,
 /// kaomoji accents, honest errors — see kb/design-language.md.
+///
+/// The two imports above are the only ones this file has, and both are
+/// enums it switches on to keep per-kind copy (ping kinds, notification
+/// event types) in here rather than scattered across the widgets — the
+/// point of the file.
 class AppStrings {
   const AppStrings._();
 
@@ -116,6 +124,7 @@ class AppStrings {
   static const trayTooltip = 'Kehai — czuję, że tam jesteś';
   static const trayOpen = 'open kehai ♡\uFE0E';
   static const trayMini = 'just the little one';
+  static const trayAutostart = 'start with the computer';
   static const trayQuit = 'quit for real';
 
   // The little window (mini state).
@@ -703,4 +712,123 @@ class AppStrings {
   static const filesDeleteConfirmDelete = 'delete';
   static String filesYouCaption(String relative) => 'you · $relative';
   static String filesThemCaption(String relative) => 'them · $relative';
+
+  // ==========================================================================
+  // Pings, notifications and sounds (kb/features.md: "One-tap 'thinking of
+  // you' ping", "Custom notification sounds"; kb/roadmap.md's client-side
+  // notifications v1). Appended at the very end — see the file header.
+  // ==========================================================================
+
+  // --- the ping button ---
+
+  /// U+FE0E after every heart: the text presentation selector, which stops
+  /// Android substituting a colour emoji glyph for our pixel-ish one. Same
+  /// convention as the rest of this file.
+  static const pingButtonLabel = 'thinking of you ♡︎';
+  static const pingSentLabel = 'sent ♡︎';
+  static const pingKindTooltip = 'send something else…';
+  static const pingKindPickerTitle = 'send them…';
+  static const pingMiniTooltip = 'thinking of you ♡︎';
+
+  /// The quiet line on the partner card when one of theirs lands. Reads as
+  /// a sentence per kind rather than "they sent <label>", which turns
+  /// "thinking of you" into nonsense.
+  static String pingReceivedLine(PingKind kind) => switch (kind) {
+    PingKind.thinking => "${kind.kaomoji}  they're thinking of you",
+    PingKind.kiss => '${kind.kaomoji}  they sent you a kiss',
+    PingKind.hug => '${kind.kaomoji}  they sent you a hug',
+  };
+
+  // --- notification copy ---
+  //
+  // Titles name the person (that's what you read on a lock screen); bodies
+  // carry the feeling. Same warm/plain/sentence-case voice as everything
+  // else — a notification is still Kehai talking.
+
+  /// When we somehow don't have their name yet.
+  static const notifyFallbackName = 'your person';
+
+  /// The Linux toast's default action label ("clicking the notification
+  /// does this"). Some daemons show it as a button, most just use it for
+  /// the click.
+  static const notifyOpenAction = 'open kehai';
+
+  static String notifyPingTitle(String name) => '$name ♡︎';
+
+  static String notifyPingBody(PingKind kind) => switch (kind) {
+    PingKind.thinking => 'thinking of you (´｡• ᵕ •｡`)',
+    PingKind.kiss => 'sent you a kiss (´ε｀ )♡︎',
+    PingKind.hug => 'sent you a hug (づ￣ ³￣)づ',
+  };
+
+  static String notifyDoodleTitle(String name) => '$name drew you something';
+  static const notifyDoodleBody = 'a little doodle just landed ✎';
+
+  static String notifyInstantTitle(String name) => '$name sent an instant';
+  static const notifyInstantBody = 'a moment from their day ◉';
+
+  static const notifyRevealTitle = "today's question is open";
+  static String notifyRevealBody(String name) =>
+      '$name answered — go see what they said ✧';
+
+  /// Android notification-channel names, as they appear in system settings.
+  /// One per event type so the user can mute (or re-sound) exactly one kind
+  /// of interruption from the OS side, without touching the others.
+  static String notifyChannelName(KehaiEventKind kind) => switch (kind) {
+    KehaiEventKind.ping => 'pings ♡︎',
+    KehaiEventKind.doodle => 'doodles ✎',
+    KehaiEventKind.instant => 'instants ◉',
+    KehaiEventKind.reveal => 'daily question ✧',
+  };
+
+  static String notifyChannelDescription(KehaiEventKind kind) =>
+      switch (kind) {
+        KehaiEventKind.ping =>
+          'when they tap "thinking of you" (or send a kiss or a hug)',
+        KehaiEventKind.doodle => 'when they draw you something',
+        KehaiEventKind.instant => 'when they send a photo from their day',
+        KehaiEventKind.reveal =>
+          "when they answer today's question and the reveal opens",
+      };
+
+  // --- the sounds window ---
+
+  static const soundsTitle = 'sounds ♪';
+  static const soundsOpen = 'sounds ♪';
+  static const soundsTooltip = 'pick a sound for each thing';
+  static const soundsIntro =
+      'pick what each thing sounds like. tap one to hear it ♪';
+  static const soundsDone = 'done';
+
+  static String soundsEventLabel(KehaiEventKind kind) => switch (kind) {
+    KehaiEventKind.ping => 'a ping from them',
+    KehaiEventKind.doodle => 'a doodle arrives',
+    KehaiEventKind.instant => 'an instant arrives',
+    KehaiEventKind.reveal => "today's question opens",
+  };
+
+  /// Shown under the picker on Android, where "preview" can't be anything
+  /// but a real notification — see [KehaiNotifier.preview].
+  static const soundsAndroidPreviewNote =
+      "on android a preview is a real notification — it pops up and tidies "
+      'itself away again ( ・ᴗ・ )';
+
+  /// Shown on desktop when no audio player could be found at all.
+  static const soundsNoPlayerNote =
+      "couldn't find an audio player on this system (・_・;) — notifications "
+      'will still show up, just quietly';
+
+  static const soundsPreviewTitle = 'kehai ♪';
+  static String soundsPreviewBody(String soundLabel) =>
+      'this is "$soundLabel"';
+
+  // --- mood changes deliberately do NOT notify ---
+  //
+  // Documented in code at KehaiEventKind's doc comment (the enum that lists
+  // every event we WILL interrupt for) and surfaced to the user here, so
+  // "why didn't it buzz when they went sleepy?" has an answer in the app
+  // rather than only in the source.
+  static const soundsAmbientNote =
+      "moods, music and where they are don't make a sound — they live in "
+      'their window, for whenever you look ♡︎';
 }

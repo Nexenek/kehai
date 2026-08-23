@@ -16,6 +16,7 @@ import 'data/repositories/instant_repository.dart';
 import 'data/repositories/location_repository.dart';
 import 'data/repositories/note_repository.dart';
 import 'data/repositories/pet_repository.dart';
+import 'data/repositories/ping_repository.dart';
 import 'data/repositories/question_repository.dart';
 import 'data/repositories/status_repository.dart';
 import 'data/repositories/touch_repository.dart';
@@ -23,6 +24,9 @@ import 'data/services/background/kehai_foreground_task.dart';
 import 'data/services/background/location_publisher.dart';
 import 'data/services/device_info_service.dart';
 import 'data/services/heartbeat_service.dart';
+import 'data/services/notifications/app_focus.dart';
+import 'data/services/notifications/kehai_notifier.dart';
+import 'data/services/notifications/notification_hub.dart';
 import 'data/services/pocketbase_client.dart';
 import 'data/services/presence/android/android_presence_service.dart';
 import 'data/services/presence/linux_presence_service.dart';
@@ -47,6 +51,18 @@ class AppController extends ChangeNotifier {
   late final PrefsService prefs;
   final DeviceInfoService deviceInfoService = const DeviceInfoService();
 
+  /// Notifications (kb/roadmap.md's client-side notifications v1). Built in
+  /// [init] once [prefs] exists, since the notifier reads the per-event
+  /// sound choices straight out of it.
+  late final KehaiNotifier notifier;
+  late final KehaiNotifications notifications;
+
+  /// "Is the user looking at Kehai on this device right now" — the
+  /// foreground-suppression half of [decideNotification]. Registers its own
+  /// window_manager listener rather than extending [DesktopWindowService],
+  /// so the window service stays the sole owner of the window itself.
+  final AppFocusTracker appFocus = AppFocusTracker();
+
   /// One presence source for the lifetime of the app — the heartbeat
   /// service just subscribes/unsubscribes to it across log-in/log-out
   /// rather than owning its lifecycle (see [HeartbeatService]'s doc
@@ -66,6 +82,7 @@ class AppController extends ChangeNotifier {
   InstantRepository? instantRepository;
   LocationRepository? locationRepository;
   PetRepository? petRepository;
+  PingRepository? pingRepository;
   TouchRepository? touchRepository;
   BoardRepository? boardRepository;
   QuestionRepository? questionRepository;
@@ -91,6 +108,20 @@ class AppController extends ChangeNotifier {
 
   Future<void> init() async {
     prefs = await PrefsService.create();
+    notifier = KehaiNotifier(prefs: prefs);
+    notifications = KehaiNotifications(notifier: notifier, focus: appFocus);
+    unawaited(notifier.initialize());
+    // Android's notifications are raised by the background isolate whenever
+    // it's up (see [handOffPresenceToBackground]); it learns the app's
+    // foreground state from here, because it has no window of its own to
+    // watch. Desktop needs no push — the tracker and the notifier live in
+    // the same isolate there.
+    appFocus.onChanged = (foreground) {
+      if (KehaiForegroundTask.isSupported) {
+        KehaiForegroundTask.notifyAppForeground(foreground);
+      }
+    };
+    appFocus.start();
     _applyActivitySharingPrefs();
     final savedUrl = prefs.serverUrl;
     if (savedUrl == null || savedUrl.isEmpty) {
@@ -149,6 +180,7 @@ class AppController extends ChangeNotifier {
       instantRepository = InstantRepository(pb);
       locationRepository = LocationRepository(pb, authRepository!);
       petRepository = PetRepository(pb);
+      pingRepository = PingRepository(pb);
       touchRepository = TouchRepository(pb);
       boardRepository = BoardRepository(pb);
       questionRepository = QuestionRepository(pb);
@@ -278,6 +310,21 @@ class AppController extends ChangeNotifier {
     _uiOwnsLocation = !handedOff;
     if (_uiOwnsLocation) {
       unawaited(locationPublisher?.setEnabled(prefs.shareLocation));
+    }
+    // Same single-writer rule the heartbeat and the location publisher
+    // follow, applied to notifications: whichever isolate owns the realtime
+    // subscriptions is the one allowed to notify. When the service took
+    // over it subscribes to pings/doodles/instants/answers itself (see
+    // [KehaiTaskHandler]) and keeps doing so with the app closed — so the
+    // UI isolate's view models must go quiet, or every ping would arrive
+    // twice. When the hand-off failed (permission denied, OEM restriction)
+    // the UI isolate stays the notifier, exactly like it stays the
+    // heartbeat.
+    notifications.enabled = !handedOff;
+    // The service starts life not knowing whether the app is on screen; it
+    // very much is, at this exact moment.
+    if (handedOff) {
+      KehaiForegroundTask.notifyAppForeground(appFocus.isForeground.value);
     }
     return handedOff;
   }

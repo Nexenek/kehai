@@ -50,6 +50,30 @@ dependencies:
   clock: ^1.1.2
   file_selector: ^1.1.0
   url_launcher: ^6.3.2
+  # Client-side notifications (kb/roadmap.md "client-side notifications v1").
+  # ONE plugin covers all three platforms we ship, and each of its platform
+  # halves happens to be exactly what we'd have picked separately:
+  #   Android — native, per-event NotificationChannels carrying our own raw
+  #             sounds (the only way Android will play a custom sound).
+  #   Windows — native WinRT toasts, no extra system libraries.
+  #   Linux   — pure Dart over D-Bus (org.freedesktop.Notifications): no
+  #             native build, no dev headers, nothing to apt-get.
+  # `local_notifier` and `audioplayers` were both trialled here and dropped —
+  # see "why we play the sound ourselves" in
+  # lib/data/services/notifications/kehai_sound_player.dart.
+  flutter_local_notifications: ^22.3.0
+  # Two FFI calls' worth: `malloc` + `toNativeUtf16()` for the winmm
+  # PlaySound path in lib/data/services/notifications/kehai_sound_player.dart.
+  # Pure Dart, no native build on any platform.
+  ffi: ^2.1.4
+  # Windows-only in practice: 0.0.1's LaunchAtStartup.setup() branches on
+  # macOS/Windows alone (Linux calls throw LateInitializationError — no
+  # backend registered), and every later version needing win32_registry
+  # ^2.0.0+ conflicts with device_info_plus 13.2.0's win32_registry ^3.0.3 —
+  # no version of this package is resolvable with that dependency in the
+  # graph. AutostartService only calls into this on Windows and implements
+  # Linux's XDG autostart .desktop file itself (dart:io, no package needed).
+  launch_at_startup: ^0.0.1
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -77,6 +101,16 @@ flutter:
     # Tray icons (tool/generate_tray_icon.py): GTK takes the PNG, Windows
     # needs the .ico. tray_manager resolves these paths inside flutter_assets.
     - assets/tray/
+    # Notification sounds (tool/generate_notification_sounds.py). Desktop
+    # plays these straight from the bundle; Android has its own copies under
+    # android/app/src/main/res/raw/ because a NotificationChannel's sound is
+    # resolved by the system UI process, which can't read our asset bundle.
+    - assets/sounds/
+    # App icon set (tool/generate_tray_icon.py). Android/Windows read their
+    # copies straight from android/ and windows/ (not from here) — this one
+    # PNG is Linux's, set at runtime via windowManager.setIcon() in
+    # DesktopWindowService.bootstrap().
+    - assets/icons/
 
   # TODO(fonts): design-language.md specifies Public Pixel (GGBotNet, CC0)
   # for UI chrome and LanaPixel (OpenGameArt) for body text. Both downloads

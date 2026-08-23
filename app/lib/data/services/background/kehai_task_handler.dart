@@ -10,9 +10,15 @@ import '../../../domain/models/partner_status.dart';
 import '../../repositories/auth_repository.dart';
 import '../../repositories/couple_repository.dart';
 import '../../repositories/device_repository.dart';
+import '../../repositories/doodle_repository.dart';
+import '../../repositories/instant_repository.dart';
+import '../../repositories/ping_repository.dart';
+import '../../repositories/question_repository.dart';
 import '../../repositories/status_repository.dart';
 import '../device_info_service.dart';
 import '../heartbeat_service.dart';
+import '../notifications/kehai_notifier.dart';
+import '../notifications/notification_hub.dart';
 import '../pocketbase_client.dart';
 import '../prefs_service.dart';
 import '../presence/android/android_presence_service.dart';
@@ -40,8 +46,13 @@ void kehaiTaskCallback() {
 /// 2. runs the same [HeartbeatService] + [PresenceService] pair the UI
 ///    isolate runs (battery, charging, screen-derived idle, now-playing),
 /// 3. subscribes to the partner's `statuses` + `devices` records,
-/// 4. pushes rendered notification strings down to the service, and
-/// 5. — when `shareLocation` is on — runs [LocationPublisher], the app's
+/// 4. pushes rendered notification strings down to the service,
+/// 5. subscribes to `pings`, `doodles`, `instants` and `answers` and raises
+///    a real local notification for each partner-authored event — the
+///    Android half of kb/roadmap.md's client-side notifications, and the
+///    reason a ping reaches the phone with Kehai closed and no push service
+///    anywhere in the picture, and
+/// 6. — when `shareLocation` is on — runs [LocationPublisher], the app's
 ///    own OwnTracks-compatible tracker (kb/contracts.md "Location"), and
 ///    keeps [PresenceService]'s `shareFocusedApp`/`shareUnknownApps`
 ///    opt-ins (kb/features.md "Focused-app status") in sync too — see
@@ -56,23 +67,51 @@ void kehaiTaskCallback() {
 /// box — it needs a real Android device to confirm the second engine gets
 /// its plugins registered (see `KehaiApplication.kt`), that PocketBase
 /// realtime survives Doze, and that the notification updates as expected.
+///
+/// On the plugin question specifically, for the notifications added in this
+/// wave: `flutter_local_notifications` is a normal pub plugin, and
+/// flutter_foreground_task builds its engine with the plain
+/// `FlutterEngine(context)` constructor — which defaults
+/// `automaticallyRegisterPlugins` to true and so runs
+/// `GeneratedPluginRegistrant` (verified by reading both
+/// `ForegroundTask.kt` and the embedding's `FlutterEngine.java`, not
+/// assumed). `KehaiApplication`'s lifecycle-listener hook is therefore only
+/// needed for our own app-module plugin, and stays as it was.
 class KehaiTaskHandler extends TaskHandler {
   PocketBase? _pb;
   CoupleRepository? _coupleRepository;
   StatusRepository? _statusRepository;
   DeviceRepository? _deviceRepository;
+  PingRepository? _pingRepository;
+  DoodleRepository? _doodleRepository;
+  InstantRepository? _instantRepository;
+  QuestionRepository? _questionRepository;
   HeartbeatService? _heartbeatService;
   PresenceService? _presenceService;
   LocationPublisher? _locationPublisher;
+  KehaiNotifier? _notifier;
+  KehaiNotifications? _notifications;
 
   UnsubscribeFunc? _statusUnsub;
   UnsubscribeFunc? _deviceUnsub;
+  UnsubscribeFunc? _pingUnsub;
+  UnsubscribeFunc? _doodleUnsub;
+  UnsubscribeFunc? _instantUnsub;
+  UnsubscribeFunc? _answerUnsub;
 
   String? _partnerName;
   String? _partnerId;
+  String? _myId;
   PartnerStatus? _partnerStatus;
   List<DeviceStatus> _partnerDevices = const [];
   PartnerNotificationContent? _lastRendered;
+
+  /// Whether today's daily question was already revealed the last time we
+  /// looked. Only the *transition* to revealed is worth a notification — a
+  /// re-check that finds it still open must stay quiet, and PocketBase
+  /// delivers an `answers` event for our own answer too.
+  bool _revealedToday = false;
+  DateTime? _revealCheckedOn;
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
@@ -116,9 +155,28 @@ class KehaiTaskHandler extends TaskHandler {
     if (!auth.isLoggedIn) return;
 
     _pb = pb;
+    _myId = auth.currentUserId;
     _coupleRepository = CoupleRepository(pb, auth);
     _statusRepository = StatusRepository(pb);
     _deviceRepository = DeviceRepository(pb);
+    _pingRepository = PingRepository(pb);
+    _doodleRepository = DoodleRepository(pb);
+    _instantRepository = InstantRepository(pb);
+    _questionRepository = QuestionRepository(pb);
+
+    // The notifier lives in THIS isolate: a plugin instance never crosses an
+    // isolate boundary, and neither does SharedPreferences' cache — which is
+    // why [_applySharingPrefs] reloads and why `refreshFromPrefs` below
+    // exists. `focus` is null here because this isolate has no window; the
+    // app's foreground state arrives from the UI isolate over
+    // `sendDataToTask` instead (see [onReceiveData]).
+    final notifier = _notifier = KehaiNotifier(prefs: prefs);
+    await notifier.initialize();
+    _notifications = KehaiNotifications(notifier: notifier)
+      ..myUserId = _myId ?? ''
+      // Nothing is on screen at the moment the service starts — if the app
+      // is open, the UI isolate corrects this immediately.
+      ..foregroundOverride = false;
 
     final presence = createPresenceService();
     _presenceService = presence;
@@ -174,16 +232,31 @@ class KehaiTaskHandler extends TaskHandler {
       presence.shareFocusedApp = prefs.shareFocusedApp;
       presence.shareUnknownApps = prefs.shareUnknownApps;
     }
+
+    // Sound choices are prefs too, and go stale here for exactly the same
+    // reason. A sound picked in the app has to reach the channel this
+    // isolate posts on, or the phone keeps playing the old one forever.
+    await _notifier?.refreshFromPrefs();
   }
 
-  /// `FlutterForegroundTask.sendDataToTask` lands here — the instant path
-  /// [KehaiForegroundTask.notifyPrefsChanged] uses so a sharing toggle
-  /// flipped in the app (superpowers screen, sharing-settings dialog)
-  /// reaches this isolate right away instead of waiting for the next 60s
-  /// [onRepeatEvent] tick. The payload itself carries no information worth
-  /// reading — any receipt just means "go re-read prefs".
+  /// `FlutterForegroundTask.sendDataToTask` lands here. Two payloads:
+  ///
+  /// - `app_foreground:0|1` — the app went off/on screen. This isolate
+  ///   raises the notifications on Android, and has no window of its own to
+  ///   watch, so this is how it knows whether the person is already looking
+  ///   ([decideNotification]'s rule 2).
+  /// - anything else — the prefs nudge [KehaiForegroundTask.notifyPrefsChanged]
+  ///   sends when a sharing toggle or a sound is changed in the app. Its
+  ///   content carries nothing worth reading; receipt means "go re-read
+  ///   prefs".
   @override
   void onReceiveData(Object data) {
+    if (data is String &&
+        data.startsWith(KehaiForegroundTask.foregroundSignalPrefix)) {
+      final foreground = data.endsWith('1');
+      _notifications?.foregroundOverride = foreground;
+      return;
+    }
     unawaited(_applySharingPrefs());
   }
 
@@ -205,6 +278,7 @@ class KehaiTaskHandler extends TaskHandler {
     final partner = await _coupleRepository?.fetchPartner();
     _partnerId = partner?.id;
     _partnerName = partner?.name;
+    _notifications?.partnerName = partner?.name ?? '';
     if (partner == null) {
       _partnerStatus = null;
       _partnerDevices = const [];
@@ -230,6 +304,86 @@ class KehaiTaskHandler extends TaskHandler {
       ];
       unawaited(_render());
     });
+
+    await _subscribeNotifiables();
+  }
+
+  /// The four things worth interrupting someone for (see [KehaiEventKind] —
+  /// and its note on why moods deliberately aren't among them).
+  ///
+  /// Every handler here does the same thing: pass the event to
+  /// [KehaiNotifications], which applies the self-echo and foreground rules
+  /// and then raises (or doesn't) the notification. None of them keep state
+  /// — this isolate isn't rendering a feed, it's ringing a bell.
+  Future<void> _subscribeNotifiables() async {
+    final notifications = _notifications;
+    if (notifications == null) return;
+
+    _pingUnsub = await _pingRepository?.subscribe((ping) {
+      notifications.report(
+        () => notifications.reportPing(fromId: ping.fromId, kind: ping.kind),
+      );
+    });
+
+    _doodleUnsub = await _doodleRepository?.subscribe((action, doodle) {
+      // Doodles are immutable, so 'create' is the only action that means
+      // "something arrived"; a 'delete' is the partner tidying up.
+      if (action == 'delete') return;
+      notifications.report(
+        () => notifications.reportDoodle(authorId: doodle.authorId),
+      );
+    });
+
+    _instantUnsub = await _instantRepository?.subscribe((action, instant) {
+      if (action == 'delete') return;
+      notifications.report(
+        () => notifications.reportInstant(authorId: instant.authorId),
+      );
+    });
+
+    // The daily question is the one event with no record of its own to
+    // react to: what matters is `both_answered` flipping true, which is a
+    // property of the *pair* of answers. So the subscription is only a
+    // wake-up, and the actual check is a `today()` fetch — the same shape
+    // QuestionsViewModel uses on the UI side.
+    _answerUnsub = await _questionRepository?.subscribe(() {
+      unawaited(_checkReveal());
+    });
+  }
+
+  Future<void> _checkReveal() async {
+    final questions = _questionRepository;
+    final notifications = _notifications;
+    final partnerId = _partnerId;
+    if (questions == null || notifications == null || partnerId == null) {
+      return;
+    }
+    try {
+      final today = await questions.today();
+      // A new day resets the latch — yesterday's reveal must not suppress
+      // today's.
+      final now = DateTime.now();
+      final day = DateTime(now.year, now.month, now.day);
+      if (_revealCheckedOn != day) {
+        _revealCheckedOn = day;
+        _revealedToday = today.bothAnswered;
+        // Nothing to announce on the first look of the day: if it's already
+        // revealed we simply missed the moment (the service restarted), and
+        // a notification about it now would be a lie about when it happened.
+        return;
+      }
+      if (today.bothAnswered && !_revealedToday) {
+        _revealedToday = true;
+        notifications.report(
+          () => notifications.reportReveal(partnerId: partnerId),
+        );
+      } else {
+        _revealedToday = today.bothAnswered;
+      }
+    } catch (_) {
+      // Server unreachable / no question today — try again on the next
+      // answers event.
+    }
   }
 
   Future<void> _render() async {
@@ -274,8 +428,18 @@ class KehaiTaskHandler extends TaskHandler {
   Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {
     _statusUnsub?.call();
     _deviceUnsub?.call();
+    _pingUnsub?.call();
+    _doodleUnsub?.call();
+    _instantUnsub?.call();
+    _answerUnsub?.call();
     _statusUnsub = null;
     _deviceUnsub = null;
+    _pingUnsub = null;
+    _doodleUnsub = null;
+    _instantUnsub = null;
+    _answerUnsub = null;
+    _notifications = null;
+    _notifier = null;
     _heartbeatService?.stop();
     await _locationPublisher?.stop();
     _locationPublisher = null;
