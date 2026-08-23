@@ -2,30 +2,51 @@ import 'package:flutter/foundation.dart';
 
 import '../../../domain/models/now_playing.dart';
 
-/// A snapshot of "what's this device up to right now" — now-playing media
-/// + idle seconds — for the heartbeat's presence payload
+/// A snapshot of "what's this device up to right now" — now-playing media,
+/// idle seconds, and (on devices that have a battery) charge level +
+/// charging flag — for the heartbeat's presence payload
 /// (kb/platform-desktop.md "Telemetry contract (Phase 2a)").
+///
+/// Every field is nullable and means "this device has no signal for that",
+/// which the heartbeat translates into "don't write that key" (see
+/// [HeartbeatService]). Desktops leave [battery]/[charging] null; phones
+/// fill them from `ACTION_BATTERY_CHANGED` (kb/platform-android.md's
+/// "Battery/charging" row).
 @immutable
 class DevicePresence {
-  const DevicePresence({this.nowPlaying, this.idleSeconds});
+  const DevicePresence({
+    this.nowPlaying,
+    this.idleSeconds,
+    this.battery,
+    this.charging,
+  });
 
   static const empty = DevicePresence();
 
   final NowPlaying? nowPlaying;
   final int? idleSeconds;
 
+  /// 0–100, or null on a device that doesn't report a battery level.
+  final double? battery;
+
+  /// Whether the device is plugged in, or null if unknown.
+  final bool? charging;
+
   @override
   bool operator ==(Object other) =>
       other is DevicePresence &&
       other.nowPlaying == nowPlaying &&
-      other.idleSeconds == idleSeconds;
+      other.idleSeconds == idleSeconds &&
+      other.battery == battery &&
+      other.charging == charging;
 
   @override
-  int get hashCode => Object.hash(nowPlaying, idleSeconds);
+  int get hashCode => Object.hash(nowPlaying, idleSeconds, battery, charging);
 
   @override
   String toString() =>
-      'DevicePresence(nowPlaying: $nowPlaying, idleSeconds: $idleSeconds)';
+      'DevicePresence(nowPlaying: $nowPlaying, idleSeconds: $idleSeconds, '
+      'battery: $battery, charging: $charging)';
 }
 
 /// Observes device presence for the heartbeat. Implementations must

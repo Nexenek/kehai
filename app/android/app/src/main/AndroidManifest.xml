@@ -2,9 +2,35 @@
     <!-- The app talks to a self-hosted PocketBase server (HTTP + realtime
          WebSocket) over the couple's Tailscale tailnet or LAN. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- Phase 2b presence.
+
+         The foreground service keeps the background Dart isolate alive so
+         the phone keeps reporting presence (battery/charging, screen-derived
+         idle, now-playing) and keeps the partner-status notification fresh
+         while Kehai is backgrounded — kb/platform-android.md, "24/7
+         background operation".
+
+         Type is specialUse, not dataSync: dataSync describes bounded
+         transfer work and is capped at 6h/24h on Android 15+, which would
+         make a companion-presence app go dark every afternoon. specialUse
+         has no runtime prerequisites and no timeout; its only cost is Play
+         review of the declared subtype, and Kehai is sideloaded/F-Droid.
+
+         POST_NOTIFICATIONS is asked for at runtime on 13+; everything here
+         is optional — each denied grant just means one signal fewer. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- Only ever fired from the "phone superpowers" explainer screen,
+         never unprompted. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+
     <application
         android:label="Kehai"
-        android:name="${applicationName}"
+        android:name=".KehaiApplication"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
         <activity
@@ -29,6 +55,35 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- flutter_foreground_task's service. Name is fixed by the
+             package — do not rename. -->
+        <service
+            android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
+            android:foregroundServiceType="specialUse"
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="companion_presence: continuously reports this phone's battery, charging, screen and now-playing state to the paired partner's self-hosted server, and keeps the ongoing notification showing the partner's live status. The notification IS the feature; there is no bounded task to finish."/>
+        </service>
+
+        <!-- Enabled by the user in Settings > Notification access. We never
+             read notifications: this component exists only because Android
+             gates MediaSessionManager.getActiveSessions() behind an enabled
+             listener. See KehaiNotificationListenerService. -->
+        <!-- exported=true is required: the *system* binds this service from
+             another process. It's safe because BIND_NOTIFICATION_LISTENER_SERVICE
+             is a signature-level permission only the system holds, so no
+             other app can reach it. -->
+        <service
+            android:name=".KehaiNotificationListenerService"
+            android:exported="true"
+            android:label="@string/notification_listener_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService"/>
+            </intent-filter>
+        </service>
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

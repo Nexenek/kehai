@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 
 import 'data/repositories/auth_repository.dart';
@@ -7,6 +9,7 @@ import 'data/repositories/device_repository.dart';
 import 'data/repositories/doodle_repository.dart';
 import 'data/repositories/note_repository.dart';
 import 'data/repositories/status_repository.dart';
+import 'data/services/background/kehai_foreground_task.dart';
 import 'data/services/device_info_service.dart';
 import 'data/services/heartbeat_service.dart';
 import 'data/services/pocketbase_client.dart';
@@ -142,8 +145,39 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Android: hands presence duty to the foreground service's background
+  /// isolate, which keeps heartbeating and refreshing the partner
+  /// notification once the app is off screen. Returns true if the service
+  /// is up — in which case the UI isolate must NOT also heartbeat, or the
+  /// same device row gets written twice every 30s.
+  ///
+  /// Returns false on desktop, and on Android whenever the service can't
+  /// start (notification permission denied, OEM restriction); the caller
+  /// then falls back to the phase-2a behaviour of heartbeating from the UI
+  /// isolate while the app is open.
+  Future<bool> handOffPresenceToBackground() async {
+    if (!KehaiForegroundTask.isSupported) return false;
+
+    // The service can run without POST_NOTIFICATIONS, but its notification
+    // — which IS the partner window — would be invisible. Ask once, the
+    // first time we get here; never again, since Android permanently mutes
+    // the prompt after two denials and the superpowers screen is the
+    // user-initiated route from then on.
+    if (!prefs.askedNotificationPermission &&
+        !await KehaiForegroundTask.hasNotificationPermission) {
+      await prefs.markAskedNotificationPermission();
+      await KehaiForegroundTask.requestNotificationPermission();
+    }
+
+    return KehaiForegroundTask.start();
+  }
+
   void logOut() {
     heartbeatService?.stop();
+    // The background isolate holds this user's session; stop it before the
+    // token goes away rather than leaving a notification about a partner
+    // we're no longer logged in to see.
+    unawaited(KehaiForegroundTask.stop());
     authRepository?.logout();
     stage = AppStage.auth;
     notifyListeners();

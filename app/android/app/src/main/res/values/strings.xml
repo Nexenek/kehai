@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shown in Settings > Notification access, next to the toggle. This
+         is one of the few strings Android renders for us, so it carries
+         the same voice as the in-app explainer: say what it's for. -->
+    <string name="notification_listener_label">Kehai — what you\'re listening to</string>
+</resources>

@@ -8,6 +8,7 @@ class PrefsService {
 
   static const _serverUrlKey = 'server_url';
   static const _inviteCodeKey = 'invite_code';
+  static const _askedNotificationPermissionKey = 'asked_notification_permission';
 
   final SharedPreferences _prefs;
 
@@ -29,4 +30,15 @@ class PrefsService {
 
   Future<void> setInviteCode(String code) =>
       _prefs.setString(_inviteCodeKey, code);
+
+  /// Android's POST_NOTIFICATIONS prompt is a one-shot: deny it twice and
+  /// the system stops showing it forever. So we ask exactly once, on the
+  /// first run that gets as far as the home screen, and after that the
+  /// only route is the "phone superpowers" screen — where the user is the
+  /// one initiating.
+  bool get askedNotificationPermission =>
+      _prefs.getBool(_askedNotificationPermissionKey) ?? false;
+
+  Future<void> markAskedNotificationPermission() =>
+      _prefs.setBool(_askedNotificationPermissionKey, true);
 }

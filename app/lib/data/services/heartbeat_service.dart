@@ -38,6 +38,7 @@ class HeartbeatService {
   // change worth an out-of-band heartbeat.
   NowPlaying? _lastObservedNowPlaying;
   bool _lastObservedAway = false;
+  bool? _lastObservedCharging;
 
   // What the *last heartbeat body* actually contained — used to know when
   // a key needs an explicit `null` to clear a previously-reported value
@@ -45,6 +46,8 @@ class HeartbeatService {
   // null/empty to clear").
   NowPlaying? _lastSentNowPlaying;
   int? _lastSentIdleSeconds;
+  double? _lastSentBattery;
+  bool? _lastSentCharging;
 
   void start() {
     pingNow();
@@ -64,11 +67,18 @@ class HeartbeatService {
     final away = (presence.idleSeconds ?? 0) >= _awayThresholdSeconds;
     final awayCrossed =
         presence.idleSeconds != null && away != _lastObservedAway;
+    // Plugging in / unplugging is a state the partner card actually draws
+    // (the charging bolt glyph), so it earns an out-of-band beat the same
+    // way a track change does. The *level* creeping down by a percent does
+    // not — that rides along on the next 30s tick.
+    final chargingFlipped =
+        presence.charging != null && presence.charging != _lastObservedCharging;
 
     _lastObservedNowPlaying = presence.nowPlaying;
     if (presence.idleSeconds != null) _lastObservedAway = away;
+    if (presence.charging != null) _lastObservedCharging = presence.charging;
 
-    if (trackChanged || awayCrossed) {
+    if (trackChanged || awayCrossed || chargingFlipped) {
       pingNow();
     }
   }
@@ -84,6 +94,8 @@ class HeartbeatService {
       );
       _lastSentNowPlaying = presence.nowPlaying;
       _lastSentIdleSeconds = presence.idleSeconds;
+      _lastSentBattery = presence.battery;
+      _lastSentCharging = presence.charging;
     } catch (_) {
       // Best-effort — next timer tick (or the next resume) will retry.
     }
@@ -103,6 +115,21 @@ class HeartbeatService {
       fields['idle_seconds'] = presence.idleSeconds;
     } else if (_lastSentIdleSeconds != null) {
       fields['idle_seconds'] = null;
+    }
+
+    // Phones report these (kb/platform-android.md "Battery/charging"); the
+    // desktop presence paths leave them null forever, which per the
+    // contract means the keys are simply never written.
+    if (presence.battery != null) {
+      fields['battery'] = presence.battery;
+    } else if (_lastSentBattery != null) {
+      fields['battery'] = null;
+    }
+
+    if (presence.charging != null) {
+      fields['charging'] = presence.charging;
+    } else if (_lastSentCharging != null) {
+      fields['charging'] = null;
     }
 
     return fields;

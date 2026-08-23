@@ -1,0 +1,243 @@
+import 'package:flutter/material.dart';
+
+import '../../../core/strings/app_strings.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
+import '../../../core/widgets/bevel_box.dart';
+import '../../../core/widgets/pixel_button.dart';
+import '../../../core/widgets/retro_window.dart';
+import '../view_models/phone_superpowers_view_model.dart';
+
+/// The Android permissions screen, in the retro-window vocabulary the rest
+/// of the app uses. One window per capability: what it unlocks, what it
+/// honestly costs, current status, and a button.
+///
+/// Deliberately *not* an onboarding gate — a couples app that opens with
+/// four permission dialogs is a couples app you close. It's reachable from
+/// home whenever the user is curious, and every row degrades to "fine,
+/// then that signal stays off".
+class PhoneSuperpowersScreen extends StatefulWidget {
+  const PhoneSuperpowersScreen({super.key});
+
+  @override
+  State<PhoneSuperpowersScreen> createState() => _PhoneSuperpowersScreenState();
+}
+
+class _PhoneSuperpowersScreenState extends State<PhoneSuperpowersScreen>
+    with WidgetsBindingObserver {
+  final _viewModel = PhoneSuperpowersViewModel();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _viewModel.refresh();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // The battery and notification-listener grants both happen in system
+    // UI, so the only reliable moment to re-read them is when the user
+    // lands back here.
+    if (state == AppLifecycleState.resumed) _viewModel.refresh();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _viewModel.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return Scaffold(
+      backgroundColor: colors.bg,
+      body: SafeArea(
+        child: ListenableBuilder(
+          listenable: _viewModel,
+          builder: (context, _) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              AppStrings.superpowersTitle,
+                              style: AppTextStyles.heading.copyWith(
+                                color: colors.ink,
+                              ),
+                            ),
+                          ),
+                          PixelButton(
+                            label: AppStrings.superpowersDone,
+                            onPressed: () => Navigator.of(context).pop(),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        AppStrings.superpowersIntro,
+                        style: AppTextStyles.body2.copyWith(color: colors.ink),
+                      ),
+                      const SizedBox(height: 18),
+                      if (!_viewModel.isSupported)
+                        const _Unsupported()
+                      else ...[
+                        _SuperpowerWindow(
+                          title: AppStrings.superpowerNotificationsTitle,
+                          body: AppStrings.superpowerNotificationsBody,
+                          granted: _viewModel.notificationsGranted,
+                          actionLabel: AppStrings.superpowersGrant,
+                          onAction: _viewModel.requestNotifications,
+                        ),
+                        const SizedBox(height: 16),
+                        _SuperpowerWindow(
+                          title: AppStrings.superpowerBatteryTitle,
+                          body: AppStrings.superpowerBatteryBody,
+                          granted: _viewModel.batteryExempt,
+                          actionLabel: AppStrings.superpowersGrant,
+                          onAction: _viewModel.requestBatteryExemption,
+                        ),
+                        const SizedBox(height: 16),
+                        _SuperpowerWindow(
+                          title: AppStrings.superpowerListenerTitle,
+                          body: AppStrings.superpowerListenerBody,
+                          granted: _viewModel.listenerEnabled,
+                          actionLabel: AppStrings.superpowersGrant,
+                          onAction: _viewModel.openListenerSettings,
+                        ),
+                        const SizedBox(height: 16),
+                        _SuperpowerWindow(
+                          title: AppStrings.superpowerServiceTitle,
+                          body: AppStrings.superpowerServiceBody,
+                          granted: _viewModel.serviceRunning,
+                          grantedLabel: AppStrings.superpowerServiceRunning,
+                          pendingLabel: AppStrings.superpowerServiceStopped,
+                          actionLabel: _viewModel.serviceRunning
+                              ? AppStrings.superpowerServiceStop
+                              : AppStrings.superpowerServiceStart,
+                          // The only row whose action stays live once
+                          // granted — stopping the helper is a thing the
+                          // user is allowed to want.
+                          alwaysActionable: true,
+                          onAction: _viewModel.toggleService,
+                        ),
+                        const SizedBox(height: 18),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: PixelButton(
+                            label: AppStrings.superpowersRefresh,
+                            onPressed: _viewModel.refresh,
+                          ),
+                        ),
+                      ],
+                      if (_viewModel.message != null) ...[
+                        const SizedBox(height: 14),
+                        Text(
+                          _viewModel.message!,
+                          style: AppTextStyles.body2.copyWith(
+                            color: colors.accent,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _SuperpowerWindow extends StatelessWidget {
+  const _SuperpowerWindow({
+    required this.title,
+    required this.body,
+    required this.granted,
+    required this.actionLabel,
+    required this.onAction,
+    this.grantedLabel,
+    this.pendingLabel,
+    this.alwaysActionable = false,
+  });
+
+  final String title;
+  final String body;
+  final bool granted;
+  final String actionLabel;
+  final VoidCallback onAction;
+  final String? grantedLabel;
+  final String? pendingLabel;
+  final bool alwaysActionable;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final statusText = granted
+        ? (grantedLabel ?? AppStrings.superpowersGranted)
+        : (pendingLabel ?? '');
+
+    return RetroWindow(
+      title: title,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(body, style: AppTextStyles.body2.copyWith(color: colors.ink)),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              if (statusText.isNotEmpty)
+                BevelBox(
+                  color: granted ? colors.mint : colors.chromeAlt,
+                  style: BevelStyle.sunken,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  child: Text(
+                    statusText,
+                    style: AppTextStyles.caption.copyWith(color: colors.ink),
+                  ),
+                ),
+              const Spacer(),
+              if (!granted || alwaysActionable)
+                PixelButton(
+                  primary: !granted,
+                  label: actionLabel,
+                  onPressed: onAction,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Unsupported extends StatelessWidget {
+  const _Unsupported();
+
+  @override
+  Widget build(BuildContext context) {
+    return RetroWindow(
+      title: AppStrings.superpowersTitle,
+      child: Text(
+        AppStrings.superpowersUnavailable,
+        style: AppTextStyles.body2.copyWith(color: context.colors.ink),
+      ),
+    );
+  }
+}

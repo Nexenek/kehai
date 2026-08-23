@@ -1,6 +1,6 @@
 import 'presence_service.dart';
 
-/// Windows/Android stand-in until platform-specific presence sources land.
+/// Windows stand-in until platform-specific presence sources land.
 /// Always reports [DevicePresence.empty] — the heartbeat still fires on
 /// schedule, it just never carries `now_playing`/`idle_seconds` keys, which
 /// is indistinguishable (per the "only provided keys are written" contract)
@@ -10,10 +10,9 @@ import 'presence_service.dart';
 ///   for now-playing, `GetLastInputInfo()` for idle —
 ///   kb/platform-desktop.md's "Now-playing"/"Idle / presence" tables.
 ///   TODO(phase2b): implement once Windows builds are possible in this env.
-/// - Android: now-playing/idle come from Android-side signals (a
-///   `NotificationListenerService` media-session listener, `UsageStats`)
-///   once the Android SDK is installed here.
-///   TODO(phase2b): implement after Android SDK install.
+///
+/// Android moved off this stub in phase 2b — see
+/// `android/android_presence_service.dart`.
 class StubPresenceService implements PresenceService {
   const StubPresenceService();
 

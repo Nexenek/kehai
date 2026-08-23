@@ -28,7 +28,9 @@ class HomeViewModel extends ChangeNotifier with WidgetsBindingObserver {
     required HeartbeatService heartbeatService,
     required DeviceInfoService deviceInfoService,
     required PrefsService prefs,
-  }) : _authRepository = authRepository,
+    Future<bool> Function()? handOffPresenceToBackground,
+  }) : _handOffPresenceToBackground = handOffPresenceToBackground,
+       _authRepository = authRepository,
        _coupleRepository = coupleRepository,
        _statusRepository = statusRepository,
        _deviceRepository = deviceRepository,
@@ -43,6 +45,16 @@ class HomeViewModel extends ChangeNotifier with WidgetsBindingObserver {
   final HeartbeatService _heartbeatService;
   final DeviceInfoService _deviceInfoService;
   final PrefsService _prefs;
+
+  /// Android's "start the foreground service" hook (see
+  /// [AppController.handOffPresenceToBackground]). Null on desktop and in
+  /// tests, which is the same as "nobody else is heartbeating".
+  final Future<bool> Function()? _handOffPresenceToBackground;
+
+  /// False once presence has been handed to the background isolate — this
+  /// view model then stops touching the heartbeat entirely, so the device
+  /// row has exactly one writer.
+  bool _ownsHeartbeat = true;
 
   bool isLoading = true;
   Partner? partner;
@@ -77,7 +89,11 @@ class HomeViewModel extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> init() async {
     WidgetsBinding.instance.addObserver(this);
-    _heartbeatService.start();
+
+    final handedOff =
+        await _handOffPresenceToBackground?.call() ?? false;
+    _ownsHeartbeat = !handedOff;
+    if (_ownsHeartbeat) _heartbeatService.start();
 
     // Re-render every 20s so "updated Xm ago" stays fresh without a manual
     // pull-to-refresh.
@@ -172,7 +188,7 @@ class HomeViewModel extends ChangeNotifier with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _heartbeatService.pingNow();
+      if (_ownsHeartbeat) _heartbeatService.pingNow();
       checkForPartner();
     }
   }
@@ -183,7 +199,9 @@ class HomeViewModel extends ChangeNotifier with WidgetsBindingObserver {
     _tickTimer?.cancel();
     _statusUnsub?.call();
     _deviceUnsub?.call();
-    _heartbeatService.stop();
+    // Deliberately not stopping the foreground service here: surviving
+    // this screen going away is the whole point of it.
+    if (_ownsHeartbeat) _heartbeatService.stop();
     super.dispose();
   }
 }

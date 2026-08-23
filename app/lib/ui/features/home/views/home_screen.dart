@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../app_controller.dart';
+import '../../../../data/services/background/kehai_foreground_task.dart';
 import '../../../../domain/models/doodle.dart';
 import '../../../core/strings/app_strings.dart';
 import '../../../core/theme/app_colors.dart';
@@ -11,6 +12,7 @@ import '../../../core/widgets/bevel_box.dart';
 import '../../../core/widgets/pixel_button.dart';
 import '../../../core/widgets/retro_window.dart';
 import '../../doodle/doodle_canvas_dialog.dart';
+import '../../settings/views/phone_superpowers_screen.dart';
 import '../view_models/countdowns_view_model.dart';
 import '../view_models/doodle_view_model.dart';
 import '../view_models/home_view_model.dart';
@@ -47,6 +49,7 @@ class _HomeScreenState extends State<HomeScreen> {
       heartbeatService: controller.heartbeatService!,
       deviceInfoService: controller.deviceInfoService,
       prefs: controller.prefs,
+      handOffPresenceToBackground: controller.handOffPresenceToBackground,
     );
     _viewModel.addListener(_syncFromHomeViewModel);
     _viewModel.init();
@@ -135,6 +138,20 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ],
                         ),
+                        if (KehaiForegroundTask.isSupported) ...[
+                          const SizedBox(height: 10),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: PixelButton(
+                              label: AppStrings.superpowersOpen,
+                              onPressed: () => Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => const PhoneSuperpowersScreen(),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 16),
                         if (_viewModel.hasPartner)
                           PartnerCard(

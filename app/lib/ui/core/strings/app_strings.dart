@@ -145,6 +145,69 @@ class AppStrings {
   static String fromThemCaption(String relative) => 'from them · $relative';
   static String youSentCaption(String relative) => 'you sent · $relative';
 
+  // Ongoing notification (Android) — the pocket version of the partner
+  // window. Composed in Dart (see buildPartnerNotification) and handed to
+  // the foreground service to render.
+  static const notificationChannelName = 'partner window';
+  static const notificationChannelDescription =
+      'the quiet always-there note showing how your person is doing. '
+      'silent, and it stays put while Kehai is watching.';
+  static const notificationStartingTitle = appName;
+  static const notificationStartingText = 'looking for your person… (｡•ᴗ•｡)';
+  static const notificationWaitingTitle = 'waiting for your person';
+  static const notificationWaitingText =
+      "we'll fill this in the moment they're around ♡";
+  static const notificationDevicesPhone = '📱 phone';
+  static const notificationDevicesDesktop = '🖥 computer';
+  static const notificationDevicesBoth = '📱 phone · 🖥 computer';
+  static const notificationDevicesNone = offlineTooltip;
+
+  // Phone superpowers (Android permissions/onboarding screen).
+  static const superpowersTitle = 'phone superpowers';
+  static const superpowersOpen = 'phone superpowers ✧';
+  static const superpowersIntro =
+      "none of this is required — Kehai works without any of it, it just "
+      "has less to tell them. turn on only what feels okay, and turn it "
+      "back off in system settings whenever you like.";
+  static const superpowersGrant = 'turn on';
+  static const superpowersGranted = 'on ✓';
+  static const superpowersUnavailable = 'not on this device';
+  static const superpowersRefresh = 'check again';
+  static const superpowersDone = 'done';
+
+  static const superpowerNotificationsTitle = 'show the partner window';
+  static const superpowerNotificationsBody =
+      "lets Kehai keep one silent notification pinned with your person's "
+      "mood, note and what they're up to. it's the only notification we "
+      "post, and it never makes a sound.";
+
+  static const superpowerBatteryTitle = 'stay awake in the background';
+  static const superpowerBatteryBody =
+      "asks android to stop putting Kehai to sleep, so their window keeps "
+      "updating while your phone is in your pocket. without it your phone "
+      "may go quiet to them after a while. some phones need extra steps in "
+      "their own battery settings — dontkillmyapp.com has the recipe.";
+
+  static const superpowerListenerTitle = 'share what you\'re listening to';
+  static const superpowerListenerBody =
+      "android calls this \"notification access\". it lets Kehai read your "
+      "media players — title, artist, album, and whether it's playing — so "
+      "your person sees ♪ on your card. the honest part: this permission "
+      "technically exposes every notification on your phone to Kehai. we "
+      "only read media sessions, we never store or send anything else, and "
+      "you can revoke it in settings any second.";
+
+  static const superpowerServiceTitle = 'keep watch while backgrounded';
+  static const superpowerServiceBody =
+      "runs the little background helper that sends your status and keeps "
+      "their window fresh when Kehai isn't the app you're looking at.";
+  static const superpowerServiceRunning = 'running ♡';
+  static const superpowerServiceStopped = 'off';
+  static const superpowerServiceStart = 'start';
+  static const superpowerServiceStop = 'stop';
+  static const superpowersOpenSettingsFailed =
+      "couldn't find that settings screen (・_・;) — your phone may hide it.";
+
   // Generic
   static const loading = 'one sec… (｡•ᴗ•｡)';
   static const genericError = "something went sideways (；一_一) — try again?";
