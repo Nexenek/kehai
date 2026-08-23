@@ -1,0 +1,108 @@
+services:
+  # ---------------------------------------------------------------------
+  # server: our Go/PocketBase binary — auth, realtime, SQLite, files,
+  # custom couple/heartbeat routes. See ../server/.
+  # ---------------------------------------------------------------------
+  server:
+    build:
+      context: ../server
+    container_name: couples-server
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./data/pb:/pb_data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8090/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  # ---------------------------------------------------------------------
+  # ntfy: self-hosted UnifiedPush server for Android push + a plain
+  # websocket/HTTP fallback for desktop notifications (see kb/decisions.md
+  # ADR-4). Locked down: nobody can read or publish without an account
+  # (auth-default-access: deny-all), matching kb/selfhosting.md.
+  #
+  # First-time setup (after `docker compose up -d ntfy`):
+  #   1. Create an admin account (used for the ntfy web app / mobile app login):
+  #        docker compose exec ntfy ntfy user add --role=admin <you>
+  #   2. Create a couple-scoped topic + a non-admin publish-only token for the
+  #      server to use when it starts pushing notifications (Phase 2):
+  #        docker compose exec ntfy ntfy user add <partner-a>
+  #        docker compose exec ntfy ntfy user add <partner-b>
+  #        docker compose exec ntfy ntfy access <partner-a> couple-<id> read-write
+  #        docker compose exec ntfy ntfy access <partner-b> couple-<id> read-write
+  #   3. On Android, install ntfy (F-Droid build for zero Google deps),
+  #      point it at this server's tailnet address as a UnifiedPush
+  #      distributor, and log in with the account from step 2.
+  # ---------------------------------------------------------------------
+  ntfy:
+    image: binwiederhier/ntfy
+    container_name: couples-ntfy
+    command:
+      - serve
+    restart: unless-stopped
+    environment:
+      - NTFY_BASE_URL=http://localhost:8091
+      - NTFY_CACHE_FILE=/var/cache/ntfy/cache.db
+      - NTFY_AUTH_FILE=/var/lib/ntfy/auth.db
+      - NTFY_AUTH_DEFAULT_ACCESS=deny-all
+      - NTFY_ENABLE_SIGNUP=false
+      - NTFY_ENABLE_LOGIN=true
+      - NTFY_BEHIND_PROXY=false
+    volumes:
+      - ./data/ntfy/cache:/var/cache/ntfy
+      - ./data/ntfy/auth:/var/lib/ntfy
+    ports:
+      - "8091:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --tries=1 -O - http://127.0.0.1:80/v1/health | grep -Eo '\"healthy\"\\s*:\\s*true' || exit 1"]
+      interval: 60s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+
+  # ---------------------------------------------------------------------
+  # Phase 4 — CalDAV shared calendar (kb/decisions.md ADR-7).
+  # ---------------------------------------------------------------------
+  # baikal:
+  #   image: ckulka/baikal:nginx
+  #   container_name: couples-baikal
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ./data/baikal/config:/var/www/baikal/config
+  #     - ./data/baikal/data:/var/www/baikal/Specific
+  #   ports:
+  #     - "8092:80"
+
+  # ---------------------------------------------------------------------
+  # Phase 7 — TURN/STUN relay for the WebRTC portal (kb/decisions.md
+  # ADR-9). Mostly unnecessary while both partners are on the same
+  # Tailscale tailnet; only needed as a NAT-traversal fallback.
+  # ---------------------------------------------------------------------
+  # coturn:
+  #   image: coturn/coturn
+  #   container_name: couples-coturn
+  #   restart: unless-stopped
+  #   network_mode: host
+  #   volumes:
+  #     - ./data/coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+
+  # ---------------------------------------------------------------------
+  # Optional, only if something must be reachable outside the tailnet
+  # (kb/decisions.md ADR-10). Everything above stays tailnet-only by
+  # default — no exposed ports needed for normal use.
+  # ---------------------------------------------------------------------
+  # caddy:
+  #   image: caddy:alpine
+  #   container_name: couples-caddy
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./Caddyfile:/etc/caddy/Caddyfile:ro
+  #     - ./data/caddy/data:/data
+  #     - ./data/caddy/config:/config

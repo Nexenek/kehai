@@ -1,0 +1,34 @@
+# Project knowledgebase — private, stays out of git (used instead of assistant memory)
+kb/
+
+# Secrets / local config
+.env
+.env.*
+*.local
+
+# Server
+server/pb_data/
+server/couples-server
+server/tmp/
+
+# Flutter / Dart
+app/.dart_tool/
+app/.packages
+app/build/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/android/.gradle/
+app/android/local.properties
+app/android/key.properties
+app/*.iml
+
+# Go
+*.test
+*.out
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
