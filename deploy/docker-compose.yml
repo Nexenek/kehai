@@ -6,7 +6,7 @@ services:
   server:
     build:
       context: ../server
-    container_name: couples-server
+    container_name: kehai-server
     restart: unless-stopped
     ports:
       - "8090:8090"
@@ -40,7 +40,7 @@ services:
   # ---------------------------------------------------------------------
   ntfy:
     image: binwiederhier/ntfy
-    container_name: couples-ntfy
+    container_name: kehai-ntfy
     command:
       - serve
     restart: unless-stopped

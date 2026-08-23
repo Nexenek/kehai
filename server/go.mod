@@ -1,4 +1,4 @@
-module github.com/couples-app/server
+module github.com/Nexenek/kehai/server
 
 go 1.27
 

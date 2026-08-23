@@ -1,4 +1,4 @@
-package app.couples.couples_app
+package app.kehai
 
 import io.flutter.embedding.android.FlutterActivity
 

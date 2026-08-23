@@ -12,7 +12,7 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/couples-server .
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/kehai-server .
 
 # --- runtime stage ------------------------------------------------------
 FROM alpine:3.22 AS runtime
@@ -22,7 +22,7 @@ FROM alpine:3.22 AS runtime
 # wget: used by HEALTHCHECK below (part of busybox, tiny)
 RUN apk add --no-cache ca-certificates tzdata wget
 
-COPY --from=build /out/couples-server /usr/local/bin/couples-server
+COPY --from=build /out/kehai-server /usr/local/bin/kehai-server
 
 # PocketBase's data dir: SQLite db, uploaded files, logs. Mount a volume here.
 #
@@ -43,4 +43,4 @@ EXPOSE 8090
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 	CMD wget -q -O - http://127.0.0.1:8090/api/health || exit 1
 
-ENTRYPOINT ["/usr/local/bin/couples-server", "serve", "--http=0.0.0.0:8090", "--dir", "/pb_data"]
+ENTRYPOINT ["/usr/local/bin/kehai-server", "serve", "--http=0.0.0.0:8090", "--dir", "/pb_data"]

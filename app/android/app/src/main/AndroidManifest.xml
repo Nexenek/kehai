@@ -3,10 +3,10 @@
          WebSocket) over the couple's Tailscale tailnet or LAN. -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="couples_app"
+        android:label="Kehai"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:usesCleartextTraffic="true"
+        android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"

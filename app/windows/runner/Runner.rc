@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "app.couples" "\0"
-            VALUE "FileDescription", "couples_app" "\0"
+            VALUE "FileDescription", "Kehai" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "couples_app" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 app.couples. All rights reserved." "\0"
             VALUE "OriginalFilename", "couples_app.exe" "\0"
-            VALUE "ProductName", "couples_app" "\0"
+            VALUE "ProductName", "Kehai" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

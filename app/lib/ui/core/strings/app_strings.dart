@@ -7,7 +7,7 @@ class AppStrings {
   const AppStrings._();
 
   // App
-  static const appName = 'our desktop';
+  static const appName = 'Kehai';
 
   // Onboarding — server step
   static const serverStepTitle = 'find your server';
