@@ -162,11 +162,11 @@ class ActivityMapper {
     'clipstudiopaint': _drawing,
 
     // Chat.
-    'discord': 'chatting ✉',
-    'slack': 'chatting ✉',
-    'telegram': 'chatting ✉',
-    'whatsapp': 'chatting ✉',
-    'signal': 'chatting ✉',
+    'discord': 'chatting on Discord ✉\uFE0E',
+    'slack': 'chatting on Slack ✉\uFE0E',
+    'telegram': 'chatting on Telegram ✉\uFE0E',
+    'whatsapp': 'chatting on WhatsApp ✉\uFE0E',
+    'signal': 'chatting on Signal ✉\uFE0E',
 
     // Gaming.
     'steam': 'gaming',
@@ -208,16 +208,16 @@ class ActivityMapper {
 
   static const _androidPackageTable = <String, String>{
     // Chat.
-    'com.discord': 'chatting ✉',
-    'com.slack': 'chatting ✉',
-    'org.telegram.messenger': 'chatting ✉',
-    'com.whatsapp': 'chatting ✉',
-    'org.thoughtcrime.securesms': 'chatting ✉',
+    'com.discord': 'chatting on Discord ✉\uFE0E',
+    'com.slack': 'chatting on Slack ✉\uFE0E',
+    'org.telegram.messenger': 'chatting on Telegram ✉\uFE0E',
+    'com.whatsapp': 'chatting on WhatsApp ✉\uFE0E',
+    'org.thoughtcrime.securesms': 'chatting on Signal ✉\uFE0E',
 
     // Meetings.
-    'us.zoom.videomeetings': 'in a meeting 🎥',
-    'com.google.android.apps.meetings': 'in a meeting 🎥',
-    'com.microsoft.teams': 'in a meeting 🎥',
+    'us.zoom.videomeetings': 'in a meeting',
+    'com.google.android.apps.meetings': 'in a meeting',
+    'com.microsoft.teams': 'in a meeting',
 
     // Short video / social.
     'com.ss.android.ugc.trill': 'scrolling TikTok',
@@ -232,7 +232,7 @@ class ActivityMapper {
 
     // Video.
     'com.google.android.youtube': 'watching YouTube',
-    'com.netflix.mediaclient': 'watching Netflix 🎬',
+    'com.netflix.mediaclient': 'watching Netflix',
 
     // Writing / office.
     'com.google.android.apps.docs.editors.docs': 'writing ✍\uFE0E',
@@ -284,12 +284,12 @@ class ActivityMapper {
     'inkscape': _drawing,
 
     // Chat.
-    'discord': 'chatting ✉',
-    'discordcanary': 'chatting ✉',
-    'discordptb': 'chatting ✉',
-    'slack': 'chatting ✉',
-    'telegram-desktop': 'chatting ✉',
-    'signal': 'chatting ✉',
+    'discord': 'chatting on Discord ✉\uFE0E',
+    'discordcanary': 'chatting on Discord ✉\uFE0E',
+    'discordptb': 'chatting on Discord ✉\uFE0E',
+    'slack': 'chatting on Slack ✉\uFE0E',
+    'telegram-desktop': 'chatting ✉\uFE0E',
+    'signal': 'chatting on Signal ✉\uFE0E',
 
     // Gaming.
     'steam': 'gaming',

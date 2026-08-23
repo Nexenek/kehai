@@ -1,3 +1,4 @@
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pocketbase/pocketbase.dart';
 
@@ -188,5 +189,40 @@ void main() {
 
     expect(soloRepository.sent, isEmpty);
     soloViewModel.dispose();
+  });
+
+  main2();
+}
+
+// Appended regression coverage for the held-still keep-alive fix: pointer
+// events only fire on movement, so the periodic tick must keep a resting
+// press posting (and fresh) on its own — fakeAsync drives the Timer.
+void main2() {
+  test('a held-still press keeps re-sending at the throttle pace', () {
+    fakeAsync((async) {
+      final repository = _FakeTouchRepository();
+      final viewModel = ThumbKissViewModel(
+        authRepository: _loggedInAuthRepository(),
+        touchRepository: repository,
+      );
+      viewModel.init();
+      async.flushMicrotasks();
+
+      viewModel.onTouchMove(const Offset(0.5, 0.5));
+      expect(repository.sent.length, 1);
+
+      // No further pointer events: one second of holding still should keep
+      // posting via the ticker (250ms throttle -> about 4 more sends).
+      async.elapse(const Duration(seconds: 1));
+      expect(repository.sent.length, greaterThanOrEqualTo(4));
+
+      // Lift: sending stops, points age out on their own.
+      viewModel.onTouchEnd();
+      final atLift = repository.sent.length;
+      async.elapse(const Duration(seconds: 1));
+      expect(repository.sent.length, atLift);
+
+      viewModel.dispose();
+    });
   });
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pocketbase/pocketbase.dart';
 
@@ -93,7 +94,7 @@ void main() {
     await pumpWindow(tester);
 
     repository.emit(
-      TouchPoint(userId: 'partner', x: 0.1, y: 0.1, at: DateTime.now()),
+      TouchPoint(userId: 'partner', x: 0.1, y: 0.1, at: clock.now()),
     );
     await tester.pump();
 
@@ -108,7 +109,7 @@ void main() {
 
     viewModel.onTouchMove(const Offset(0.5, 0.5));
     repository.emit(
-      TouchPoint(userId: 'partner', x: 0.5, y: 0.5, at: DateTime.now()),
+      TouchPoint(userId: 'partner', x: 0.5, y: 0.5, at: clock.now()),
     );
     await tester.pump();
 
@@ -128,7 +129,7 @@ void main() {
 
     viewModel.onTouchMove(const Offset(0.5, 0.5));
     repository.emit(
-      TouchPoint(userId: 'partner', x: 0.5, y: 0.5, at: DateTime.now()),
+      TouchPoint(userId: 'partner', x: 0.5, y: 0.5, at: clock.now()),
     );
     await tester.pump();
     expect(find.text(AppStrings.thumbKissMetMessage), findsOneWidget);

@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter/services.dart' show HapticFeedback;
 
 import '../../core/strings/app_strings.dart';
@@ -27,11 +30,20 @@ class ThumbKissWindow extends StatefulWidget {
 }
 
 class _ThumbKissWindowState extends State<ThumbKissWindow>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _sparkle = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 900),
   );
+
+  /// Per-frame glide for the partner's blob: network points arrive at ~4/s
+  /// with jitter, so painting them raw teleports the blob. The displayed
+  /// position chases the latest point with an exponential ease (~80ms time
+  /// constant) — fast enough to feel live, smooth enough to read as one
+  /// continuous motion.
+  late final Ticker _smoother = createTicker(_onSmoothTick);
+  Offset? _partnerDisplay;
+  Duration _lastSmoothTick = Duration.zero;
 
   bool _wasMet = false;
 
@@ -41,7 +53,42 @@ class _ThumbKissWindowState extends State<ThumbKissWindow>
     widget.viewModel.addListener(_onViewModelChanged);
   }
 
+  void _onSmoothTick(Duration elapsed) {
+    final dt = _lastSmoothTick == Duration.zero
+        ? 0.016
+        : (elapsed - _lastSmoothTick).inMicroseconds / 1e6;
+    _lastSmoothTick = elapsed;
+
+    final viewModel = widget.viewModel;
+    final target = viewModel.partnerVisible
+        ? viewModel.partnerTouch?.offset
+        : null;
+
+    setState(() {
+      if (target == null) {
+        _partnerDisplay = null;
+      } else if (_partnerDisplay == null ||
+          (MediaQuery.maybeOf(context)?.disableAnimations ?? false)) {
+        // First appearance snaps (no glide in from nowhere); reduced motion
+        // always snaps.
+        _partnerDisplay = target;
+      } else {
+        final k = 1 - math.exp(-dt * 12);
+        _partnerDisplay = Offset.lerp(_partnerDisplay, target, k);
+      }
+    });
+
+    if (target == null && _partnerDisplay == null) {
+      _smoother.stop();
+      _lastSmoothTick = Duration.zero;
+    }
+  }
+
   void _onViewModelChanged() {
+    if (widget.viewModel.partnerVisible && !_smoother.isActive) {
+      _lastSmoothTick = Duration.zero;
+      _smoother.start();
+    }
     final met = widget.viewModel.isMet;
     if (met && !_wasMet) {
       HapticFeedback.mediumImpact();
@@ -69,6 +116,7 @@ class _ThumbKissWindowState extends State<ThumbKissWindow>
   @override
   void dispose() {
     widget.viewModel.removeListener(_onViewModelChanged);
+    _smoother.dispose();
     _sparkle.dispose();
     super.dispose();
   }
@@ -125,8 +173,11 @@ class _ThumbKissWindowState extends State<ThumbKissWindow>
                             size: size,
                             painter: ThumbKissPainter(
                               myTouch: viewModel.myTouch,
+                              // The smoothed display position, not the raw
+                              // network point — see [_onSmoothTick].
                               partnerTouch: viewModel.partnerVisible
-                                  ? viewModel.partnerTouch?.offset
+                                  ? (_partnerDisplay ??
+                                        viewModel.partnerTouch?.offset)
                                   : null,
                               isMet: viewModel.isMet,
                               myColor: colors.accent,

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui' show Offset;
 
+import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 
@@ -59,7 +60,7 @@ class ThumbKissViewModel extends ChangeNotifier {
   /// reallocate).
   bool get partnerVisible {
     final touch = partnerTouch;
-    return touch != null && isTouchFresh(touch.at, DateTime.now());
+    return touch != null && isTouchFresh(touch.at, clock.now());
   }
 
   Future<void> init() async {
@@ -71,10 +72,22 @@ class ThumbKissViewModel extends ChangeNotifier {
     // Freshness (mine and the partner's) decays with time alone, not just
     // on new events — a periodic re-check is what fades a lifted thumb's
     // glow and drops a stale "met" state even when nothing new arrives.
-    _ticker = Timer.periodic(
-      const Duration(milliseconds: 100),
-      (_) => _reevaluate(),
-    );
+    //
+    // The tick also keeps a HELD-STILL press alive: pointer events only fire
+    // on movement, so without this a resting thumb would stop posting, go
+    // stale on the partner's screen after touchFreshWindow, and flicker back
+    // only on micro-movements (shipped bug) — and my own freshness would
+    // decay mid-press, breaking met-detection for two thumbs at rest. While
+    // [myTouch] is set the press itself is the liveness signal: restamp it
+    // and re-send at the throttle's own pace (~4/s).
+    _ticker = Timer.periodic(const Duration(milliseconds: 100), (_) {
+      final mine = myTouch;
+      if (mine != null) {
+        _myTouchAt = clock.now();
+        _maybeSend(mine);
+      }
+      _reevaluate();
+    });
   }
 
   /// Called by the touch area on every pointer-down/move while a press is
@@ -82,7 +95,7 @@ class ThumbKissViewModel extends ChangeNotifier {
   /// (the widget knows the touch area's actual size; this layer doesn't).
   void onTouchMove(Offset normalized) {
     myTouch = normalized;
-    _myTouchAt = DateTime.now();
+    _myTouchAt = clock.now();
     _maybeSend(normalized);
     _reevaluate();
   }
@@ -98,7 +111,7 @@ class ThumbKissViewModel extends ChangeNotifier {
   }
 
   void _maybeSend(Offset point) {
-    final now = DateTime.now();
+    final now = clock.now();
     if (!shouldSendTouch(lastSentAt: _lastSentAt, now: now)) return;
     final coupleId = _coupleId;
     if (coupleId == null) return;
@@ -114,7 +127,7 @@ class ThumbKissViewModel extends ChangeNotifier {
   }
 
   void _reevaluate() {
-    final now = DateTime.now();
+    final now = clock.now();
     final theirs = partnerTouch;
     final met = didMeet(
       mine: myTouch,

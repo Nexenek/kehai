@@ -17,7 +17,7 @@ void main() {
     });
 
     test('maps chat apps', () {
-      expect(ActivityMapper.mapWindowsExe('discord'), 'chatting ✉');
+      expect(ActivityMapper.mapWindowsExe('discord'), 'chatting on Discord ✉\uFE0E');
     });
 
     test('maps game launchers/exes', () {
@@ -100,7 +100,7 @@ void main() {
     });
 
     test('maps chat apps', () {
-      expect(ActivityMapper.mapAndroidPackage('com.whatsapp'), 'chatting ✉');
+      expect(ActivityMapper.mapAndroidPackage('com.whatsapp'), 'chatting on WhatsApp ✉\uFE0E');
     });
 
     test('maps game packages', () {
@@ -178,8 +178,8 @@ void main() {
     });
 
     test('maps chat apps', () {
-      expect(ActivityMapper.mapLinuxClass('discord'), 'chatting ✉');
-      expect(ActivityMapper.mapLinuxClass('discordcanary'), 'chatting ✉');
+      expect(ActivityMapper.mapLinuxClass('discord'), 'chatting on Discord ✉\uFE0E');
+      expect(ActivityMapper.mapLinuxClass('discordcanary'), 'chatting on Discord ✉\uFE0E');
     });
 
     test('maps game launchers', () {
