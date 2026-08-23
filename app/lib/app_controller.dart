@@ -7,6 +7,8 @@ import 'data/repositories/status_repository.dart';
 import 'data/services/device_info_service.dart';
 import 'data/services/heartbeat_service.dart';
 import 'data/services/pocketbase_client.dart';
+import 'data/services/presence/presence_service.dart';
+import 'data/services/presence/presence_service_factory.dart';
 import 'data/services/prefs_service.dart';
 
 /// Which screen the app should currently show. This is intentionally a
@@ -24,6 +26,12 @@ class AppController extends ChangeNotifier {
 
   late final PrefsService prefs;
   final DeviceInfoService deviceInfoService = const DeviceInfoService();
+
+  /// One presence source for the lifetime of the app — the heartbeat
+  /// service just subscribes/unsubscribes to it across log-in/log-out
+  /// rather than owning its lifecycle (see [HeartbeatService]'s doc
+  /// comment on why it doesn't dispose the service it's given).
+  final PresenceService presenceService = createPresenceService();
 
   AppStage stage = AppStage.loading;
   String? connectionError;
@@ -89,7 +97,7 @@ class AppController extends ChangeNotifier {
       coupleRepository = CoupleRepository(pb, authRepository!);
       statusRepository = StatusRepository(pb);
       deviceRepository = DeviceRepository(pb);
-      heartbeatService = HeartbeatService(deviceRepository!, deviceInfoService);
+      heartbeatService = HeartbeatService(deviceRepository!, deviceInfoService, presenceService: presenceService);
       connectionError = null;
       return true;
     } catch (_) {

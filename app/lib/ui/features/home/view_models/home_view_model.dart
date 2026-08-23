@@ -10,6 +10,7 @@ import '../../../../data/repositories/status_repository.dart';
 import '../../../../data/services/device_info_service.dart';
 import '../../../../data/services/heartbeat_service.dart';
 import '../../../../data/services/prefs_service.dart';
+import '../../../../domain/models/ambient_line.dart';
 import '../../../../domain/models/couple_info.dart';
 import '../../../../domain/models/device_status.dart';
 import '../../../../domain/models/partner_status.dart';
@@ -65,6 +66,13 @@ class HomeViewModel extends ChangeNotifier with WidgetsBindingObserver {
       partnerDevices.any((d) => d.kind == 'phone' && d.isOnline);
   bool get partnerDesktopOnline =>
       partnerDevices.any((d) => d.kind == 'desktop' && d.isOnline);
+
+  /// Precedence-resolved partner-card ambient line — see
+  /// [resolveAmbientLine] (kb/platform-desktop.md "Telemetry contract").
+  AmbientLine? get partnerAmbientLine => resolveAmbientLine(partnerDevices);
+
+  /// Partner's phone low-battery/charging glyph — see [resolvePhoneBattery].
+  BatteryGlyphInfo get partnerBatteryInfo => resolvePhoneBattery(partnerDevices);
 
   Future<void> init() async {
     WidgetsBinding.instance.addObserver(this);

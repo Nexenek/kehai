@@ -337,6 +337,211 @@ func TestHeartbeatRejectsUnknownKind(t *testing.T) {
 
 // --- auth is required at all -----------------------------------------------
 
+// --- heartbeat telemetry (Phase 2a contract) -------------------------------
+
+// getDevice fetches a single device record over the public HTTP API, the
+// same way a client (or the partner) would.
+func getDevice(t *testing.T, baseURL, token, id string) map[string]any {
+	t.Helper()
+
+	res := doJSON(t, http.MethodGet, baseURL+"/api/collections/devices/records/"+id, token, nil)
+	body := decodeJSON(t, res)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 fetching device %s, got %d: %v", id, res.StatusCode, body)
+	}
+	return body
+}
+
+func TestHeartbeatTelemetry(t *testing.T) {
+	app := newTestApp(t)
+	srv := newTestServer(t, app)
+
+	_, token := registerAndLogin(t, srv.URL, uniqueEmail(t), "password1234")
+	// devices are only viewable by couple members (see coupleScoped in
+	// 1_init.go), so pair this user up before reading telemetry back.
+	setupRes := doJSON(t, http.MethodPost, srv.URL+"/api/couple/create", token, map[string]any{"name": "us"})
+	setupRes.Body.Close()
+	if setupRes.StatusCode != http.StatusOK {
+		t.Fatalf("failed to set up couple: %d", setupRes.StatusCode)
+	}
+
+	res1 := doJSON(t, http.MethodPost, srv.URL+"/api/heartbeat", token, map[string]any{
+		"kind":         "desktop",
+		"name":         "Workstation",
+		"battery":      55.0,
+		"charging":     true,
+		"idle_seconds": 12.0,
+		"now_playing": map[string]any{
+			"title": "Song", "artist": "Artist", "album": "Album", "player": "Spotify", "state": "playing",
+		},
+		"activity": "gaming",
+	})
+	body1 := decodeJSON(t, res1)
+	if res1.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 on telemetry heartbeat, got %d: %v", res1.StatusCode, body1)
+	}
+	deviceID, _ := body1["device_id"].(string)
+	if deviceID == "" {
+		t.Fatalf("heartbeat response missing device_id: %v", body1)
+	}
+
+	device := getDevice(t, srv.URL, token, deviceID)
+	if got, _ := device["battery"].(float64); got != 55 {
+		t.Fatalf("expected battery 55, got %v", device["battery"])
+	}
+	if got, _ := device["charging"].(bool); got != true {
+		t.Fatalf("expected charging true, got %v", device["charging"])
+	}
+	if got, _ := device["idle_seconds"].(float64); got != 12 {
+		t.Fatalf("expected idle_seconds 12, got %v", device["idle_seconds"])
+	}
+	np, ok := device["now_playing"].(map[string]any)
+	if !ok || np["title"] != "Song" {
+		t.Fatalf("expected now_playing with title 'Song', got %v", device["now_playing"])
+	}
+	if got, _ := device["activity"].(string); got != "gaming" {
+		t.Fatalf("expected activity 'gaming', got %v", device["activity"])
+	}
+
+	// a heartbeat that omits the telemetry keys entirely must leave the
+	// previously-recorded values untouched (absent != clear).
+	res2 := doJSON(t, http.MethodPost, srv.URL+"/api/heartbeat", token, map[string]any{
+		"kind": "desktop",
+		"name": "Workstation",
+	})
+	body2 := decodeJSON(t, res2)
+	if res2.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 on key-less heartbeat, got %d: %v", res2.StatusCode, body2)
+	}
+
+	device2 := getDevice(t, srv.URL, token, deviceID)
+	if got, _ := device2["battery"].(float64); got != 55 {
+		t.Fatalf("expected battery to remain 55 after key-less heartbeat, got %v", device2["battery"])
+	}
+	if got, _ := device2["charging"].(bool); got != true {
+		t.Fatalf("expected charging to remain true after key-less heartbeat, got %v", device2["charging"])
+	}
+	if got, _ := device2["activity"].(string); got != "gaming" {
+		t.Fatalf("expected activity to remain 'gaming' after key-less heartbeat, got %v", device2["activity"])
+	}
+	np2, ok := device2["now_playing"].(map[string]any)
+	if !ok || np2["title"] != "Song" {
+		t.Fatalf("expected now_playing to remain set after key-less heartbeat, got %v", device2["now_playing"])
+	}
+
+	// an explicit null clears now_playing back to "nothing playing".
+	res3 := doJSON(t, http.MethodPost, srv.URL+"/api/heartbeat", token, map[string]any{
+		"kind":        "desktop",
+		"name":        "Workstation",
+		"now_playing": nil,
+	})
+	body3 := decodeJSON(t, res3)
+	if res3.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 clearing now_playing, got %d: %v", res3.StatusCode, body3)
+	}
+
+	device3 := getDevice(t, srv.URL, token, deviceID)
+	if device3["now_playing"] != nil {
+		t.Fatalf("expected now_playing to be cleared to null, got %v", device3["now_playing"])
+	}
+	// unrelated fields sent on the same request untouched must still survive.
+	if got, _ := device3["activity"].(string); got != "gaming" {
+		t.Fatalf("expected activity to remain 'gaming' after clearing now_playing, got %v", device3["activity"])
+	}
+}
+
+func TestHeartbeatInvalidBatteryRejected(t *testing.T) {
+	app := newTestApp(t)
+	srv := newTestServer(t, app)
+
+	_, token := registerAndLogin(t, srv.URL, uniqueEmail(t), "password1234")
+
+	res := doJSON(t, http.MethodPost, srv.URL+"/api/heartbeat", token, map[string]any{
+		"kind":    "phone",
+		"name":    "Pixel",
+		"battery": 150.0,
+	})
+	body := decodeJSON(t, res)
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400 for battery=150, got %d: %v", res.StatusCode, body)
+	}
+}
+
+func TestHeartbeatTelemetryVisibleToPartnerButNotOutsider(t *testing.T) {
+	app := newTestApp(t)
+	srv := newTestServer(t, app)
+
+	// A creates a couple and sends a heartbeat with telemetry.
+	userA, tokenA := registerAndLogin(t, srv.URL, uniqueEmail(t), "password1234")
+	createRes := decodeJSON(t, doJSON(t, http.MethodPost, srv.URL+"/api/couple/create", tokenA, map[string]any{"name": "us"}))
+	code, _ := createRes["invite_code"].(string)
+	if code == "" {
+		t.Fatalf("failed to set up couple: %v", createRes)
+	}
+
+	hbRes := decodeJSON(t, doJSON(t, http.MethodPost, srv.URL+"/api/heartbeat", tokenA, map[string]any{
+		"kind":     "desktop",
+		"name":     "Workstation",
+		"battery":  42.0,
+		"activity": "gaming",
+	}))
+	deviceID, _ := hbRes["device_id"].(string)
+	if deviceID == "" {
+		t.Fatalf("heartbeat response missing device_id: %v", hbRes)
+	}
+
+	// B joins the couple and should see A's telemetry via the devices list.
+	_, tokenB := registerAndLogin(t, srv.URL, uniqueEmail(t), "password1234")
+	joinRes := doJSON(t, http.MethodPost, srv.URL+"/api/couple/join", tokenB, map[string]any{"code": code})
+	if joinRes.StatusCode != http.StatusOK {
+		t.Fatalf("expected partner to join fine, got %d", joinRes.StatusCode)
+	}
+
+	listRes := doJSON(t, http.MethodGet, srv.URL+"/api/collections/devices/records", tokenB, nil)
+	listBody := decodeJSON(t, listRes)
+	if listRes.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 listing devices as partner, got %d: %v", listRes.StatusCode, listBody)
+	}
+	items, _ := listBody["items"].([]any)
+	found := false
+	for _, item := range items {
+		rec, _ := item.(map[string]any)
+		if rec == nil {
+			continue
+		}
+		if rec["owner"] == userA {
+			found = true
+			if got, _ := rec["battery"].(float64); got != 42 {
+				t.Fatalf("expected partner to see battery 42, got %v", rec["battery"])
+			}
+			if got, _ := rec["activity"].(string); got != "gaming" {
+				t.Fatalf("expected partner to see activity 'gaming', got %v", rec["activity"])
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected partner's device list to include A's device, got items: %v", items)
+	}
+
+	// C is not in any couple and must not be able to view A's device.
+	_, tokenC := registerAndLogin(t, srv.URL, uniqueEmail(t), "password1234")
+	viewRes := doJSON(t, http.MethodGet, srv.URL+"/api/collections/devices/records/"+deviceID, tokenC, nil)
+	defer viewRes.Body.Close()
+	if viewRes.StatusCode == http.StatusOK {
+		t.Fatalf("expected outsider to be denied viewing A's device, got 200")
+	}
+
+	listResC := doJSON(t, http.MethodGet, srv.URL+"/api/collections/devices/records", tokenC, nil)
+	listBodyC := decodeJSON(t, listResC)
+	if listResC.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 listing devices as outsider, got %d: %v", listResC.StatusCode, listBodyC)
+	}
+	itemsC, _ := listBodyC["items"].([]any)
+	if len(itemsC) != 0 {
+		t.Fatalf("expected outsider's device list to be empty, got: %v", itemsC)
+	}
+}
+
 func TestUnauthenticatedRequestsRejected(t *testing.T) {
 	app := newTestApp(t)
 	srv := newTestServer(t, app)

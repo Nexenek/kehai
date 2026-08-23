@@ -73,6 +73,15 @@ class AppStrings {
   static const logOut = 'log out';
   static const inviteCodeShort = 'invite code';
 
+  // Home — partner card ambient line (kb/platform-desktop.md "Telemetry
+  // contract": now_playing > activity > "at their computer"/"on their
+  // phone" > "away" > nothing recent).
+  static const ambientAtComputer = onDesktopTooltip;
+  static const ambientOnPhone = onPhoneTooltip;
+  static const ambientAway = 'away (￣～￣;)';
+  static const batteryLowTooltip = 'battery low';
+  static const chargingTooltip = 'charging';
+
   // Generic
   static const loading = 'one sec… (｡•ᴗ•｡)';
   static const genericError = "something went sideways (；一_一) — try again?";

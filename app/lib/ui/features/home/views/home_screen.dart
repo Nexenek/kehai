@@ -99,6 +99,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           status: _viewModel.partnerStatus,
                           phoneOnline: _viewModel.partnerPhoneOnline,
                           desktopOnline: _viewModel.partnerDesktopOnline,
+                          ambientLine: _viewModel.partnerAmbientLine,
+                          batteryInfo: _viewModel.partnerBatteryInfo,
                         )
                       else
                         _WaitingForPartner(

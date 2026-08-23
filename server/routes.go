@@ -134,6 +134,12 @@ func joinCouple(e *core.RequestEvent) error {
 
 // heartbeat upserts a device record and stamps last_seen; the client derives
 // the partner's phone/pc/both indicator from devices with a recent last_seen.
+//
+// It also accepts the Phase 2a telemetry keys (battery, charging,
+// idle_seconds, now_playing, activity) per the "only provided keys are
+// written" contract in kb/platform-desktop.md: a key that's absent from the
+// request body is left untouched, while a key sent as explicit null/empty
+// clears it back to its zero value.
 func heartbeat(e *core.RequestEvent) error {
 	body := struct {
 		Kind string `json:"kind"`
@@ -151,6 +157,15 @@ func heartbeat(e *core.RequestEvent) error {
 		body.Name = body.Kind
 	}
 
+	// re-parsed as a raw map (the underlying request body is rereadable) so
+	// we can tell "key absent" apart from "key sent as null" for the
+	// optional telemetry fields below.
+	info, err := e.RequestInfo()
+	if err != nil {
+		return e.BadRequestError("Invalid request body.", err)
+	}
+	raw := info.Body
+
 	device, err := e.App.FindFirstRecordByFilter(
 		"devices",
 		"owner = {:owner} && kind = {:kind} && name = {:name}",
@@ -167,6 +182,65 @@ func heartbeat(e *core.RequestEvent) error {
 		device.Set("name", body.Name)
 	}
 	device.Set("last_seen", types.NowDateTime())
+
+	if v, present := raw["battery"]; present {
+		if v == nil {
+			device.Set("battery", 0)
+		} else {
+			n, ok := v.(float64)
+			if !ok || n < 0 || n > 100 {
+				return e.BadRequestError("battery must be a number between 0 and 100.", nil)
+			}
+			device.Set("battery", n)
+		}
+	}
+
+	if v, present := raw["charging"]; present {
+		if v == nil {
+			device.Set("charging", false)
+		} else {
+			b, ok := v.(bool)
+			if !ok {
+				return e.BadRequestError("charging must be a boolean.", nil)
+			}
+			device.Set("charging", b)
+		}
+	}
+
+	if v, present := raw["idle_seconds"]; present {
+		if v == nil {
+			device.Set("idle_seconds", 0)
+		} else {
+			n, ok := v.(float64)
+			if !ok || n < 0 {
+				return e.BadRequestError("idle_seconds must be a non-negative number.", nil)
+			}
+			device.Set("idle_seconds", n)
+		}
+	}
+
+	if v, present := raw["now_playing"]; present {
+		if v == nil {
+			device.Set("now_playing", nil)
+		} else if m, ok := v.(map[string]any); ok {
+			device.Set("now_playing", m)
+		} else {
+			return e.BadRequestError("now_playing must be an object or null.", nil)
+		}
+	}
+
+	if v, present := raw["activity"]; present {
+		if v == nil {
+			device.Set("activity", "")
+		} else {
+			s, ok := v.(string)
+			if !ok || len(s) > 100 {
+				return e.BadRequestError("activity must be a string of at most 100 characters.", nil)
+			}
+			device.Set("activity", s)
+		}
+	}
+
 	if err := e.App.Save(device); err != nil {
 		return e.InternalServerError("Could not record heartbeat.", err)
 	}

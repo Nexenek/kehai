@@ -1,38 +1,113 @@
 import 'dart:async';
 
+import '../../domain/models/now_playing.dart';
 import '../repositories/device_repository.dart';
 import 'device_info_service.dart';
+import 'presence/presence_service.dart';
 
-/// Sends a heartbeat immediately, then every 30s while [start] is active.
-/// Call [pingNow] again on app resume (spec: "every 30s while app is open +
-/// on resume"). Errors are swallowed — a missed heartbeat just means the
-/// device-source glyph goes dim for a bit, not worth surfacing to the user.
+/// Sends a heartbeat immediately, then every 30s while [start] is active,
+/// plus an out-of-band heartbeat the moment now-playing track/state changes
+/// or idle time crosses the 5-minute "away" boundary — kb/platform-desktop.md
+/// "Telemetry contract (Phase 2a)": "Cadence: 30s timer + immediate push on
+/// now-playing/idle change". Call [pingNow] again on app resume (spec:
+/// "every 30s while app is open + on resume"). Errors are swallowed — a
+/// missed heartbeat just means the device-source glyph goes dim for a bit,
+/// not worth surfacing to the user.
+///
+/// [presenceService] is optional and injected so this class stays testable
+/// without touching D-Bus/WinRT/Android — a fake [PresenceService] driven
+/// by a `StreamController` is enough to exercise the immediate-heartbeat
+/// and now_playing-clearing logic below.
 class HeartbeatService {
-  HeartbeatService(this._deviceRepository, this._deviceInfoService);
+  HeartbeatService(this._deviceRepository, this._deviceInfoService, {PresenceService? presenceService})
+      : _presenceService = presenceService;
 
   final DeviceRepository _deviceRepository;
   final DeviceInfoService _deviceInfoService;
+  final PresenceService? _presenceService;
 
   Timer? _timer;
+  StreamSubscription<DevicePresence>? _presenceSub;
   static const _interval = Duration(seconds: 30);
+  static const _awayThresholdSeconds = 5 * 60;
+
+  // What the *previous presence reading* looked like — used to detect a
+  // change worth an out-of-band heartbeat.
+  NowPlaying? _lastObservedNowPlaying;
+  bool _lastObservedAway = false;
+
+  // What the *last heartbeat body* actually contained — used to know when
+  // a key needs an explicit `null` to clear a previously-reported value
+  // (contract: "only provided keys are written ... send explicit
+  // null/empty to clear").
+  NowPlaying? _lastSentNowPlaying;
+  int? _lastSentIdleSeconds;
 
   void start() {
     pingNow();
     _timer?.cancel();
     _timer = Timer.periodic(_interval, (_) => pingNow());
+
+    final presence = _presenceService;
+    if (presence != null) {
+      presence.start();
+      _presenceSub?.cancel();
+      _presenceSub = presence.onChange.listen(_onPresenceChanged);
+    }
+  }
+
+  void _onPresenceChanged(DevicePresence presence) {
+    final trackChanged = presence.nowPlaying != _lastObservedNowPlaying;
+    final away = (presence.idleSeconds ?? 0) >= _awayThresholdSeconds;
+    final awayCrossed = presence.idleSeconds != null && away != _lastObservedAway;
+
+    _lastObservedNowPlaying = presence.nowPlaying;
+    if (presence.idleSeconds != null) _lastObservedAway = away;
+
+    if (trackChanged || awayCrossed) {
+      pingNow();
+    }
   }
 
   Future<void> pingNow() async {
     try {
       final name = await _deviceInfoService.deviceName;
-      await _deviceRepository.sendHeartbeat(kind: _deviceInfoService.kind, name: name);
+      final presence = _presenceService?.current ?? DevicePresence.empty;
+      await _deviceRepository.sendHeartbeat(
+        kind: _deviceInfoService.kind,
+        name: name,
+        extra: _presenceFields(presence),
+      );
+      _lastSentNowPlaying = presence.nowPlaying;
+      _lastSentIdleSeconds = presence.idleSeconds;
     } catch (_) {
       // Best-effort — next timer tick (or the next resume) will retry.
     }
   }
 
+  /// Only-provided-keys + explicit-null-to-clear, per the contract.
+  Map<String, dynamic> _presenceFields(DevicePresence presence) {
+    final fields = <String, dynamic>{};
+
+    if (presence.nowPlaying != null) {
+      fields['now_playing'] = presence.nowPlaying!.toJson();
+    } else if (_lastSentNowPlaying != null) {
+      fields['now_playing'] = null; // a previously-reported track stopped
+    }
+
+    if (presence.idleSeconds != null) {
+      fields['idle_seconds'] = presence.idleSeconds;
+    } else if (_lastSentIdleSeconds != null) {
+      fields['idle_seconds'] = null;
+    }
+
+    return fields;
+  }
+
   void stop() {
     _timer?.cancel();
     _timer = null;
+    _presenceSub?.cancel();
+    _presenceSub = null;
   }
 }

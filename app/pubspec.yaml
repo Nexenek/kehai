@@ -37,6 +37,7 @@ dependencies:
   pocketbase: ^0.25.0
   shared_preferences: ^2.5.5
   device_info_plus: ^13.2.0
+  dbus: ^0.7.15
 dev_dependencies:
   flutter_test:
     sdk: flutter
