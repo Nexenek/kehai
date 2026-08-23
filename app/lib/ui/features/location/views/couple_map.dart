@@ -144,11 +144,33 @@ class _CoupleMapState extends State<CoupleMap> {
                   },
                 ),
                 children: [
-                  TileLayer(
-                    urlTemplate: CoupleMap.osmTileUrl,
-                    userAgentPackageName: CoupleMap.userAgentPackageName,
-                    maxNativeZoom: 19,
-                    tileProvider: NetworkTileProvider(),
+                  // OSM's raster tiles arrive pre-styled, so the palette is
+                  // applied as a post-filter: desaturate toward pastel, then
+                  // a soft chrome-pink wash so the map sits in Kehai's world
+                  // instead of clashing with it. The real fix — self-hosted
+                  // vector tiles with our own style — is on the roadmap
+                  // (kb/roadmap.md, Protomaps note).
+                  ColorFiltered(
+                    colorFilter: const ColorFilter.mode(
+                      Color(0x2EF4CBDC), // chrome pink, ~18% wash
+                      BlendMode.srcATop,
+                    ),
+                    child: ColorFiltered(
+                      colorFilter: const ColorFilter.matrix(<double>[
+                        // ~55% saturation, nudged warm/bright: pastelizes
+                        // OSM's greens and blues without losing road contrast.
+                        0.66, 0.25, 0.09, 0, 12,
+                        0.13, 0.78, 0.09, 0, 12,
+                        0.13, 0.25, 0.62, 0, 14,
+                        0, 0, 0, 1, 0,
+                      ]),
+                      child: TileLayer(
+                        urlTemplate: CoupleMap.osmTileUrl,
+                        userAgentPackageName: CoupleMap.userAgentPackageName,
+                        maxNativeZoom: 19,
+                        tileProvider: NetworkTileProvider(),
+                      ),
+                    ),
                   ),
                   MarkerLayer(
                     markers: [
