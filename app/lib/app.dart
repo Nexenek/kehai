@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app_controller.dart';
+import 'app_navigator.dart';
 import 'data/services/desktop_window_service.dart';
 import 'ui/core/strings/app_strings.dart';
 import 'ui/core/theme/app_colors.dart';
@@ -18,6 +19,7 @@ class CouplesApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: kehaiNavigatorKey,
       title: AppStrings.appName,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),

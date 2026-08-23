@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app_controller.dart';
+import '../../../app_navigator.dart';
 import '../../../data/services/desktop_window_service.dart';
 import '../../features/settings/views/sharing_settings_dialog.dart';
 import '../strings/app_strings.dart';
@@ -95,8 +96,13 @@ class KehaiTitleBar extends StatelessWidget {
               // sharing without opening the window.
               active: controller.shareFocusedApp,
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              // The titlebar sits in the window chrome, ABOVE the Navigator
+              // (MaterialApp.builder) — showDialog from this context finds
+              // no Navigator and silently no-ops. Route through the app's
+              // navigator key; fall back to this context only in tests that
+              // pump the bar inside a plain MaterialApp.
               onTap: () => showSharingSettingsDialog(
-                context,
+                kehaiNavigatorKey.currentContext ?? context,
                 initialShareFocusedApp: controller.shareFocusedApp,
                 initialShareUnknownApps: controller.shareUnknownApps,
                 onSetShareFocusedApp: controller.setShareFocusedApp,
