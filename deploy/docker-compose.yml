@@ -87,9 +87,12 @@ services:
       - |
         set -e
         apk add --no-cache sqlite >/dev/null
-        chmod +x /backup.sh
+        # /backup.sh is mounted :ro, so no chmod here (a chmod on a
+        # read-only mount fails, and with set -e that failure restart-looped
+        # this container every 4s once) — cron runs it through sh instead,
+        # which needs no exec bit.
         mkdir -p /var/spool/cron/crontabs
-        echo "0 3 * * * /backup.sh >> /proc/1/fd/1 2>&1" > /var/spool/cron/crontabs/root
+        echo "0 3 * * * sh /backup.sh >> /proc/1/fd/1 2>&1" > /var/spool/cron/crontabs/root
         echo "backup sidecar up — nightly at 03:00, keeping last 14"
         crond -f -d 8
 
