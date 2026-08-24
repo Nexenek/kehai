@@ -66,7 +66,16 @@ class _DesktopWindowChrome extends StatelessWidget {
       listenable: DesktopWindowService.instance.windowMode,
       builder: (context, _) {
         if (DesktopWindowService.instance.windowMode.isMini) {
-          return child;
+          // Forwards raw pointer-over-the-card presence to OledCare's idle
+          // dimmer (kb/platform-desktop.md) — the mini window has no chrome
+          // of its own, so [child] here IS the card, edge to edge, and this
+          // MouseRegion sits directly around it rather than inside
+          // MiniPartnerWindow itself.
+          return MouseRegion(
+            onEnter: (_) => DesktopWindowService.instance.oledCare.onHoverEnter(),
+            onExit: (_) => DesktopWindowService.instance.oledCare.onHoverExit(),
+            child: child,
+          );
         }
         return DragToResizeArea(
           child: Container(

@@ -178,19 +178,41 @@ class AppController extends ChangeNotifier {
 
   /// Tries to reach [url]'s health endpoint without persisting anything —
   /// used by the "test connection" button.
-  Future<bool> testConnection(String url) async {
-    try {
-      final pb = await PocketBaseClientFactory.create(_normalize(url));
-      await pb.health.check();
-      return true;
-    } catch (_) {
-      return false;
+  Future<bool> testConnection(String url) async =>
+      await _resolveReachable(url) != null;
+
+  /// The candidate URLs a typed address expands to, in the order they're
+  /// tried. A bare `kehai.tail1234.ts.net` (no scheme — the most common
+  /// way people type an address, found on-device) is tried as https first
+  /// (a Tailscale-Serve or Caddy setup) and plain http second (the base
+  /// stack, e.g. `100.x.x.x:8090`). An address that already carries a
+  /// scheme is taken literally.
+  @visibleForTesting
+  static List<String> serverCandidates(String url) {
+    final u = url.trim().replaceAll(RegExp(r'/+$'), '');
+    if (u.isEmpty) return const [];
+    if (u.contains('://')) return [u];
+    return ['https://$u', 'http://$u'];
+  }
+
+  Future<String?> _resolveReachable(String url) async {
+    for (final candidate in serverCandidates(url)) {
+      try {
+        final pb = await PocketBaseClientFactory.create(candidate);
+        await pb.health.check();
+        return candidate;
+      } catch (_) {
+        // Try the next scheme.
+      }
     }
+    return null;
   }
 
   /// Confirms [url] works, persists it, and moves on to auth/couple/home.
   Future<bool> confirmServer(String url) async {
-    final normalized = _normalize(url);
+    // Same scheme-guessing as the test button, so what gets persisted is
+    // the candidate that actually answered — never the bare hostname.
+    final normalized = await _resolveReachable(url) ?? _normalize(url);
     final ok = await _connect(normalized);
     if (!ok) {
       notifyListeners();

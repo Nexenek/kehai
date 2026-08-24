@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../../ui/core/strings/app_strings.dart';
+import 'oled_care.dart';
 import 'prefs_service.dart';
 import 'window_mode.dart';
 
@@ -49,17 +50,21 @@ class DesktopWindowService with WindowListener implements WindowModeEffects {
   /// pixel-stepped corners (kb/platform-desktop.md's degrade for a
   /// non-compositing desktop).
   ///
-  /// This used to be a hard-coded `false`: asking window_manager for a
-  /// transparent background on Windows left the window without
-  /// WS_EX_LAYERED (checked with GetWindowLong on a real build), so nothing
-  /// would have shown through — and on Linux a transparent background
-  /// without an RGBA visual paints solid black. Both needed runner-side
-  /// C++, which now exists — but the answer is still asked for at runtime,
-  /// every time we enter mini mode ([setMiniTransparency], called from
-  /// [applyMini]/[applyExpanded]), rather than assumed: a Wayland/X11
-  /// screen without a compositor (true e.g. under plain WSLg) or a Windows
-  /// DWM call that fails both report back false here, and the mini card
-  /// keeps the opaque pastel look [MiniPartnerWindow] falls back to.
+  /// Runner-side C++ exists on both platforms to make this genuinely
+  /// work — Windows via `DwmExtendFrameIntoClientArea`
+  /// (windows/runner/transparency_channel.cpp), Linux via an RGBA visual
+  /// (linux/runner/my_application.cc), both capability-checked at runtime
+  /// through [setMiniTransparency] rather than assumed.
+  ///
+  /// [applyMini] doesn't call that check at all any more, though, and this
+  /// stays hard-coded `false` on both platforms: user preference
+  /// (2026-08-24) is that the pastel mini card looks identical on Windows
+  /// and Linux, and Windows' own attempt already paints the system accent
+  /// colour instead of clearing (user-verified 2026-08-23) — worse than the
+  /// opaque card it would replace. [MiniPartnerWindow]'s opaque pastel
+  /// fallback is what every mini card shows today; genuine transparency is
+  /// one `await setMiniTransparency(true)` away in [applyMini] whenever
+  /// that changes, not a rewrite — the capability probe stays fully wired.
   final ValueNotifier<bool> wantsTransparentMini = ValueNotifier<bool>(false);
 
   /// Test seam: widget tests run on the Linux VM, where the real check would
@@ -82,6 +87,26 @@ class DesktopWindowService with WindowListener implements WindowModeEffects {
   late final WindowModeController windowMode = WindowModeController(
     effects: this,
   );
+
+  /// OLED burn-in protection for the mini card (kb/platform-desktop.md,
+  /// tray checkbox in [KehaiTray]) — see oled_care.dart for the actual
+  /// nudge/dim logic. The two callbacks are its only touch on the real
+  /// window: [_oledCareMoveTo] additionally raises [_oledCareNudging] so
+  /// the nudge's own [onWindowMoved] doesn't get mistaken for a user drag
+  /// and persisted as a new base (see that listener below).
+  late final OledCare oledCare = OledCare(
+    moveTo: _oledCareMoveTo,
+    setOpacity: (opacity) => _guard(() => windowManager.setOpacity(opacity)),
+  );
+
+  /// True for the short window between an [oledCare] nudge asking
+  /// window_manager to move and that move's own [onWindowMoved] arriving —
+  /// consumed (and cleared) by the very listener call it exists to
+  /// intercept. [_nudgeGuardTimer] is a safety net in case a platform ever
+  /// fails to deliver that callback at all, so a swallowed flag can never
+  /// silently eat a *real* future drag's persist.
+  bool _oledCareNudging = false;
+  Timer? _nudgeGuardTimer;
 
   PrefsService? _prefs;
   Timer? _persistDebounce;
@@ -218,23 +243,28 @@ class DesktopWindowService with WindowListener implements WindowModeEffects {
     await windowManager.setAlwaysOnTop(true);
     await windowManager.setSkipTaskbar(true);
     await windowManager.show();
-    // Ask last, once the card is actually the shape/size it'll stay: the
-    // runner's answer decides whether MiniPartnerWindow gets the
-    // see-through, pixel-stepped look or the opaque pastel fallback.
-    //
-    // Windows is EXCLUDED for now: the accent-transparency technique reports
-    // success but paints the system accent color (a solid blue card, user-
-    // verified 2026-08-23) instead of clearing — worse than the pastel card
-    // it replaced. Revisit only with a technique that can be positively
-    // capability-checked; the channel stays in the runner for that day.
-    wantsTransparentMini.value = Platform.isWindows
-        ? false
-        : await setMiniTransparency(true);
+    // User preference (2026-08-24): the pastel mini card should look
+    // identical on Windows and Linux, so genuine window transparency is
+    // switched off everywhere for now — Linux joins the Windows exclusion
+    // just above (system-accent blue instead of clearing). The capability
+    // check itself is untouched — setMiniTransparency and the runner-side
+    // compositor probe (linux/runner/my_application.cc) stay fully wired —
+    // this just never calls it, so flipping Linux back on later is the one
+    // line `await setMiniTransparency(true)`, not a rewrite.
+    wantsTransparentMini.value = false;
+
+    if (_prefs?.oledCareEnabled ?? false) oledCare.start(target);
   });
 
   /// Grows back into the companion panel from the card's corner.
   @override
   Future<void> applyExpanded() => _guard(() async {
+    // The panel is transient — no nudging a window nobody's about to leave
+    // sitting for hours, and no dimming it either (see OledCare.stop's doc:
+    // this always restores full opacity even without snapping the position,
+    // since a dim panel would just be a bug). Re-armed by [applyMini] the
+    // next time the card comes back.
+    oledCare.stop();
     // The full panel never wears the glassy look — restore opaque before
     // anything else so there's no glassy flash mid-resize.
     wantsTransparentMini.value = false;
@@ -263,10 +293,52 @@ class DesktopWindowService with WindowListener implements WindowModeEffects {
   @override
   Future<void> applyQuit() => _guard(() async {
     _persistDebounce?.cancel();
+    _nudgeGuardTimer?.cancel();
+    oledCare.dispose();
     await _persistBounds();
     await beforeQuit?.call();
     await windowManager.destroy();
   });
+
+  /// [oledCare]'s only route to actually moving the window: raises
+  /// [_oledCareNudging] first so the nudge's own [onWindowMoved] is
+  /// recognised and swallowed rather than persisted as a new base position
+  /// (see that listener below) — the whole reason a nudge can never drift
+  /// the remembered spot. Also used for OledCare's own "snap back to base"
+  /// on disable, which is exactly as much "not a user drag" as a nudge is.
+  Future<void> _oledCareMoveTo(Offset position) {
+    _oledCareNudging = true;
+    _nudgeGuardTimer?.cancel();
+    // Safety net only: onWindowMoved ordinarily consumes and clears this
+    // itself the moment the platform reports the move back. If some
+    // platform ever doesn't deliver that callback at all, this is what
+    // stops the flag from silently swallowing a real future drag's persist.
+    _nudgeGuardTimer = Timer(const Duration(seconds: 5), () {
+      _oledCareNudging = false;
+    });
+    return _guard(() => windowManager.setPosition(position));
+  }
+
+  /// Desktop only: flips "oled care" (the tray checkbox backed by
+  /// [PrefsService.oledCareEnabled]) live, not just for the next time the
+  /// window happens to enter mini mode. Persists first, same reasoning as
+  /// [KehaiTray._setAutostart] — the checkbox never lies about what's saved
+  /// even if the rest of this fails.
+  Future<void> setOledCareEnabled(bool enabled) async {
+    await _prefs?.setOledCareEnabled(enabled);
+    if (!enabled) {
+      oledCare.stop(snapBack: true);
+      return;
+    }
+    if (!isSupported || !windowMode.isMini) return;
+    try {
+      final base =
+          _prefs?.miniWindowPosition ?? (await windowManager.getBounds()).topLeft;
+      oledCare.start(base);
+    } catch (error) {
+      debugPrint('oled care did not start: $error');
+    }
+  }
 
   /// window_manager has no "clear the maximum" call, so hand it something
   /// bigger than any display the user is plausibly sitting in front of.
@@ -345,7 +417,19 @@ class DesktopWindowService with WindowListener implements WindowModeEffects {
   void onWindowResized() => _schedulePersist();
 
   @override
-  void onWindowMoved() => _schedulePersist();
+  void onWindowMoved() {
+    // This move was one of oledCare's own — either a nudge or its
+    // snap-back-to-base on disable — not a user drag: consume the flag and
+    // skip scheduling a persist, or the wandering/snapped position would
+    // get written back as the new base and the card would (slowly) walk
+    // away from wherever the user actually put it.
+    if (_oledCareNudging) {
+      _oledCareNudging = false;
+      _nudgeGuardTimer?.cancel();
+      return;
+    }
+    _schedulePersist();
+  }
 
   @override
   void onWindowMaximize() {
@@ -378,6 +462,10 @@ class DesktopWindowService with WindowListener implements WindowModeEffects {
       // window to a corner shouldn't move the panel there too.
       if (windowMode.isMini) {
         await prefs.setMiniWindowPosition(bounds.topLeft);
+        // Reached only for a real user drag (see onWindowMoved) — this is
+        // the "hook the existing drag-end/position-save path" [OledCare]
+        // needs: the drop becomes the new base for every nudge from here.
+        oledCare.onUserMoved(bounds.topLeft);
       } else {
         await prefs.setWindowBounds(bounds);
       }

@@ -26,6 +26,7 @@ class KehaiTray with TrayListener {
   static const _expandKey = 'expand';
   static const _miniKey = 'mini';
   static const _autostartKey = 'autostart';
+  static const _oledCareKey = 'oled_care';
   static const _quitKey = 'quit';
 
   /// Windows wants a real .ico; GTK's status icon takes the PNG. Both are
@@ -96,6 +97,11 @@ class KehaiTray with TrayListener {
         label: AppStrings.trayAutostart,
         checked: _prefs?.autostartEnabled ?? false,
       ),
+      MenuItem.checkbox(
+        key: _oledCareKey,
+        label: AppStrings.trayOledCare,
+        checked: _prefs?.oledCareEnabled ?? false,
+      ),
       MenuItem(key: _quitKey, label: AppStrings.trayQuit),
     ],
   );
@@ -142,6 +148,10 @@ class KehaiTray with TrayListener {
         final enabled = !(menuItem.checked ?? false);
         menuItem.checked = enabled;
         unawaited(_setAutostart(enabled));
+      case _oledCareKey:
+        final enabled = !(menuItem.checked ?? false);
+        menuItem.checked = enabled;
+        unawaited(DesktopWindowService.instance.setOledCareEnabled(enabled));
       case _quitKey:
         mode.quit();
     }

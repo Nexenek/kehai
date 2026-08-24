@@ -23,6 +23,7 @@ class PrefsService {
   static const _autostartEnabledKey = 'autostart_enabled';
   static const _shareVitalsKey = 'share_vitals';
   static const _notificationSoundKeyPrefix = 'notification_sound_';
+  static const _oledCareEnabledKey = 'oled_care_enabled';
   static const _portalAutoAcceptEnabledKey = 'portal_auto_accept_enabled';
   static const _portalAutoAcceptFromKey = 'portal_auto_accept_from_hour';
   static const _portalAutoAcceptToKey = 'portal_auto_accept_to_hour';
@@ -176,6 +177,14 @@ class PrefsService {
 
   Future<void> setShareVitals(bool value) =>
       _prefs.setBool(_shareVitalsKey, value);
+
+  /// Desktop only: "OLED care" — the always-there mini card gets nudged a
+  /// few pixels every so often so a static pastel rectangle can't burn
+  /// into an OLED panel. Off by default; the tray menu's checkbox owns it.
+  bool get oledCareEnabled => _prefs.getBool(_oledCareEnabledKey) ?? false;
+
+  Future<void> setOledCareEnabled(bool value) =>
+      _prefs.setBool(_oledCareEnabledKey, value);
 
   /// Portal quiet-hours auto-accept (kb: Phase 7): when on, a knock from
   /// the partner during [portalAutoAcceptFromHour]..[portalAutoAcceptToHour]

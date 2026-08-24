@@ -24,7 +24,7 @@ class AppStrings {
       "we'll just say hi first — nothing is sent until you log in.";
   static const serverUrlLabel = 'server address';
   static const serverUrlHint =
-      'https://100.x.x.x:8090 or https://couples.tail...ts.net';
+      'http://100.x.x.x:8090 or kehai.tail…ts.net';
   static const testConnection = 'test connection';
   static const connectionOk = "found it! (｡•̀ᴗ-)✧";
   static const connectionFailed =
@@ -125,6 +125,7 @@ class AppStrings {
   static const trayOpen = 'open kehai ♡\uFE0E';
   static const trayMini = 'just the little one';
   static const trayAutostart = 'start with the computer';
+  static const trayOledCare = 'oled care (nudge the little window)';
   static const trayQuit = 'quit for real';
 
   // The little window (mini state).
