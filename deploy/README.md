@@ -315,6 +315,34 @@ curl -s -H "Title: Mood update" -H "Tags: mood" \
   https://ntfy.example.ts.net/kehai
 ```
 
+## Portal mode: TURN relay (optional)
+
+The portal (video window between your homes) streams **peer-to-peer** —
+video never touches this server. When both devices are on your Tailscale
+tailnet they connect directly and nothing here is needed: `GET /api/turn`
+answers an empty server list and the app quietly proceeds without a relay.
+
+Enable the coturn relay only if you want the portal to work off-tailnet
+(cellular, hotel wifi, a tablet at a place without Tailscale):
+
+1. Generate a shared secret: `openssl rand -hex 32`
+2. In `.env` (next to this compose file):
+
+   ```sh
+   KEHAI_TURN_SECRET=<that secret>
+   KEHAI_TURN_URLS=turn:your-host:3478?transport=udp,turn:your-host:3478?transport=tcp
+   ```
+
+3. Add both variables under the `server` service's `environment:` and
+   uncomment the `coturn` block in `docker-compose.yml`.
+4. `docker compose up -d` — and open UDP 3478 + UDP 49160-49200 (and TCP
+   3478) toward the host if a firewall sits in front.
+
+The server hands each logged-in client a **time-limited** credential
+(coturn's REST-auth scheme, 6h expiry, derived from the secret — nothing
+long-lived ever reaches a phone). The relay only shovels encrypted bytes;
+it cannot see or decrypt the call.
+
 ## Verifying the stack
 
 ```sh

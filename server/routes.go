@@ -63,6 +63,9 @@ func bindRoutes(app core.App) {
 		// can't hold a PB session) — no RequireAuth middleware here.
 		se.Router.POST("/api/owntracks", owntracksIngest)
 
+		// Portal mode: time-limited coturn credentials (portal.go).
+		se.Router.GET("/api/turn", turnCredentials).Bind(apis.RequireAuth("users"))
+
 		se.App.Cron().MustAdd("locations_purge", "0 4 * * *", func() {
 			if err := purgeOldLocations(se.App); err != nil {
 				se.App.Logger().Error("locations purge failed", "error", err)
@@ -72,6 +75,13 @@ func bindRoutes(app core.App) {
 		se.App.Cron().MustAdd("touches_purge", "0 * * * *", func() {
 			if err := purgeOldTouches(se.App); err != nil {
 				se.App.Logger().Error("touches purge failed", "error", err)
+			}
+		})
+
+		// Portal signals share the touches lifecycle: gone within the hour.
+		se.App.Cron().MustAdd("portal_signals_purge", "0 * * * *", func() {
+			if err := purgeOldPortalSignals(se.App); err != nil {
+				se.App.Logger().Error("portal signals purge failed", "error", err)
 			}
 		})
 

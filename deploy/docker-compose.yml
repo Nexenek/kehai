@@ -114,13 +114,28 @@ services:
   # ADR-9). Mostly unnecessary while both partners are on the same
   # Tailscale tailnet; only needed as a NAT-traversal fallback.
   # ---------------------------------------------------------------------
+  # Portal mode's NAT-traversal fallback. NOT needed when both phones/
+  # tablets reach the server over Tailscale — the peers then connect
+  # directly and /api/turn (which answers empty until KEHAI_TURN_SECRET +
+  # KEHAI_TURN_URLS are set on the server container) is never consulted.
+  # To enable: (1) generate a secret: `openssl rand -hex 32`; (2) put it in
+  # .env as KEHAI_TURN_SECRET and add KEHAI_TURN_URLS
+  # ("turn:your-host:3478?transport=udp,turn:your-host:3478?transport=tcp")
+  # + both vars under the server service's environment; (3) uncomment this
+  # block. host networking because TURN relays a range of UDP ports.
   # coturn:
-  #   image: coturn/coturn
-  #   container_name: couples-coturn
+  #   image: coturn/coturn:4
+  #   container_name: kehai-coturn
   #   restart: unless-stopped
   #   network_mode: host
-  #   volumes:
-  #     - ./data/coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+  #   command: >
+  #     --use-auth-secret
+  #     --static-auth-secret=${KEHAI_TURN_SECRET}
+  #     --realm=kehai
+  #     --listening-port=3478
+  #     --min-port=49160 --max-port=49200
+  #     --no-cli --no-tls --no-dtls
+  #     --fingerprint
 
   # ---------------------------------------------------------------------
   # Optional, only if something must be reachable outside the tailnet
