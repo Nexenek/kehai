@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show debugPrint;
+
 import '../../../domain/models/ping.dart';
 import 'app_focus.dart';
 import 'kehai_sound.dart';
@@ -124,14 +126,34 @@ class KehaiNotifications {
   );
 
   Future<void> _report(KehaiEvent event) async {
-    if (!enabled) return;
+    // The debugPrints below are the audit trail for "why didn't it buzz?" —
+    // added after an on-device hunt where a knock notification silently
+    // vanished and nothing said whether it was the foreground rule, the
+    // self-echo rule, this isolate being muted, or the notifier failing.
+    if (!enabled) {
+      debugPrint('[KehaiNotify] ${event.kind.id}: isolate muted, skipped');
+      return;
+    }
+    final foreground = _appInForeground;
     final request = decideNotification(
       event: event,
       myUserId: myUserId,
-      appInForeground: _appInForeground,
+      appInForeground: foreground,
     );
-    if (request == null) return;
-    await notifier.notify(request);
+    if (request == null) {
+      final reason = event.authorId.isNotEmpty && event.authorId == myUserId
+          ? 'self-echo'
+          : (foreground ? 'app in foreground' : 'decision');
+      debugPrint('[KehaiNotify] ${event.kind.id}: suppressed ($reason)');
+      return;
+    }
+    try {
+      await notifier.notify(request);
+      debugPrint('[KehaiNotify] ${event.kind.id}: shown');
+    } catch (error) {
+      debugPrint('[KehaiNotify] ${event.kind.id}: notifier failed: $error');
+      rethrow;
+    }
   }
 
   /// Fire-and-forget wrapper for call sites inside realtime callbacks, which

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../app_controller.dart';
+import '../../../../app_navigator.dart';
 import '../../../../data/services/background/kehai_foreground_task.dart';
 import '../../../../data/services/desktop_window_service.dart';
 import '../../../../data/services/portal/portal_knock_bridge.dart';
@@ -33,6 +34,7 @@ import '../../pet/pet_view_model.dart';
 import '../../pet/pet_window.dart';
 import '../../pings/ping_view_model.dart';
 import '../../portal/portal_call_screen.dart';
+import '../../portal/portal_knock_dialog.dart';
 import '../../questions/daily_question_window.dart';
 import '../../questions/questions_view_model.dart';
 import '../../settings/views/phone_superpowers_screen.dart';
@@ -194,8 +196,30 @@ class _HomeScreenState extends State<HomeScreen> {
               isAppForeground: () => controller.appFocus.isForeground.value,
             )
             ..bringToFront = _bringPortalToFront
+            ..onForegroundKnock = _showKnockPrompt
             ..start();
     }
+  }
+
+  /// A knock while the user is IN the app (where the OS notification is
+  /// rightly suppressed) — without this the knock was invisible unless the
+  /// portal screen happened to be open. Skipped when it IS open: the screen
+  /// already shows the big accept/decline.
+  void _showKnockPrompt() {
+    if (_portalScreenOpen || !mounted) return;
+    final engine = AppScope.of(context, listen: false).portalEngine;
+    if (engine == null) return;
+    showPortalKnockDialog(
+      kehaiNavigatorKey.currentContext ?? context,
+      engine: engine,
+      onOpen: () async {
+        // Route first, then accept — the curtain screen is on top by the
+        // time the camera goes live.
+        final opening = _openPortal();
+        await engine.accept();
+        await opening;
+      },
+    );
   }
 
   void _syncFromHomeViewModel() {

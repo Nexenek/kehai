@@ -62,6 +62,14 @@ class PortalKnockBridge {
   final bool Function() isAppForeground;
   final DateTime Function() _now;
 
+  /// A knock arrived while the user is actively IN the app — the exact case
+  /// the OS notification is (correctly) suppressed for, which without this
+  /// hook made a knock completely invisible unless the portal screen
+  /// happened to be open (found on-device: desktop focused on the home
+  /// panel, phone knocks, nothing anywhere). The UI layer shows an in-app
+  /// prompt here instead.
+  VoidCallback? onForegroundKnock;
+
   /// Brings the curtain to the front so an auto-accepted call has somewhere
   /// to show up. Left unset (a no-op) is safe — auto-accept just won't push
   /// a route, and [PortalCallSurface.accept] still runs, so the engine
@@ -105,6 +113,9 @@ class PortalKnockBridge {
     // isPortalSignalFresh) — nothing left to re-check here.
     final partnerId = engine.partnerId ?? '';
     notifications.report(() => notifications.reportKnock(fromId: partnerId));
+    // Foreground gets the in-app prompt (the notification above no-ops
+    // there by the foreground rule); background gets the notification.
+    if (isAppForeground()) onForegroundKnock?.call();
     _maybeAutoAccept();
   }
 

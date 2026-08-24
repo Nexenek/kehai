@@ -98,10 +98,18 @@ class _FakeMedia extends PortalMedia {
     opened = true;
   }
 
+  int iceRestarts = 0;
+
   @override
-  Future<Map<String, dynamic>> createOffer() async {
-    calls.add('createOffer');
-    return {'sdp': 'OFFER', 'type': 'offer'};
+  Future<Map<String, dynamic>> createOffer({bool iceRestart = false}) async {
+    calls.add(iceRestart ? 'createRestartOffer' : 'createOffer');
+    return {'sdp': iceRestart ? 'RESTART' : 'OFFER', 'type': 'offer'};
+  }
+
+  @override
+  Future<void> restartIce() async {
+    calls.add('restartIce');
+    iceRestarts++;
   }
 
   @override
@@ -178,6 +186,7 @@ void main() {
   Future<PortalEngine> build({
     String me = 'aaa',
     Duration knockTimeout = portalKnockTimeout,
+    Duration iceRestartTimeout = portalIceRestartTimeout,
   }) async {
     final engine = PortalEngine(
       auth: _loggedIn(me),
@@ -185,6 +194,7 @@ void main() {
       turn: turn,
       createMedia: () => media,
       knockTimeout: knockTimeout,
+      iceRestartTimeout: iceRestartTimeout,
     );
     await engine.init();
     return engine;
@@ -557,6 +567,167 @@ void main() {
     });
   });
 
+  group('one ice restart before giving up', () {
+    /// Drives a call all the way to [PortalState.connected].
+    Future<PortalEngine> connected({String me = 'aaa'}) async {
+      final engine = await build(
+        me: me,
+        iceRestartTimeout: const Duration(milliseconds: 40),
+      );
+      signals.emit(_signal(PortalSignalKind.knock));
+      await _settle();
+      await engine.accept();
+      await _settle();
+      if (!engine.isOfferer) {
+        signals.emit(
+          _signal(
+            PortalSignalKind.offer,
+            payload: {'sdp': 'THEIRS', 'type': 'offer'},
+          ),
+        );
+        await _settle();
+      }
+      media.onConnected!();
+      await _settle();
+      expect(engine.state, PortalState.connected);
+      return engine;
+    }
+
+    test('the offering side restarts ice and re-offers', () async {
+      final engine = await connected(me: 'aaa');
+      media.onFailed!();
+      await _settle();
+
+      expect(engine.state, PortalState.connecting);
+      expect(engine.isReconnecting, isTrue);
+      expect(media.iceRestarts, 1);
+      expect(media.calls, contains('createRestartOffer'));
+      expect(signals.sent.last, PortalSignalKind.offer);
+      expect(signals.payloads.last['sdp'], 'RESTART');
+      // Still up: nothing was torn down while the restart is in flight.
+      expect(media.closed, isFalse);
+      engine.dispose();
+    });
+
+    test('a restart that reconnects goes back to connected', () async {
+      final engine = await connected(me: 'aaa');
+      media.onFailed!();
+      await _settle();
+      signals.emit(
+        _signal(
+          PortalSignalKind.answer,
+          payload: {'sdp': 'THEIR-RESTART', 'type': 'answer'},
+        ),
+      );
+      await _settle();
+      media.onConnected!();
+      await _settle();
+
+      expect(engine.state, PortalState.connected);
+      expect(engine.isReconnecting, isFalse);
+      expect(media.closed, isFalse);
+      engine.dispose();
+    });
+
+    test('the answering side waits rather than restarting itself', () async {
+      final engine = await connected(me: 'zzz');
+      final before = signals.sent.length;
+      media.onFailed!();
+      await _settle();
+
+      expect(engine.state, PortalState.connecting);
+      expect(engine.isReconnecting, isTrue);
+      expect(media.iceRestarts, 0);
+      expect(signals.sent.length, before, reason: 'nothing sent while waiting');
+
+      signals.emit(
+        _signal(
+          PortalSignalKind.offer,
+          payload: {'sdp': 'THEIR-RESTART', 'type': 'offer'},
+        ),
+      );
+      await _settle();
+
+      expect(media.remoteDescription, {
+        'sdp': 'THEIR-RESTART',
+        'type': 'offer',
+      });
+      expect(signals.sent.last, PortalSignalKind.answer);
+      engine.dispose();
+    });
+
+    test('a restart offer arriving first half-closes the curtain', () async {
+      // The answering side never saw `failed` itself — the only hint it
+      // gets that anything went wrong is the renegotiation offer.
+      final engine = await connected(me: 'zzz');
+      signals.emit(
+        _signal(
+          PortalSignalKind.offer,
+          payload: {'sdp': 'THEIR-RESTART', 'type': 'offer'},
+        ),
+      );
+      await _settle();
+
+      expect(engine.state, PortalState.connecting);
+      expect(engine.isReconnecting, isTrue);
+      expect(signals.sent.last, PortalSignalKind.answer);
+      engine.dispose();
+    });
+
+    test('a restart that never lands tears the call down', () async {
+      final engine = await connected(me: 'aaa');
+      media.onFailed!();
+      await _settle();
+      expect(engine.state, PortalState.connecting);
+
+      await Future<void>.delayed(const Duration(milliseconds: 90));
+      await _settle();
+
+      expect(engine.state, PortalState.idle);
+      expect(engine.lastError, isNotNull);
+      expect(media.closed, isTrue);
+      expect(media.disposed, isTrue);
+      expect(signals.sent.last, PortalSignalKind.hangup);
+      engine.dispose();
+    });
+
+    test('a second failure is not a blip — no restart loop', () async {
+      final engine = await connected(me: 'aaa');
+      media.onFailed!();
+      await _settle();
+      signals.emit(
+        _signal(
+          PortalSignalKind.answer,
+          payload: {'sdp': 'THEIR-RESTART', 'type': 'answer'},
+        ),
+      );
+      await _settle();
+      media.onConnected!();
+      await _settle();
+      expect(engine.state, PortalState.connected);
+
+      media.onFailed!();
+      await _settle();
+
+      expect(media.iceRestarts, 1, reason: 'exactly one restart per call');
+      expect(engine.state, PortalState.idle);
+      expect(media.closed, isTrue);
+      expect(media.disposed, isTrue);
+      engine.dispose();
+    });
+
+    test('a fresh call gets its restart budget back', () async {
+      final engine = await connected(me: 'aaa');
+      media.onFailed!();
+      await _settle();
+      await engine.hangUp();
+      await _settle();
+      expect(engine.state, PortalState.idle);
+      expect(engine.isReconnecting, isFalse);
+      engine.dispose();
+    });
+  });
+
   group('saying no', () {
     test('decline answers and goes straight back to idle', () async {
       final engine = await build();
@@ -579,6 +750,24 @@ void main() {
       expect(engine.state, PortalState.idle);
       expect(engine.lastError, isNotNull);
       expect(media.calls, isEmpty);
+      engine.dispose();
+    });
+
+    test('a knock their accept answered never fires the timeout', () async {
+      final engine = await build(knockTimeout: const Duration(milliseconds: 5));
+      await engine.knock();
+      signals.emit(_signal(PortalSignalKind.accept));
+      await _settle();
+      expect(engine.state, PortalState.connecting);
+
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      await _settle();
+
+      // The timer that guarded the knock must be disarmed the moment the
+      // knock was answered — a live one here would tear down a working
+      // call mid-handshake.
+      expect(engine.state, PortalState.connecting);
+      expect(media.closed, isFalse);
       engine.dispose();
     });
 

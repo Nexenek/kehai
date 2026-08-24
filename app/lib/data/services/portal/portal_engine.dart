@@ -10,6 +10,7 @@ import '../../../ui/core/strings/app_strings.dart';
 import '../../repositories/auth_repository.dart';
 import '../../repositories/portal_signal_repository.dart';
 import '../../repositories/turn_repository.dart';
+import 'portal_log.dart';
 import 'portal_media.dart';
 
 /// Where a portal call is, from this device's point of view.
@@ -28,6 +29,15 @@ import 'portal_media.dart';
 /// tell "putting the camera away" apart from "nothing is happening", and so
 /// nothing can start a second call while the first is still letting go of
 /// the hardware.
+///
+/// A connected call that loses ICE goes back to [connecting] for the length
+/// of one automatic restart (see [PortalEngine.isReconnecting]), rather than
+/// sitting in [connected] over a frozen picture. That is deliberate and the
+/// curtain depends on it: `PortalCallScreen` parts the drapes on
+/// `state == connected` and nothing else, so a restart closes them on its
+/// own — the window is only ever *shown* open while media is actually
+/// flowing. Any surface built on this enum inherits that honesty for free;
+/// none of them should special-case reconnection to keep the drapes open.
 enum PortalState { idle, knocking, knocked, connecting, connected, closing }
 
 /// Who sends the offer. Deterministic and symmetric: whoever's user id
@@ -46,6 +56,15 @@ bool portalShouldOffer({required String me, required String partner}) =>
 /// How long a knock stands before it gives up, on both sides: the knocker
 /// stops waiting, and an unanswered knock stops offering to be answered.
 const portalKnockTimeout = Duration(seconds: 45);
+
+/// How long an in-flight ICE restart gets to reach `connected` again before
+/// the call is declared lost.
+///
+/// Fifteen seconds is roughly two full gathering-and-checking cycles on a
+/// LAN, and comfortably longer than the pause while a phone hands its
+/// route from wifi to cellular. Longer than this and the curtain is just
+/// lying to somebody who has already noticed the picture froze.
+const portalIceRestartTimeout = Duration(seconds: 15);
 
 /// How old a knock or accept may be and still mean something.
 ///
@@ -126,17 +145,20 @@ class PortalEngine extends ChangeNotifier implements PortalCallSurface {
     required TurnRepository turn,
     PortalMedia Function()? createMedia,
     Duration knockTimeout = portalKnockTimeout,
+    Duration iceRestartTimeout = portalIceRestartTimeout,
   }) : _auth = auth,
        _signals = signals,
        _turn = turn,
        _createMedia = createMedia ?? WebRtcPortalMedia.new,
-       _knockTimeout = knockTimeout;
+       _knockTimeout = knockTimeout,
+       _iceRestartTimeout = iceRestartTimeout;
 
   final AuthRepository _auth;
   final PortalSignalRepository _signals;
   final TurnRepository _turn;
   final PortalMedia Function() _createMedia;
   final Duration _knockTimeout;
+  final Duration _iceRestartTimeout;
 
   PortalState _state = PortalState.idle;
   String? _lastError;
@@ -163,6 +185,18 @@ class PortalEngine extends ChangeNotifier implements PortalCallSurface {
   final List<Map<String, dynamic>> _pendingCandidates = [];
   bool _remoteReady = false;
 
+  /// Exactly one ICE restart per call. A second failure after a restart has
+  /// already been tried is not a blip, it's a route that doesn't exist —
+  /// and a loop of restarts would hold the camera open indefinitely on a
+  /// call that is never going to work.
+  bool _restartAttempted = false;
+
+  /// A restart is in the air: either we sent the restart offer, or we saw
+  /// the failure and are waiting for theirs. Drives the honest-curtain rule
+  /// (see [isReconnecting]).
+  bool _restarting = false;
+  Timer? _restartTimer;
+
   /// Serializes everything that mutates the machine. Signals arrive from a
   /// realtime callback while the UI is calling methods and the peer
   /// connection is firing state changes; without one queue, an `ice` signal
@@ -188,6 +222,13 @@ class PortalEngine extends ChangeNotifier implements PortalCallSurface {
   /// for the debug surface — nothing about the call depends on the user
   /// knowing.
   bool get isOfferer => _offerer;
+
+  /// True while a connected call is being re-established after an ICE
+  /// failure. The state goes back to [PortalState.connecting] for the
+  /// duration — the curtain half-closes rather than pretending a frozen
+  /// picture is a live one — and this flag is only for a surface that wants
+  /// to word it as "reconnecting" rather than "opening".
+  bool get isReconnecting => _restarting;
 
   String get _myId => _auth.currentUserId;
 
@@ -287,6 +328,10 @@ class PortalEngine extends ChangeNotifier implements PortalCallSurface {
       case PortalSignalKind.accept:
         if (!isPortalSignalFresh(signal.created, now)) return;
         if (_state != PortalState.knocking) return;
+        // [_beginConnect] cancels this too, but disarming it at the moment
+        // the knock is actually answered keeps the timer's lifetime tied to
+        // the state it guards rather than to a callee's housekeeping.
+        _cancelKnockTimer();
         _partnerId = signal.fromId;
         await _beginConnect();
 
@@ -298,11 +343,26 @@ class PortalEngine extends ChangeNotifier implements PortalCallSurface {
         _setState(PortalState.idle);
 
       case PortalSignalKind.offer:
-        // Only the answering side takes an offer, and only mid-dance. An
-        // offer arriving anywhere else is a stale record or a confused peer.
-        if (_state != PortalState.connecting || _offerer) return;
+        // Only the answering side ever takes an offer. It arrives twice in
+        // a call's life at most: once to open it, and once more if ICE
+        // failed and the offerer is restarting — which is why `connected`
+        // is accepted here as well as `connecting`. Anywhere else it's a
+        // stale record or a confused peer.
+        if (_offerer) return;
+        if (_state != PortalState.connecting &&
+            _state != PortalState.connected) {
+          return;
+        }
         final media = _media;
         if (media == null) return;
+        // A second offer, after we already have a remote description, can
+        // only be a renegotiation — the ICE restart. Half-close the curtain
+        // and give it the same window the offering side gave itself.
+        if (_remoteReady) {
+          portalLog('restart offer arrived — reconnecting');
+          _restartAttempted = true;
+          _beginRestartWindow();
+        }
         try {
           await media.acceptRemoteDescription(signal.payload);
           await _flushCandidates(media);
@@ -314,7 +374,14 @@ class PortalEngine extends ChangeNotifier implements PortalCallSurface {
         }
 
       case PortalSignalKind.answer:
-        if (_state != PortalState.connecting || !_offerer) return;
+        // Same widening as `offer`, for the other side of a restart: the
+        // answer to a restart offer can land while we still read as
+        // connected.
+        if (!_offerer) return;
+        if (_state != PortalState.connecting &&
+            _state != PortalState.connected) {
+          return;
+        }
         final media = _media;
         if (media == null) return;
         try {
@@ -413,7 +480,10 @@ class PortalEngine extends ChangeNotifier implements PortalCallSurface {
     _lastError = null;
     _offerer = portalShouldOffer(me: _myId, partner: partnerId);
     _remoteReady = false;
+    _restartAttempted = false;
+    _restarting = false;
     _pendingCandidates.clear();
+    portalLog('both consented — role: ${_offerer ? 'offerer' : 'answerer'}');
     _setState(PortalState.connecting);
 
     final media = _createMedia();
@@ -428,10 +498,20 @@ class PortalEngine extends ChangeNotifier implements PortalCallSurface {
         }
       }),
     );
+    // Serves the first connect and a successful restart alike — either way
+    // the picture is live again and the restart window can be stood down.
     media.onConnected = () => unawaited(
       _act(() async {
         if (_media != media || _state != PortalState.connecting) return;
+        _cancelRestartTimer();
+        _restarting = false;
         _setState(PortalState.connected);
+      }),
+    );
+    media.onFailed = () => unawaited(
+      _act(() async {
+        if (_media != media) return;
+        await _handleIceFailure(media);
       }),
     );
     media.onLost = (reason) => unawaited(
@@ -475,6 +555,74 @@ class PortalEngine extends ChangeNotifier implements PortalCallSurface {
     }
   }
 
+  // ----------------------------------------------------------- ice restart
+
+  /// ICE gave up. Try once to save the call before dropping the curtain.
+  ///
+  /// A `failed` peer connection is not the same as a lost peer. It's what
+  /// the ICE agent says when every pair it had stopped working — which is
+  /// the normal shape of a route change: a phone swapping wifi for
+  /// cellular, or (the case this was written for) two devices on the same
+  /// wifi whose candidates were gathered over a tailnet route that then
+  /// went away. Re-gathering from scratch usually finds the pair that was
+  /// there all along.
+  ///
+  /// Only the offerer restarts — the same lexicographic rule that decides
+  /// the first offer decides this one, so the two sides can't both
+  /// renegotiate at once. The answering side does the mirror of it: half
+  /// close the curtain and wait for the restart offer within the same
+  /// window.
+  Future<void> _handleIceFailure(PortalMedia media) async {
+    if (_state != PortalState.connected && _state != PortalState.connecting) {
+      return;
+    }
+    if (_restartAttempted) {
+      portalLog('ice failed again after a restart — giving up');
+      await _teardown(sendHangup: true, error: _errLostPartner);
+      return;
+    }
+    _restartAttempted = true;
+    _beginRestartWindow();
+
+    if (!_offerer) {
+      portalLog('ice failed — waiting for their restart offer');
+      return;
+    }
+    try {
+      portalLog('ice failed — restarting as the offering side');
+      await media.restartIce();
+      final offer = await media.createOffer(iceRestart: true);
+      if (_media != media) return;
+      await _signals.create(PortalSignalKind.offer, payload: offer);
+    } catch (_) {
+      await _teardown(sendHangup: true, error: _errLostPartner);
+    }
+  }
+
+  /// Half-closes the curtain and starts the clock. Both sides of a restart
+  /// run this — the one that noticed the failure, and the one that only
+  /// finds out when the restart offer arrives.
+  void _beginRestartWindow() {
+    _restarting = true;
+    _setState(PortalState.connecting);
+    _notify(); // the state may already have been `connecting`
+    _cancelRestartTimer();
+    _restartTimer = Timer(_iceRestartTimeout, () {
+      unawaited(
+        _act(() async {
+          if (!_restarting) return;
+          portalLog('restart window elapsed with no connection — giving up');
+          await _teardown(sendHangup: true, error: _errLostPartner);
+        }),
+      );
+    });
+  }
+
+  void _cancelRestartTimer() {
+    _restartTimer?.cancel();
+    _restartTimer = null;
+  }
+
   // -------------------------------------------------------------- teardown
 
   /// The one way out. Media closes before the hang-up signal is awaited:
@@ -488,7 +636,13 @@ class PortalEngine extends ChangeNotifier implements PortalCallSurface {
       return;
     }
     _cancelKnockTimer();
-    if (error != null) _lastError = error;
+    _cancelRestartTimer();
+    _restarting = false;
+    _restartAttempted = false;
+    if (error != null) {
+      _lastError = error;
+      portalLog('tearing down: $error');
+    }
     _setState(PortalState.closing);
 
     // Kick the signal off first so the partner's curtain starts falling at
@@ -511,6 +665,7 @@ class PortalEngine extends ChangeNotifier implements PortalCallSurface {
     if (media != null) {
       media.onLocalCandidate = null;
       media.onConnected = null;
+      media.onFailed = null;
       media.onLost = null;
       await media.close();
       await media.dispose();
@@ -558,6 +713,9 @@ class PortalEngine extends ChangeNotifier implements PortalCallSurface {
 
   void _setState(PortalState next) {
     if (_state == next) return;
+    // Always logged, release included: five or six lines per call, no
+    // addresses, and the first thing worth seeing when a call misbehaves.
+    portalLog('${_state.name} → ${next.name}');
     _state = next;
     _notify();
   }
@@ -576,6 +734,7 @@ class PortalEngine extends ChangeNotifier implements PortalCallSurface {
   void dispose() {
     _disposed = true;
     _cancelKnockTimer();
+    _cancelRestartTimer();
     _unsub?.call();
     _unsub = null;
 
@@ -585,6 +744,7 @@ class PortalEngine extends ChangeNotifier implements PortalCallSurface {
     if (media != null) {
       media.onLocalCandidate = null;
       media.onConnected = null;
+      media.onFailed = null;
       media.onLost = null;
       // Tell them the window shut, then let go of the hardware. Neither is
       // awaited; both are already under way when this returns.
