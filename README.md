@@ -96,6 +96,31 @@ cd kehai-linux-x64-<version>
 
 No sudo, nothing outside `$HOME`. `scripts/package-linux.sh` builds this tarball from a `flutter build linux --release` bundle, if you're producing your own.
 
+**Tiling compositors (Hyprland, Sway, …)** — a Wayland client can't ask to be floated, so without a rule the little card gets tiled like any other window and fills a whole slot. Give it one (the app id is `app.couples.couples_app`):
+
+```lua
+-- Hyprland 0.55+ (lua config)
+hl.window_rule({
+  name  = "kehai",
+  match = { class = "app.couples.couples_app" },
+  float = true,
+  pin   = true,   -- always on top, every workspace: the card's whole job
+})
+```
+
+```ini
+# Hyprland ≤ 0.54 (hyprlang config; older versions spell it windowrulev2)
+windowrule = float, class:^(app.couples.couples_app)$
+windowrule = pin, class:^(app.couples.couples_app)$
+```
+
+```
+# Sway
+for_window [app_id="app.couples.couples_app"] floating enable, sticky enable
+```
+
+Once floated the card and the panel size themselves; drag the card wherever you like — Wayland doesn't let apps position their own windows, so the remembered corner and the OLED-care nudge only apply on Windows/X11.
+
 ## Building from source
 
 ```bash

@@ -236,7 +236,20 @@ class DesktopWindowService with WindowListener implements WindowModeEffects {
     // before we ask for one, or the resize is clamped to the panel minimum.
     await windowManager.setMinimumSize(miniSize);
     await windowManager.setMaximumSize(miniSize);
-    await windowManager.setResizable(false);
+    // min == max is what actually pins the card at 240×150 — on every
+    // platform. setResizable(false) is only the Windows frame-style half
+    // (drops WS_THICKFRAME so there's no invisible resize border around the
+    // card). On Linux it's gtk_window_set_resizable(FALSE), and GTK answers
+    // that by publishing min == max == *whatever size the window has right
+    // now* to the compositor. On a tiling compositor (Hyprland, Sway) the
+    // window has just been tiled to fill the screen, so that locks a
+    // screen-sized card that can't even be resized once floated
+    // (user-reported 2026-08-25). Leaving it resizable keeps our own
+    // 240×150 hints in charge instead — which is what a floated window
+    // then gets clamped to. Un-tiling itself is not something a Wayland
+    // client can do; that's the compositor's float rule (README, "Tiling
+    // compositors").
+    if (!Platform.isLinux) await windowManager.setResizable(false);
     await windowManager.setBounds(null, position: target, size: miniSize);
     // The card is always on top whatever the pin says — a glanceable thing
     // you have to dig for isn't glanceable.

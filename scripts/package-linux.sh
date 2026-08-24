@@ -97,6 +97,19 @@ echo "  $INSTALL_DIR/couples_app"
 echo
 echo "Autostart: use the app's own tray menu toggle once it's running —"
 echo "it re-points itself at wherever this was installed."
+if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || [ -n "${SWAYSOCK:-}" ]; then
+  echo
+  echo "Tiling compositor detected: the little card needs a float rule or it"
+  echo "gets tiled into a full slot. App id: app.couples.couples_app"
+  if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
+    echo "  Hyprland 0.55+ (lua):  hl.window_rule({ match = { class = \"app.couples.couples_app\" }, float = true, pin = true })"
+    echo "  Hyprland <= 0.54:      windowrule = float, class:^(app.couples.couples_app)\$"
+    echo "                         windowrule = pin, class:^(app.couples.couples_app)\$"
+  else
+    echo "  Sway:  for_window [app_id=\"app.couples.couples_app\"] floating enable, sticky enable"
+  fi
+  echo "(see README, 'Tiling compositors')"
+fi
 INSTALL_EOF
 chmod +x "$STAGE_DIR/install.sh"
 
