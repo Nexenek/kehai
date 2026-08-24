@@ -21,6 +21,7 @@ class PrefsService {
   static const _shareLocationKey = 'share_location';
   static const _collapsedHomeSectionsKey = 'collapsed_home_sections';
   static const _autostartEnabledKey = 'autostart_enabled';
+  static const _shareVitalsKey = 'share_vitals';
   static const _notificationSoundKeyPrefix = 'notification_sound_';
 
   final SharedPreferences _prefs;
@@ -160,6 +161,18 @@ class PrefsService {
 
   Future<void> setAutostartEnabled(bool value) =>
       _prefs.setBool(_autostartEnabledKey, value);
+
+  /// Phone-only opt-in for the smartwatch-vitals feature (kb/features.md):
+  /// share today's steps and the latest heart-rate sample from Health
+  /// Connect with the partner. Off by default like every other sharing
+  /// toggle — a heartbeat is intimate data and never starts broadcasting
+  /// itself. Read by the background isolate (which does the actual Health
+  /// Connect reads), so changes must be pushed via sendDataToTask AND
+  /// survive the reload() dance like the other sharing prefs.
+  bool get shareVitals => _prefs.getBool(_shareVitalsKey) ?? false;
+
+  Future<void> setShareVitals(bool value) =>
+      _prefs.setBool(_shareVitalsKey, value);
 
   /// Which bundled sound plays for one notification event type
   /// (kb/features.md "Custom notification sounds"). [eventId] is a

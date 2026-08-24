@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"net/http"
 	"regexp"
+	"time"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/apis"
@@ -280,6 +281,40 @@ func heartbeat(e *core.RequestEvent) error {
 				return e.BadRequestError("activity must be a string of at most 100 characters.", nil)
 			}
 			device.Set("activity", s)
+		}
+	}
+
+	if v, present := raw["steps_today"]; present {
+		if v == nil {
+			device.Set("steps_today", 0)
+		} else {
+			n, ok := v.(float64)
+			if !ok || n < 0 || n > 200000 {
+				return e.BadRequestError("steps_today must be a number between 0 and 200000.", nil)
+			}
+			device.Set("steps_today", n)
+		}
+	}
+
+	// heart_rate is the one telemetry object whose shape the server checks
+	// strictly (unlike now_playing's pass-through): the client renders a
+	// heart beating at this bpm, so a garbage number would animate garbage,
+	// and `at` must parse for the client's freshness gate to work at all.
+	if v, present := raw["heart_rate"]; present {
+		if v == nil {
+			device.Set("heart_rate", nil)
+		} else if m, ok := v.(map[string]any); ok {
+			bpm, bpmOk := m["bpm"].(float64)
+			at, atOk := m["at"].(string)
+			if !bpmOk || bpm < 20 || bpm > 250 || !atOk {
+				return e.BadRequestError("heart_rate must be {bpm: 20-250, at: RFC3339} or null.", nil)
+			}
+			if _, terr := time.Parse(time.RFC3339, at); terr != nil {
+				return e.BadRequestError("heart_rate.at must be an RFC3339 timestamp.", nil)
+			}
+			device.Set("heart_rate", map[string]any{"bpm": bpm, "at": at})
+		} else {
+			return e.BadRequestError("heart_rate must be {bpm: 20-250, at: RFC3339} or null.", nil)
 		}
 	}
 

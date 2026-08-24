@@ -22,6 +22,7 @@ import '../notifications/notification_hub.dart';
 import '../pocketbase_client.dart';
 import '../prefs_service.dart';
 import '../presence/android/android_presence_service.dart';
+import '../presence/android/vitals_service.dart';
 import '../presence/presence_service.dart';
 import '../presence/presence_service_factory.dart';
 import 'kehai_foreground_task.dart';
@@ -55,8 +56,9 @@ void kehaiTaskCallback() {
 /// 6. — when `shareLocation` is on — runs [LocationPublisher], the app's
 ///    own OwnTracks-compatible tracker (kb/contracts.md "Location"), and
 ///    keeps [PresenceService]'s `shareFocusedApp`/`shareUnknownApps`
-///    opt-ins (kb/features.md "Focused-app status") in sync too — see
-///    [_applySharingPrefs].
+///    opt-ins (kb/features.md "Focused-app status") and [VitalsService]'s
+///    `shareVitals` opt-in (kb/platform-android.md "Steps / heart rate")
+///    in sync too — see [_applySharingPrefs].
 ///
 /// Note the deliberate asymmetry: this isolate *computes* every string
 /// (mood kaomoji, ambient-line precedence, device indicator) and Kotlin
@@ -88,6 +90,7 @@ class KehaiTaskHandler extends TaskHandler {
   QuestionRepository? _questionRepository;
   HeartbeatService? _heartbeatService;
   PresenceService? _presenceService;
+  VitalsService? _vitalsService;
   LocationPublisher? _locationPublisher;
   KehaiNotifier? _notifier;
   KehaiNotifications? _notifications;
@@ -180,10 +183,16 @@ class KehaiTaskHandler extends TaskHandler {
 
     final presence = createPresenceService();
     _presenceService = presence;
+    // Vitals ride the existing heartbeat rather than getting a publisher of
+    // their own — steps and heart rate are `devices` telemetry like battery
+    // or now-playing, and this isolate is the single writer of that row
+    // whenever it's up. `enabled` is set by [_applySharingPrefs] below.
+    final vitals = _vitalsService = VitalsService();
     _heartbeatService = HeartbeatService(
       _deviceRepository!,
       const DeviceInfoService(),
       presenceService: presence,
+      extraTelemetry: vitals.telemetry,
     )..start();
 
     // Same single-writer rule as the heartbeat above: this background
@@ -203,7 +212,7 @@ class KehaiTaskHandler extends TaskHandler {
   }
 
   /// Re-reads every sharing toggle (`shareLocation`, `shareFocusedApp`,
-  /// `shareUnknownApps`) and pushes each onto whichever live service
+  /// `shareUnknownApps`, `shareVitals`) and pushes each onto whichever live service
   /// actually owns it — cheap (SharedPreferences' instance is cached) and
   /// safe to call every tick, which is exactly what [onRepeatEvent] does,
   /// plus once immediately whenever [onReceiveData] hears from the UI
@@ -232,6 +241,12 @@ class KehaiTaskHandler extends TaskHandler {
       presence.shareFocusedApp = prefs.shareFocusedApp;
       presence.shareUnknownApps = prefs.shareUnknownApps;
     }
+
+    // `shareVitals` (kb/platform-android.md "Steps / heart rate") gets the
+    // same treatment for the same reason: flipped from the superpowers
+    // screen in the UI isolate, but it's THIS isolate that does the Health
+    // Connect reads once the app is backgrounded.
+    _vitalsService?.enabled = prefs.shareVitals;
 
     // Sound choices are prefs too, and go stale here for exactly the same
     // reason. A sound picked in the app has to reach the channel this
@@ -273,6 +288,12 @@ class KehaiTaskHandler extends TaskHandler {
   @visibleForTesting
   set presenceServiceForTest(PresenceService? service) =>
       _presenceService = service;
+
+  /// Same seam for the vitals half of [_applySharingPrefs] — a
+  /// [VitalsService] built with a fake channel, so a test can assert the
+  /// `shareVitals` toggle actually lands here.
+  @visibleForTesting
+  set vitalsServiceForTest(VitalsService? service) => _vitalsService = service;
 
   Future<void> _refreshPartner() async {
     final partner = await _coupleRepository?.fetchPartner();
@@ -441,6 +462,7 @@ class KehaiTaskHandler extends TaskHandler {
     _notifications = null;
     _notifier = null;
     _heartbeatService?.stop();
+    _vitalsService = null;
     await _locationPublisher?.stop();
     _locationPublisher = null;
     await _presenceService?.dispose();

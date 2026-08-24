@@ -29,6 +29,7 @@ import 'data/services/notifications/kehai_notifier.dart';
 import 'data/services/notifications/notification_hub.dart';
 import 'data/services/pocketbase_client.dart';
 import 'data/services/presence/android/android_presence_service.dart';
+import 'data/services/presence/android/vitals_service.dart';
 import 'data/services/presence/linux_presence_service.dart';
 import 'data/services/presence/presence_service.dart';
 import 'data/services/presence/presence_service_factory.dart';
@@ -68,6 +69,12 @@ class AppController extends ChangeNotifier {
   /// rather than owning its lifecycle (see [HeartbeatService]'s doc
   /// comment on why it doesn't dispose the service it's given).
   final PresenceService presenceService = createPresenceService();
+
+  /// The Health Connect half of this phone's telemetry (steps + heart
+  /// rate). Like [presenceService] it lives for the whole app rather than
+  /// per-connection, so the `shareVitals` toggle has one stable thing to
+  /// push onto; a no-op off Android, where the channel simply isn't there.
+  final VitalsService vitalsService = VitalsService();
 
   AppStage stage = AppStage.loading;
   String? connectionError;
@@ -191,6 +198,11 @@ class AppController extends ChangeNotifier {
         deviceRepository!,
         deviceInfoService,
         presenceService: presenceService,
+        // Android only in practice — [VitalsService] short-circuits to null
+        // everywhere else, so this costs desktop nothing. It matters
+        // pre-hand-off (and whenever the hand-off fails): the UI isolate is
+        // the heartbeat writer then, so it has to carry vitals too.
+        extraTelemetry: vitalsService.telemetry,
       );
       // Desktop location is out of scope for now (geolocator_linux/windows
       // exist but nothing consumes them yet) — only build the publisher on
@@ -250,8 +262,11 @@ class AppController extends ChangeNotifier {
   }
 
   /// Pushes the persisted opt-ins onto whichever concrete [presenceService]
-  /// this platform has — a no-op on the stub (nothing to wire there).
+  /// this platform has — a no-op on the stub (nothing to wire there) — plus
+  /// `shareVitals` onto [vitalsService], which every platform has (it just
+  /// answers nothing off Android).
   void _applyActivitySharingPrefs() {
+    vitalsService.enabled = prefs.shareVitals;
     final service = presenceService;
     if (service is WindowsPresenceService) {
       service.shareFocusedApp = prefs.shareFocusedApp;
@@ -348,6 +363,25 @@ class AppController extends ChangeNotifier {
     } else {
       KehaiForegroundTask.notifyPrefsChanged();
     }
+    notifyListeners();
+  }
+
+  /// The "share heartbeat & steps ♥︎" opt-in (kb/platform-android.md
+  /// "Steps / heart rate"). Read straight from [prefs] like the toggles
+  /// above, so the superpowers screen always shows the persisted value.
+  bool get shareVitals => prefs.shareVitals;
+
+  /// Persists the toggle, applies it to this isolate's [vitalsService], and
+  /// nudges the background isolate — the same belt-and-braces pair
+  /// [setShareFocusedApp] uses, and for the same reason: exactly one of the
+  /// two isolates is heartbeating at any moment, and which one it is
+  /// depends on whether the hand-off succeeded. Doing both is cheap
+  /// (`notifyPrefsChanged` is a no-op off Android and when no service is
+  /// running) and means neither path can go stale.
+  Future<void> setShareVitals(bool value) async {
+    await prefs.setShareVitals(value);
+    vitalsService.enabled = value;
+    KehaiForegroundTask.notifyPrefsChanged();
     notifyListeners();
   }
 

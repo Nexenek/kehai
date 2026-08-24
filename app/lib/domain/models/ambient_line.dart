@@ -45,20 +45,36 @@ const awayIdleThreshold = Duration(minutes: 5);
 /// softens into "probably asleep".
 const asleepIdleThreshold = Duration(minutes: 45);
 
+/// The clock-free rung: a phone nobody has touched for THIS long reads as
+/// asleep at any hour. The fixed night window alone was a bad model for
+/// gremlin-hours sleepers (asleep at 05:00, up at 15:00): the night rung
+/// gets the fast detection at classic hours, and once real sleep has piled
+/// up this much idle, the hour of day stops mattering — which is also
+/// exactly what carries a late sleeper past 08:00 without a flicker. Three
+/// hours is long enough that an awake person has almost always touched
+/// their phone, and the main false positive left (phone abandoned at home)
+/// is usually preempted anyway: actively using any other device wins the
+/// precedence chain before this rung is even asked.
+const asleepDeepIdleThreshold = Duration(hours: 3);
+
 /// Their-local hours treated as night for the asleep inference (>= 22:00 or
 /// < 08:00 — generous on purpose; "probably" carries the uncertainty).
 bool _isNightHour(int hour) => hour >= 22 || hour < 8;
 
 bool _probablyAsleep(List<DeviceStatus> online, DateTime nowUtc) {
+  bool phoneIdleAtLeast(Duration threshold) => online.any(
+    (d) => d.kind == 'phone' && (d.idleSeconds ?? 0) >= threshold.inSeconds,
+  );
+
+  // Deep idle needs no timezone: three hours of untouched phone means the
+  // same thing in every country.
+  if (phoneIdleAtLeast(asleepDeepIdleThreshold)) return true;
+
   final offset = resolvePartnerUtcOffset(online);
   if (offset == null) return false;
   final theirHour = nowUtc.add(Duration(minutes: offset.minutes)).hour;
   if (!_isNightHour(theirHour)) return false;
-  return online.any(
-    (d) =>
-        d.kind == 'phone' &&
-        (d.idleSeconds ?? 0) >= asleepIdleThreshold.inSeconds,
-  );
+  return phoneIdleAtLeast(asleepIdleThreshold);
 }
 
 AmbientLine? resolveAmbientLine(

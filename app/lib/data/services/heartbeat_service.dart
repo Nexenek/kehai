@@ -26,11 +26,24 @@ class HeartbeatService {
     this._deviceRepository,
     this._deviceInfoService, {
     PresenceService? presenceService,
-  }) : _presenceService = presenceService;
+    Future<Map<String, dynamic>?> Function()? extraTelemetry,
+  }) : _presenceService = presenceService,
+       _extraTelemetry = extraTelemetry;
 
   final DeviceRepository _deviceRepository;
   final DeviceInfoService _deviceInfoService;
   final PresenceService? _presenceService;
+
+  /// Telemetry that doesn't come from [PresenceService] at all, merged into
+  /// the heartbeat body as-is — currently `VitalsService.telemetry` (steps
+  /// + heart rate from Health Connect, kb/platform-android.md "Steps /
+  /// heart rate"). Vitals live outside [DevicePresence] on purpose: they're
+  /// polled on their own slow cadence (a watch syncs every 10–30 minutes,
+  /// not every 30 seconds), they never earn an out-of-band beat, and they
+  /// carry their own only-provided-keys/explicit-null bookkeeping. So this
+  /// is a plain "anything else to add?" hook rather than another presence
+  /// field, and it stays null on every platform without it.
+  final Future<Map<String, dynamic>?> Function()? _extraTelemetry;
 
   Timer? _timer;
   StreamSubscription<DevicePresence>? _presenceSub;
@@ -117,6 +130,11 @@ class HeartbeatService {
       // above it's simply sent on every heartbeat rather than tracked for
       // an explicit-null clear.
       fields['timezone'] = UtcOffset.now().encode();
+      // Merged last and unconditionally trusted: the provider owns its own
+      // keys entirely (which to send, when to send an explicit null), same
+      // deal the presence fields above have with themselves.
+      final extra = await _extraTelemetry?.call();
+      if (extra != null) fields.addAll(extra);
       await _deviceRepository.sendHeartbeat(
         kind: _deviceInfoService.kind,
         name: name,

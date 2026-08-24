@@ -9,4 +9,11 @@
     <string name="partner_widget_label">Kehai — partner status</string>
     <!-- Shown under the widget's name in the Android 12+ widget picker. -->
     <string name="partner_widget_description">Your partner\'s mood and status, right on your home screen.</string>
+
+    <!-- HealthRationaleActivity — the "why does this app want my health
+         data" screen Health Connect launches. Rendered by the system's
+         dialog, not by Flutter, so it lives here rather than in
+         AppStrings. -->
+    <string name="health_rationale_title">Kehai — steps &amp; heart rate</string>
+    <string name="health_rationale_message">Kehai reads two things from Health Connect: your step count for today, and your most recent heart-rate reading.\n\nBoth are sent only to the server you and your partner host yourselves, so their side of Kehai can show them. Nothing is sent anywhere else, nothing is stored as history, and only the newest reading ever leaves your phone.\n\nYou can turn this off any time in Kehai under \"phone superpowers\".</string>
 </resources>

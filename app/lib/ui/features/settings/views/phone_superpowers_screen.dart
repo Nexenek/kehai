@@ -37,9 +37,11 @@ class _PhoneSuperpowersScreenState extends State<PhoneSuperpowersScreen>
       initialShareFocusedApp: controller.shareFocusedApp,
       initialShareUnknownApps: controller.shareUnknownApps,
       initialShareLocation: controller.shareLocation,
+      initialShareVitals: controller.shareVitals,
       onSetShareFocusedApp: controller.setShareFocusedApp,
       onSetShareUnknownApps: controller.setShareUnknownApps,
       onSetShareLocation: controller.setShareLocation,
+      onSetShareVitals: controller.setShareVitals,
     );
     WidgetsBinding.instance.addObserver(this);
     _viewModel.refresh();
@@ -225,6 +227,39 @@ class _PhoneSuperpowersScreenState extends State<PhoneSuperpowersScreen>
                             !_viewModel.shareLocation,
                           ),
                         ),
+                        const SizedBox(height: 16),
+                        // Vitals — the one sharing row with an OS grant
+                        // behind it, so it has three states rather than
+                        // two: Health Connect missing (nothing to offer,
+                        // no button), present but not granted (the grant
+                        // button), and on (a plain off switch, plus the
+                        // "waiting for your watch" line when the grant is
+                        // there but nothing has synced yet).
+                        _SuperpowerWindow(
+                          key: const Key('superpowers-vitals'),
+                          title: AppStrings.vitalsRowTitle,
+                          body: AppStrings.vitalsRowBody,
+                          granted: _viewModel.shareVitals,
+                          grantedLabel: AppStrings.shareFocusedAppOn,
+                          pendingLabel: _viewModel.vitalsUnavailable
+                              ? AppStrings.vitalsNeedsHealthConnect
+                              : AppStrings.shareFocusedAppOff,
+                          actionLabel: _viewModel.vitalsGranted
+                              ? (_viewModel.shareVitals
+                                    ? AppStrings.shareFocusedAppTurnOff
+                                    : AppStrings.shareFocusedAppTurnOn)
+                              : AppStrings.vitalsGrant,
+                          alwaysActionable: true,
+                          // No Health Connect on this phone: the toggle is
+                          // hidden rather than offered-and-failing.
+                          actionEnabled: !_viewModel.vitalsUnavailable,
+                          preview: _viewModel.vitalsWaitingForData
+                              ? AppStrings.vitalsNoData
+                              : null,
+                          onAction: () => _viewModel.setShareVitals(
+                            !_viewModel.shareVitals,
+                          ),
+                        ),
                         const SizedBox(height: 18),
                         // Android's way in to the "sounds ♪" window — the
                         // desktop reaches it from the ✧ title-bar window
@@ -284,7 +319,9 @@ class _SuperpowerWindow extends StatelessWidget {
     this.grantedLabel,
     this.pendingLabel,
     this.alwaysActionable = false,
+    this.actionEnabled = true,
     this.preview,
+    super.key,
   });
 
   final String title;
@@ -295,6 +332,11 @@ class _SuperpowerWindow extends StatelessWidget {
   final String? grantedLabel;
   final String? pendingLabel;
   final bool alwaysActionable;
+
+  /// False hides the button entirely — for a capability this phone simply
+  /// doesn't have (no Health Connect), where the status line is the whole
+  /// story and a button could only fail.
+  final bool actionEnabled;
 
   /// "What we'd share right now" (kb/features.md "Focused-app status") —
   /// only the `shareFocusedApp` window passes this; every other window
@@ -340,7 +382,7 @@ class _SuperpowerWindow extends StatelessWidget {
                   ),
                 ),
               const Spacer(),
-              if (!granted || alwaysActionable)
+              if ((!granted || alwaysActionable) && actionEnabled)
                 PixelButton(
                   primary: !granted,
                   label: actionLabel,

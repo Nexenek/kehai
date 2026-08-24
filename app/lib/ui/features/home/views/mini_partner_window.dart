@@ -3,12 +3,16 @@ import 'package:flutter/material.dart';
 import '../../../../data/services/desktop_window_service.dart';
 import '../../../../domain/art_scene.dart';
 import '../../../../domain/models/ambient_line.dart';
+import '../../../../domain/models/device_status.dart';
 import '../../../../domain/models/mood.dart';
 import '../../../../domain/models/partner_status.dart';
+import '../../../../domain/models/ping.dart';
+import '../../../../domain/models/vitals_line.dart';
 import '../../../core/strings/app_strings.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/marquee_text.dart';
+import '../../../core/widgets/pixel_heart.dart';
 import '../../art/art_scene_view.dart';
 import '../../pings/ping_button.dart';
 import 'device_indicator.dart';
@@ -34,6 +38,8 @@ class MiniPartnerWindow extends StatefulWidget {
     this.onSendPing,
     this.canSendPing = true,
     this.pingJustSent = false,
+    this.receivedPing,
+    this.partnerDevices = const [],
   });
 
   final String partnerName;
@@ -41,6 +47,14 @@ class MiniPartnerWindow extends StatefulWidget {
   final bool phoneOnline;
   final bool desktopOnline;
   final AmbientLine? ambientLine;
+
+  /// The ping the partner just sent, while its little moment lasts
+  /// ([PingViewModel.lastReceived]). The mini card is what actually sits on
+  /// the desktop all day, so an arrival has to show HERE, not only on the
+  /// big card — it borrows the bottom line from the ambient text, which is
+  /// exactly the right rudeness: "thinking of you" briefly outranks
+  /// "listening to …".
+  final Ping? receivedPing;
 
   /// The partner's composited paper-doll scene, already resolved for their
   /// current mood + ambient state ([resolveArtScene]). Empty — the default
@@ -69,6 +83,13 @@ class MiniPartnerWindow extends StatefulWidget {
   final bool canSendPing;
   final bool pingJustSent;
 
+  /// The partner's `devices` records — the most compact vitals form (a
+  /// beating heart + bpm, no steps: kb/features.md's smartwatch-vitals
+  /// wave) via [resolvePartnerVitals]. Defaults to empty, which keeps the
+  /// heart hidden exactly like today for any caller that hasn't started
+  /// passing it yet.
+  final List<DeviceStatus> partnerDevices;
+
   @override
   State<MiniPartnerWindow> createState() => _MiniPartnerWindowState();
 }
@@ -84,6 +105,7 @@ class _MiniPartnerWindowState extends State<MiniPartnerWindow> {
         : null;
     final line = widget.ambientLine;
     final transparent = widget.transparentCorners;
+    final vitals = resolvePartnerVitals(widget.partnerDevices);
 
     TextStyle legible(TextStyle style) =>
         transparent ? style.copyWith(shadows: _legibilityHalo) : style;
@@ -128,6 +150,25 @@ class _MiniPartnerWindowState extends State<MiniPartnerWindow> {
                 ),
                 const SizedBox(width: 4),
               ],
+              if (vitals.bpm != null) ...[
+                Row(
+                  key: const Key('mini-vitals-line'),
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    PixelHeart(bpm: vitals.bpm!, size: 10),
+                    const SizedBox(width: 2),
+                    Text(
+                      AppStrings.vitalsBpm(vitals.bpm!),
+                      style: legible(
+                        AppTextStyles.caption.copyWith(
+                          color: colors.accent2,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 4),
+              ],
               DeviceIndicator(
                 phoneOnline: widget.phoneOnline,
                 desktopOnline: widget.desktopOnline,
@@ -143,7 +184,17 @@ class _MiniPartnerWindowState extends State<MiniPartnerWindow> {
           ),
           SizedBox(
             height: 18,
-            child: line != null
+            child: widget.receivedPing != null
+                ? MarqueeText(
+                    key: const Key('mini-ping-line'),
+                    text: AppStrings.pingReceivedLine(
+                      widget.receivedPing!.kind,
+                    ),
+                    style: legible(
+                      AppTextStyles.caption.copyWith(color: colors.accent),
+                    ),
+                  )
+                : line != null
                 ? MarqueeText(
                     text: line.text,
                     style: legible(
@@ -318,6 +369,8 @@ class MiniWindowHost extends StatelessWidget {
     this.onSendPing,
     this.canSendPing = true,
     this.pingJustSent = false,
+    this.receivedPing,
+    this.partnerDevices = const [],
   });
 
   final String partnerName;
@@ -329,6 +382,8 @@ class MiniWindowHost extends StatelessWidget {
   final VoidCallback? onSendPing;
   final bool canSendPing;
   final bool pingJustSent;
+  final Ping? receivedPing;
+  final List<DeviceStatus> partnerDevices;
 
   @override
   Widget build(BuildContext context) {
@@ -350,6 +405,8 @@ class MiniWindowHost extends StatelessWidget {
         onSendPing: onSendPing,
         canSendPing: canSendPing,
         pingJustSent: pingJustSent,
+        receivedPing: receivedPing,
+        partnerDevices: partnerDevices,
         onExpand: service.windowMode.expand,
         onDragStart: service.startDragging,
       ),

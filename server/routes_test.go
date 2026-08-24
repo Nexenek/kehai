@@ -567,3 +567,86 @@ func TestUnauthenticatedRequestsRejected(t *testing.T) {
 		})
 	}
 }
+
+// --- heartbeat vitals (smartwatch wave, migration 14) ------------------------
+
+func TestHeartbeatVitals(t *testing.T) {
+	app := newTestApp(t)
+	srv := newTestServer(t, app)
+
+	_, token := registerAndLogin(t, srv.URL, uniqueEmail(t), "password1234")
+	setupRes := doJSON(t, http.MethodPost, srv.URL+"/api/couple/create", token, map[string]any{"name": "us"})
+	setupRes.Body.Close()
+	if setupRes.StatusCode != http.StatusOK {
+		t.Fatalf("failed to set up couple: %d", setupRes.StatusCode)
+	}
+
+	res1 := doJSON(t, http.MethodPost, srv.URL+"/api/heartbeat", token, map[string]any{
+		"kind":        "phone",
+		"name":        "Pixel",
+		"steps_today": 4231.0,
+		"heart_rate":  map[string]any{"bpm": 72.0, "at": "2026-08-24T12:00:00Z"},
+	})
+	body1 := decodeJSON(t, res1)
+	if res1.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 on vitals heartbeat, got %d: %v", res1.StatusCode, body1)
+	}
+	deviceID, _ := body1["device_id"].(string)
+
+	device := getDevice(t, srv.URL, token, deviceID)
+	if got, _ := device["steps_today"].(float64); got != 4231 {
+		t.Fatalf("expected steps_today 4231, got %v", device["steps_today"])
+	}
+	hr, ok := device["heart_rate"].(map[string]any)
+	if !ok || hr["bpm"] != 72.0 || hr["at"] != "2026-08-24T12:00:00Z" {
+		t.Fatalf("expected heart_rate {72, 2026-08-24T12:00:00Z}, got %v", device["heart_rate"])
+	}
+
+	// absent keys leave vitals untouched; explicit null clears heart_rate.
+	res2 := doJSON(t, http.MethodPost, srv.URL+"/api/heartbeat", token, map[string]any{
+		"kind": "phone", "name": "Pixel",
+	})
+	res2.Body.Close()
+	device2 := getDevice(t, srv.URL, token, deviceID)
+	if got, _ := device2["steps_today"].(float64); got != 4231 {
+		t.Fatalf("expected steps_today to survive a key-less heartbeat, got %v", device2["steps_today"])
+	}
+	if _, ok := device2["heart_rate"].(map[string]any); !ok {
+		t.Fatalf("expected heart_rate to survive a key-less heartbeat, got %v", device2["heart_rate"])
+	}
+
+	res3 := doJSON(t, http.MethodPost, srv.URL+"/api/heartbeat", token, map[string]any{
+		"kind": "phone", "name": "Pixel", "heart_rate": nil, "steps_today": nil,
+	})
+	res3.Body.Close()
+	device3 := getDevice(t, srv.URL, token, deviceID)
+	if device3["heart_rate"] != nil {
+		t.Fatalf("expected heart_rate cleared to null, got %v", device3["heart_rate"])
+	}
+	if got, _ := device3["steps_today"].(float64); got != 0 {
+		t.Fatalf("expected steps_today cleared to 0, got %v", device3["steps_today"])
+	}
+
+	// garbage is refused: bpm out of range, unparseable at, wrong shapes.
+	for _, bad := range []any{
+		map[string]any{"bpm": 500.0, "at": "2026-08-24T12:00:00Z"},
+		map[string]any{"bpm": 72.0, "at": "yesterday-ish"},
+		map[string]any{"bpm": 72.0},
+		"72",
+	} {
+		res := doJSON(t, http.MethodPost, srv.URL+"/api/heartbeat", token, map[string]any{
+			"kind": "phone", "name": "Pixel", "heart_rate": bad,
+		})
+		if res.StatusCode != http.StatusBadRequest {
+			t.Fatalf("expected 400 for heart_rate %v, got %d", bad, res.StatusCode)
+		}
+		res.Body.Close()
+	}
+	res4 := doJSON(t, http.MethodPost, srv.URL+"/api/heartbeat", token, map[string]any{
+		"kind": "phone", "name": "Pixel", "steps_today": -5.0,
+	})
+	if res4.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400 for negative steps_today, got %d", res4.StatusCode)
+	}
+	res4.Body.Close()
+}

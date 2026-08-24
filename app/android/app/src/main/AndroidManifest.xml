@@ -53,6 +53,31 @@
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions"/>
 
+    <!-- "Share heartbeat & steps" (kb/platform-android.md "Steps / heart
+         rate") — Health Connect is where Galaxy Watch / Garmin / Pixel
+         Watch / Amazfit all sync, so one integration covers every watch
+         the couple might own. Off by default like every sharing opt-in;
+         granted through Health Connect's own permission sheet, never a
+         plain runtime dialog.
+
+         READ_HEALTH_DATA_IN_BACKGROUND is what lets the foreground
+         service read while Kehai is off screen — which is the normal case,
+         since the background isolate owns the heartbeat then. It only
+         exists on Android 14+ providers; older ones silently drop it from
+         the sheet, and the feature degrades to "updates while the app is
+         open", which is why the Kotlin side never treats it as required. -->
+    <uses-permission android:name="android.permission.health.READ_STEPS"/>
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE"/>
+    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND"/>
+
+    <!-- androidx.health.connect:connect-client is built against minSdk 26
+         while Kehai targets 24. Overriding is safe rather than lazy:
+         Health Connect needs Android 9 (API 28) on any device anyway, and
+         KehaiVitalsPlugin checks Build.VERSION before touching a single
+         Health Connect class, so on a 24/25 phone the library is never
+         loaded and every vitals call answers "unavailable". -->
+    <uses-sdk tools:overrideLibrary="androidx.health.connect.client"/>
+
     <application
         android:label="Kehai"
         android:name=".KehaiApplication"
@@ -135,6 +160,35 @@
                 android:resource="@xml/partner_widget_info"/>
         </receiver>
 
+        <!-- Health Connect refuses to hand over health permissions unless
+             the app exposes a rationale screen it can deep-link to. Two
+             entry points for the same trivial dialog: the pre-Android-14
+             providers (the Health Connect APK) use the androidx action
+             below, Android 14+ (Health Connect in the platform) uses the
+             VIEW_PERMISSION_USAGE alias underneath. -->
+        <activity
+            android:name=".HealthRationaleActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE"/>
+            </intent-filter>
+        </activity>
+        <!-- Guarded by START_VIEW_PERMISSION_USAGE, a signature permission
+             only the system holds — so exported=true reaches the
+             permissions UI and nobody else. -->
+        <activity-alias
+            android:name="ViewPermissionUsageActivity"
+            android:exported="true"
+            android:targetActivity=".HealthRationaleActivity"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE"/>
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS"/>
+            </intent-filter>
+        </activity-alias>
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
@@ -151,5 +205,9 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Package visibility (API 30+): without this, getSdkStatus can't
+             see the Health Connect APK on Android 13 and below and would
+             report "unavailable" on phones that have it installed. -->
+        <package android:name="com.google.android.apps.healthdata"/>
     </queries>
 </manifest>

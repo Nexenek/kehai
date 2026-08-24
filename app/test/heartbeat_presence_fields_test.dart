@@ -140,7 +140,9 @@ void main() {
   });
 
   test('an activity reading is sent under the activity key', () async {
-    presence.emit(const DevicePresence(idleSeconds: 0, activity: 'coding ⌨\uFE0E'));
+    presence.emit(
+      const DevicePresence(idleSeconds: 0, activity: 'coding ⌨\uFE0E'),
+    );
     await heartbeat.pingNow();
 
     expect(repository.sent.single['activity'], 'coding ⌨\uFE0E');
@@ -185,10 +187,7 @@ void main() {
     presence.emit(DevicePresence.empty);
     await heartbeat.pingNow();
 
-    expect(
-      repository.sent.single['timezone'],
-      UtcOffset.now().encode(),
-    );
+    expect(repository.sent.single['timezone'], UtcOffset.now().encode());
   });
 
   test('timezone is still sent when no presence signal is available '
@@ -198,6 +197,49 @@ void main() {
     expect(repository.sent.single.containsKey('timezone'), isTrue);
     expect(repository.sent.single['timezone'], isNotNull);
   });
+
+  // --- extraTelemetry (smartwatch vitals ride here) --------------------
+
+  test('extraTelemetry keys are merged into the heartbeat body', () async {
+    final heartbeatWithVitals = HeartbeatService(
+      repository,
+      const _FakeDeviceInfoService(),
+      presenceService: presence,
+      extraTelemetry: () async => {
+        'steps_today': 4231,
+        'heart_rate': {'bpm': 72, 'at': '2026-08-24T11:52:00.000Z'},
+      },
+    );
+    addTearDown(heartbeatWithVitals.stop);
+
+    presence.emit(const DevicePresence(battery: 62, charging: false));
+    await heartbeatWithVitals.pingNow();
+
+    final sent = repository.sent.single;
+    expect(sent['steps_today'], 4231);
+    expect(sent['heart_rate'], {'bpm': 72, 'at': '2026-08-24T11:52:00.000Z'});
+    // ...alongside, not instead of, everything else.
+    expect(sent['battery'], 62);
+    expect(sent.containsKey('timezone'), isTrue);
+  });
+
+  test(
+    'a null from extraTelemetry (opt-in off, desktop) writes no keys',
+    () async {
+      final heartbeatWithVitals = HeartbeatService(
+        repository,
+        const _FakeDeviceInfoService(),
+        presenceService: presence,
+        extraTelemetry: () async => null,
+      );
+      addTearDown(heartbeatWithVitals.stop);
+
+      await heartbeatWithVitals.pingNow();
+
+      expect(repository.sent.single.containsKey('steps_today'), isFalse);
+      expect(repository.sent.single.containsKey('heart_rate'), isFalse);
+    },
+  );
 
   test('a track change still triggers one', () async {
     heartbeat.start();

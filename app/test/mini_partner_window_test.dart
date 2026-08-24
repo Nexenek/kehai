@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:couples_app/domain/models/ambient_line.dart';
+import 'package:couples_app/domain/models/device_status.dart';
+import 'package:couples_app/domain/models/heart_rate_sample.dart';
 import 'package:couples_app/domain/models/mood.dart';
 import 'package:couples_app/domain/models/partner_status.dart';
+import 'package:couples_app/domain/models/ping.dart';
 import 'package:couples_app/ui/core/strings/app_strings.dart';
 import 'package:couples_app/ui/core/theme/app_theme.dart';
+import 'package:couples_app/ui/core/widgets/pixel_heart.dart';
 import 'package:couples_app/ui/features/home/views/mini_partner_window.dart';
 
 import 'support/pixel_fonts.dart';
@@ -33,6 +37,8 @@ void main() {
     VoidCallback? onSendPing,
     bool canSendPing = true,
     bool pingJustSent = false,
+    Ping? receivedPing,
+    List<DeviceStatus> partnerDevices = const [],
   }) async {
     // The real thing: 240×150, the size DesktopWindowService gives it.
     tester.view.devicePixelRatio = 1.0;
@@ -53,9 +59,11 @@ void main() {
             onSendPing: onSendPing,
             canSendPing: canSendPing,
             pingJustSent: pingJustSent,
+            receivedPing: receivedPing,
             onExpand: onExpand,
             onDragStart: onDragStart,
             transparentCorners: transparentCorners,
+            partnerDevices: partnerDevices,
           ),
         ),
       ),
@@ -256,6 +264,135 @@ void main() {
         onSendPing: () {},
       );
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('the compact vitals form (beating heart + bpm only)', () {
+    testWidgets('a fresh heart-rate sample shows the heart and bpm', (
+      tester,
+    ) async {
+      final phone = DeviceStatus(
+        id: 'd1',
+        ownerId: 'partner',
+        name: 'phone',
+        kind: 'phone',
+        lastSeen: DateTime.now().toUtc(),
+        heartRate: HeartRateSample(
+          bpm: 72,
+          at: DateTime.now().toUtc().subtract(const Duration(minutes: 5)),
+        ),
+      );
+      await pumpCard(tester, status: _status('happy'), partnerDevices: [phone]);
+
+      expect(find.byKey(const Key('mini-vitals-line')), findsOneWidget);
+      expect(find.byType(PixelHeart), findsOneWidget);
+      expect(find.text(AppStrings.vitalsBpm(72)), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('steps alone (no fresh bpm) show nothing — mini has no '
+        'room for the steps half', (tester) async {
+      final phone = DeviceStatus(
+        id: 'd1',
+        ownerId: 'partner',
+        name: 'phone',
+        kind: 'phone',
+        lastSeen: DateTime.now().toUtc(),
+        stepsToday: 4231,
+      );
+      await pumpCard(tester, status: _status('happy'), partnerDevices: [phone]);
+
+      expect(find.byKey(const Key('mini-vitals-line')), findsNothing);
+      expect(find.byType(PixelHeart), findsNothing);
+    });
+
+    testWidgets('a stale heart-rate sample shows nothing', (tester) async {
+      final phone = DeviceStatus(
+        id: 'd1',
+        ownerId: 'partner',
+        name: 'phone',
+        kind: 'phone',
+        lastSeen: DateTime.now().toUtc(),
+        heartRate: HeartRateSample(
+          bpm: 72,
+          at: DateTime.now().toUtc().subtract(
+            HeartRateSample.freshWindow + const Duration(minutes: 1),
+          ),
+        ),
+      );
+      await pumpCard(tester, status: _status('happy'), partnerDevices: [phone]);
+
+      expect(find.byKey(const Key('mini-vitals-line')), findsNothing);
+      expect(find.byType(PixelHeart), findsNothing);
+    });
+
+    testWidgets('with no partner devices, nothing shows and the card still '
+        'fits the real 240x150 size', (tester) async {
+      await pumpCard(tester, status: _status('happy'));
+
+      expect(find.byKey(const Key('mini-vitals-line')), findsNothing);
+      expect(find.byType(PixelHeart), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('a ping arriving while the card is all that is on screen', () {
+    Ping ping(PingKind kind) => Ping(
+      id: 'p1',
+      coupleId: 'c1',
+      fromId: 'them',
+      kind: kind,
+      created: DateTime.now(),
+    );
+
+    testWidgets('borrows the bottom line, outranking the ambient text', (
+      tester,
+    ) async {
+      await pumpCard(
+        tester,
+        status: _status('happy'),
+        ambientLine: const AmbientLine(
+          kind: AmbientLineKind.nowPlaying,
+          text: '♪ Cornfield Chase — Hans Zimmer',
+        ),
+        receivedPing: ping(PingKind.thinking),
+      );
+
+      expect(find.byKey(const Key('mini-ping-line')), findsOneWidget);
+      expect(
+        find.textContaining("they're thinking of you"),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Cornfield Chase'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('names the kind — a kiss reads as a kiss', (tester) async {
+      await pumpCard(
+        tester,
+        status: _status('happy'),
+        receivedPing: ping(PingKind.kiss),
+      );
+
+      expect(
+        find.text(AppStrings.pingReceivedLine(PingKind.kiss)),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('and once it fades, the ambient line is back', (tester) async {
+      await pumpCard(
+        tester,
+        status: _status('happy'),
+        ambientLine: const AmbientLine(
+          kind: AmbientLineKind.nowPlaying,
+          text: '♪ Cornfield Chase — Hans Zimmer',
+        ),
+      );
+
+      expect(find.byKey(const Key('mini-ping-line')), findsNothing);
+      expect(find.textContaining('Cornfield Chase'), findsOneWidget);
     });
   });
 }

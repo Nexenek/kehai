@@ -205,6 +205,43 @@ void main() {
       final line = resolveAmbientLine(devices, nowUtc: nightUtc);
       expect(line!.kind, AmbientLineKind.away);
     });
+
+    // The gremlin-hours rung: deep idle beats the clock. Fell asleep at
+    // 05:00, sleeping until 15:00 — the night window hands over to this at
+    // 08:00 without a flicker, because by then the idle is already hours.
+    test('3h+ idle phone in broad daylight -> asleep anyway', () {
+      final devices = [
+        _device(kind: 'phone', idleSeconds: 4 * 60 * 60, timezone: 'UTC+02:00'),
+      ];
+      final line = resolveAmbientLine(devices, nowUtc: dayUtc);
+      expect(line!.kind, AmbientLineKind.asleep);
+    });
+
+    test('deep idle needs no timezone at all', () {
+      final devices = [_device(kind: 'phone', idleSeconds: 4 * 60 * 60)];
+      final line = resolveAmbientLine(devices, nowUtc: dayUtc);
+      expect(line!.kind, AmbientLineKind.asleep);
+    });
+
+    test('just under the 3h deep threshold in daytime stays away', () {
+      final devices = [
+        _device(
+          kind: 'phone',
+          idleSeconds: asleepDeepIdleThreshold.inSeconds - 60,
+          timezone: 'UTC+02:00',
+        ),
+      ];
+      final line = resolveAmbientLine(devices, nowUtc: dayUtc);
+      expect(line!.kind, AmbientLineKind.away);
+    });
+
+    test('a deep-idle desktop does not count — only the phone tells us', () {
+      final devices = [
+        _device(kind: 'desktop', idleSeconds: 4 * 60 * 60),
+      ];
+      final line = resolveAmbientLine(devices, nowUtc: dayUtc);
+      expect(line!.kind, AmbientLineKind.away);
+    });
   });
 
   group('resolvePhoneBattery precedence', () {

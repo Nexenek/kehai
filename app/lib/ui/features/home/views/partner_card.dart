@@ -10,6 +10,7 @@ import '../../../../domain/models/mood.dart';
 import '../../../../domain/models/partner_status.dart';
 import '../../../../domain/models/ping.dart';
 import '../../../../domain/models/utc_offset.dart';
+import '../../../../domain/models/vitals_line.dart';
 import '../../../core/strings/app_strings.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -17,6 +18,7 @@ import '../../../core/utils/time_ago.dart';
 import '../../../core/widgets/battery_glyph.dart';
 import '../../../core/widgets/bevel_box.dart';
 import '../../../core/widgets/pixel_button.dart';
+import '../../../core/widgets/pixel_heart.dart';
 import '../../../core/widgets/retro_window.dart';
 import '../../art/art_scene_view.dart';
 import '../../pings/ping_button.dart';
@@ -77,11 +79,12 @@ class PartnerCard extends StatefulWidget {
   /// affordance and the "draw back" button shown next to [partnerDoodle].
   final VoidCallback? onSendDoodle;
 
-  /// The partner's `devices` records — used only to derive the "what time
-  /// is it there" line (kb/features.md "Timezone dual clocks") via
-  /// [resolvePartnerUtcOffset]. Defaults to empty so existing callers keep
-  /// compiling unchanged; the line simply stays hidden until a caller
-  /// starts passing the partner's device list.
+  /// The partner's `devices` records — used to derive the "what time is it
+  /// there" line (kb/features.md "Timezone dual clocks") via
+  /// [resolvePartnerUtcOffset], and the smartwatch-vitals line (heartbeat +
+  /// steps) via [resolvePartnerVitals]. Defaults to empty so existing
+  /// callers keep compiling unchanged; both lines simply stay hidden until
+  /// a caller starts passing the partner's device list.
   final List<DeviceStatus> partnerDevices;
 
   /// Sends a ping (kb/features.md "One-tap 'thinking of you'"). Null hides
@@ -147,6 +150,7 @@ class _PartnerCardState extends State<PartnerCard> {
       theirs: resolvePartnerUtcOffset(widget.partnerDevices),
       nowUtc: DateTime.now().toUtc(),
     );
+    final vitals = resolvePartnerVitals(widget.partnerDevices);
 
     return RetroWindow(
       title: partnerName.isEmpty
@@ -199,6 +203,34 @@ class _PartnerCardState extends State<PartnerCard> {
               ],
             ],
           ),
+          if (!vitals.isEmpty) ...[
+            const SizedBox(height: 4),
+            Row(
+              key: const Key('partner-vitals-line'),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (vitals.bpm != null) ...[
+                  PixelHeart(bpm: vitals.bpm!),
+                  const SizedBox(width: 4),
+                  Text(
+                    AppStrings.vitalsBpm(vitals.bpm!),
+                    style: AppTextStyles.caption.copyWith(
+                      color: colors.accent2,
+                    ),
+                  ),
+                ],
+                if (vitals.bpm != null && vitals.stepsToday != null)
+                  const SizedBox(width: 8),
+                if (vitals.stepsToday != null)
+                  Text(
+                    AppStrings.vitalsSteps(vitals.stepsToday!),
+                    style: AppTextStyles.caption.copyWith(
+                      color: colors.accent2,
+                    ),
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: 8),
           if (mood != null)
             Text(

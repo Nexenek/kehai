@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import 'heart_rate_sample.dart';
 import 'now_playing.dart';
 
 /// A `devices` record — used to light up the phone/desktop glyphs on the
@@ -22,6 +23,8 @@ class DeviceStatus {
     this.charging,
     this.activity,
     this.timezone,
+    this.stepsToday,
+    this.heartRate,
   });
 
   final String id;
@@ -50,6 +53,16 @@ class DeviceStatus {
   /// real IANA zone name). Null/empty means this device hasn't reported
   /// one.
   final String? timezone;
+
+  /// `steps_today` — steps since local midnight, from Health Connect
+  /// (smartwatch vitals wave). Null means unreported/opted out; the server
+  /// stores 0 for both "never reported" and "cleared", so the repository
+  /// maps 0 to null the same way it does for battery.
+  final int? stepsToday;
+
+  /// `heart_rate` — latest Health Connect sample with its own measured-at
+  /// timestamp (see [HeartRateSample.isFresh]). Null means unreported.
+  final HeartRateSample? heartRate;
 
   static const onlineWindow = Duration(minutes: 2);
 

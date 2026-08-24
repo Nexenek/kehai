@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 
 import '../../../../data/services/background/kehai_foreground_task.dart';
 import '../../../../data/services/presence/android/android_presence_channel.dart';
+import '../../../../data/services/presence/android/vitals_channel.dart';
 import '../../../../domain/activity_mapper.dart';
 import '../../../core/strings/app_strings.dart';
 
@@ -19,22 +20,27 @@ import '../../../core/strings/app_strings.dart';
 class PhoneSuperpowersViewModel extends ChangeNotifier {
   PhoneSuperpowersViewModel({
     AndroidPresenceChannel presenceChannel = const AndroidPresenceChannel(),
+    VitalsChannel vitalsChannel = const VitalsChannel(),
     required bool initialShareFocusedApp,
     required bool initialShareUnknownApps,
     required bool initialShareLocation,
+    required bool initialShareVitals,
     required Future<void> Function(bool value) onSetShareFocusedApp,
     required Future<void> Function(bool value) onSetShareUnknownApps,
     required Future<void> Function(bool value) onSetShareLocation,
-    @visibleForTesting Duration activityPreviewInterval = const Duration(
-      seconds: 3,
-    ),
+    required Future<void> Function(bool value) onSetShareVitals,
+    @visibleForTesting
+    Duration activityPreviewInterval = const Duration(seconds: 3),
   }) : _presenceChannel = presenceChannel,
+       _vitalsChannel = vitalsChannel,
        _onSetShareFocusedApp = onSetShareFocusedApp,
        _onSetShareUnknownApps = onSetShareUnknownApps,
-       _onSetShareLocation = onSetShareLocation {
+       _onSetShareLocation = onSetShareLocation,
+       _onSetShareVitals = onSetShareVitals {
     shareFocusedApp = initialShareFocusedApp;
     shareUnknownApps = initialShareUnknownApps;
     shareLocation = initialShareLocation;
+    shareVitals = initialShareVitals;
     // Show something sensible before the first async probe/refresh lands.
     activityPreview = resolvePreviewMessage(
       shareFocusedApp: shareFocusedApp,
@@ -50,6 +56,7 @@ class PhoneSuperpowersViewModel extends ChangeNotifier {
   }
 
   final AndroidPresenceChannel _presenceChannel;
+  final VitalsChannel _vitalsChannel;
 
   /// Persistence + pushing the value into the live presence service both
   /// live on `AppController` (the one place that owns the presence
@@ -62,6 +69,11 @@ class PhoneSuperpowersViewModel extends ChangeNotifier {
   /// Same shape again for `shareLocation` — `AppController` also owns
   /// [LocationPublisher] (the live thing this toggle actually starts/stops).
   final Future<void> Function(bool value) _onSetShareLocation;
+
+  /// And again for `shareVitals` — `AppController` owns the [VitalsService]
+  /// this toggle switches on, and the nudge that gets it to the background
+  /// isolate.
+  final Future<void> Function(bool value) _onSetShareVitals;
 
   bool get isSupported => KehaiForegroundTask.isSupported;
 
@@ -95,6 +107,35 @@ class PhoneSuperpowersViewModel extends ChangeNotifier {
   bool shareFocusedApp = false;
   bool shareUnknownApps = false;
   bool shareLocation = false;
+
+  /// The `shareVitals` opt-in (kb/platform-android.md "Steps / heart
+  /// rate"). Unlike its neighbours this one has an OS grant behind it, so
+  /// the three fields below travel with it.
+  bool shareVitals = false;
+
+  /// Whether Health Connect exists on this phone at all. Starts
+  /// [VitalsAvailability.unavailable] so the row can't offer a grant that
+  /// would fail before the first [refresh] lands.
+  VitalsAvailability vitalsAvailability = VitalsAvailability.unavailable;
+
+  /// READ_STEPS + READ_HEART_RATE, as Health Connect currently sees them.
+  bool vitalsGranted = false;
+
+  /// Whether the last probe read anything at all. Health Connect being
+  /// connected doesn't mean there's data in it — a watch that hasn't synced
+  /// today leaves the whole feature silent, and saying so ([AppStrings
+  /// .vitalsNoData]) beats the partner card just never mentioning a heart.
+  bool vitalsHasData = false;
+
+  /// "There's nothing here to connect to" — [VitalsAvailability.needsUpdate]
+  /// counts, since we can't do the updating for them either.
+  bool get vitalsUnavailable =>
+      vitalsAvailability != VitalsAvailability.available;
+
+  /// Opted in, granted, and Health Connect still has nothing for us — the
+  /// [AppStrings.vitalsNoData] state.
+  bool get vitalsWaitingForData =>
+      shareVitals && vitalsGranted && !vitalsHasData;
 
   Timer? _activityPreviewTimer;
 
@@ -130,6 +171,7 @@ class PhoneSuperpowersViewModel extends ChangeNotifier {
     listenerEnabled = results[2];
     serviceRunning = results[3];
     usageAccessGranted = results[4];
+    await _refreshVitals();
     final wasGranted = locationWhileInUseGranted;
     try {
       locationPermission = await Geolocator.checkPermission();
@@ -222,6 +264,55 @@ class PhoneSuperpowersViewModel extends ChangeNotifier {
     await _onSetShareUnknownApps(value);
     notifyListeners();
     await _refreshActivityPreview();
+  }
+
+  /// The "share heartbeat & steps ♥︎" opt-in. Turning it ON when the OS
+  /// grant is missing walks straight into Health Connect's permission sheet
+  /// first — a toggle that says "on" while the phone can't read anything
+  /// would be a lie, and this is the one row where the grant is askable
+  /// in-app rather than a walk to a settings screen.
+  Future<void> setShareVitals(bool value) async {
+    if (value && vitalsAvailability != VitalsAvailability.available) return;
+    if (value && !vitalsGranted) {
+      final granted = await requestVitalsPermissions();
+      if (!granted) return;
+    }
+    shareVitals = value;
+    await _onSetShareVitals(value);
+    notifyListeners();
+    await _refreshVitals();
+  }
+
+  /// Opens Health Connect's own permission sheet. Returns whether the two
+  /// reads ended up granted, so [setShareVitals] can decline to flip a
+  /// toggle the user just said no to.
+  Future<bool> requestVitalsPermissions() async {
+    if (!isSupported) return false;
+    await _vitalsChannel.requestPermissions();
+    // Trust the re-read, not the sheet's own answer — same reason the
+    // native side re-queries: what's granted is Health Connect's fact.
+    await _refreshVitals();
+    return vitalsGranted;
+  }
+
+  /// Re-reads availability, the grant, and (only when both are in place and
+  /// the user has opted in) whether there's actually any data behind them.
+  /// The data probe is deliberately skipped while the toggle is off: this
+  /// row's preview is about the state of a feature that's ON, and reading
+  /// someone's heart rate to decide what label to draw would be exactly the
+  /// thing the opt-in exists to prevent.
+  Future<void> _refreshVitals() async {
+    if (!isSupported) return;
+    vitalsAvailability = await _vitalsChannel.availability();
+    vitalsGranted =
+        vitalsAvailability == VitalsAvailability.available &&
+        await _vitalsChannel.hasPermissions();
+    if (shareVitals && vitalsGranted) {
+      vitalsHasData = !(await _vitalsChannel.read()).isEmpty;
+    } else {
+      vitalsHasData = false;
+    }
+    notifyListeners();
   }
 
   Future<void> _refreshActivityPreview() async {

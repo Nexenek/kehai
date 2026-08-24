@@ -69,6 +69,18 @@ dependencies {
     // 1.1.1 is the current stable release; 1.2.0 is still rc-only as of
     // writing.
     implementation("androidx.glance:glance-appwidget:1.1.1")
+
+    // Health Connect — the smartwatch-vitals source (steps + heart rate,
+    // kb/platform-android.md "Smartwatches (2026)"), read by
+    // KehaiVitalsPlugin. 1.1.0 is the current stable release; the 1.2.0
+    // line is alpha-only. It declares minSdk 26 against our 24 — see the
+    // `tools:overrideLibrary` note in AndroidManifest.xml for why that's
+    // safe here.
+    implementation("androidx.health.connect:connect-client:1.1.0")
+    // connect-client only depends on coroutines at *runtime* scope, so
+    // without this the Kotlin compiler can't see CoroutineScope/launch —
+    // and its suspend API is unusable from our plugin.
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
 }
 
 flutter {

@@ -27,6 +27,12 @@ class KehaiApplication : Application() {
     private val taskLifecycleListener = object : FlutterForegroundTaskLifecycleListener {
         override fun onEngineCreate(flutterEngine: FlutterEngine?) {
             flutterEngine?.plugins?.add(KehaiPresencePlugin())
+            // Vitals too: the background isolate is the one heartbeating
+            // once the app is off screen, so it's the one that has to be
+            // able to read Health Connect. (Its copy never sees an
+            // Activity, which is exactly why KehaiVitalsPlugin's reads
+            // don't need one.)
+            flutterEngine?.plugins?.add(KehaiVitalsPlugin())
         }
 
         override fun onTaskStart(starter: FlutterForegroundTaskStarter) = Unit

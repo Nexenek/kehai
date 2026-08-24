@@ -1,5 +1,6 @@
 import 'package:couples_app/data/services/background/kehai_task_handler.dart';
 import 'package:couples_app/data/services/presence/android/android_presence_service.dart';
+import 'package:couples_app/data/services/presence/android/vitals_service.dart';
 import 'package:couples_app/data/services/prefs_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -105,6 +106,56 @@ void main() {
 
       expect(presence.shareFocusedApp, isTrue);
       expect(presence.shareUnknownApps, isFalse);
+    });
+  });
+
+  /// `shareVitals` (kb/platform-android.md "Steps / heart rate") joins the
+  /// same re-apply, for the same reason: the toggle is flipped in the UI
+  /// isolate, but it's the background isolate that actually reads Health
+  /// Connect once the app is off screen.
+  group('KehaiTaskHandler — shareVitals re-apply', () {
+    test('pushes shareVitals onto the VitalsService', () async {
+      SharedPreferences.setMockInitialValues({'share_vitals': true});
+      final prefs = await PrefsService.create();
+
+      final handler = KehaiTaskHandler();
+      final vitals = VitalsService(isSupported: true);
+      handler.vitalsServiceForTest = vitals;
+
+      expect(vitals.enabled, isFalse);
+      await handler.applySharingPrefsForTest(prefs);
+      expect(vitals.enabled, isTrue);
+    });
+
+    test(
+      'turning it off reaches the service through the stale cache',
+      () async {
+        SharedPreferences.setMockInitialValues({'share_vitals': true});
+        final backgroundPrefs = await PrefsService.create();
+        final uiIsolatePrefs = await PrefsService.create();
+        await uiIsolatePrefs.setShareVitals(false);
+
+        final handler = KehaiTaskHandler();
+        final vitals = VitalsService(isSupported: true)..enabled = true;
+        handler.vitalsServiceForTest = vitals;
+
+        await handler.applySharingPrefsForTest(backgroundPrefs);
+
+        expect(vitals.enabled, isFalse);
+      },
+    );
+
+    test('defaults off when nothing was ever saved', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await PrefsService.create();
+
+      final handler = KehaiTaskHandler();
+      final vitals = VitalsService(isSupported: true)..enabled = true;
+      handler.vitalsServiceForTest = vitals;
+
+      await handler.applySharingPrefsForTest(prefs);
+
+      expect(vitals.enabled, isFalse);
     });
   });
 }

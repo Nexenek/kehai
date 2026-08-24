@@ -831,4 +831,33 @@ class AppStrings {
   static const soundsAmbientNote =
       "moods, music and where they are don't make a sound — they live in "
       'their window, for whenever you look ♡︎';
+
+  // --- smartwatch vitals (Health Connect steps + heart rate) ---
+
+  /// Superpowers-screen row title + explainer. Vitals are the most intimate
+  /// telemetry we carry, so the copy says exactly what leaves the phone.
+  static const vitalsRowTitle = 'share heartbeat & steps ♥︎';
+  static const vitalsRowBody =
+      'lets them see your steps today and your latest heart rate from your '
+      'watch (via health connect). only ever the newest reading — never '
+      'history.';
+  static const vitalsGrant = 'connect';
+  static const vitalsNeedsHealthConnect =
+      'health connect isn\'t available on this phone (´•ω•`)';
+  static const vitalsNoData =
+      'connected — waiting for your watch to sync something ♡︎';
+
+  /// Partner-card vitals line pieces. bpm only renders while the sample is
+  /// fresh (see HeartRateSample.freshWindow).
+  static String vitalsBpm(int bpm) => '$bpm bpm';
+  static String vitalsSteps(int steps) {
+    // 4231 -> "4,231" — no intl dependency for one thousands separator.
+    final s = steps.toString();
+    final b = StringBuffer();
+    for (var i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) b.write(',');
+      b.write(s[i]);
+    }
+    return '$b steps';
+  }
 }

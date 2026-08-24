@@ -1,6 +1,7 @@
 import 'package:pocketbase/pocketbase.dart';
 
 import '../../domain/models/device_status.dart';
+import '../../domain/models/heart_rate_sample.dart';
 import '../../domain/models/now_playing.dart';
 import '../../domain/models/partner_status.dart';
 
@@ -32,7 +33,16 @@ class DeviceRepository {
     charging: r.get<bool?>('charging', null),
     activity: r.get<String?>('activity', null),
     timezone: r.get<String?>('timezone', null),
+    // Same 0-as-unreported convention as battery: the NumberField's zero is
+    // also its clear-on-null value, and a real 0 only exists at midnight.
+    stepsToday: _zeroStepsAsUnreported(r.get<int?>('steps_today', null)),
+    heartRate: HeartRateSample.fromJson(
+      r.get<Map<String, dynamic>?>('heart_rate', null),
+    ),
   );
+
+  static int? _zeroStepsAsUnreported(int? steps) =>
+      (steps == null || steps <= 0) ? null : steps;
 
   static double? _zeroAsUnreported(double? battery) =>
       (battery == null || battery <= 0) ? null : battery;

@@ -328,6 +328,8 @@ class _HomeScreenState extends State<HomeScreen> {
     onSendPing: _viewModel.hasPartner ? _pingViewModel.send : null,
     canSendPing: _pingViewModel.canSend,
     pingJustSent: _pingViewModel.justSent,
+    receivedPing: _pingViewModel.lastReceived,
+    partnerDevices: _viewModel.partnerDevices,
   );
 
   @override
