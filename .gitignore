@@ -28,6 +28,9 @@ app/*.iml
 *.test
 *.out
 
+# Release packaging output
+dist/
+
 # OS / editor noise
 .DS_Store
 Thumbs.db

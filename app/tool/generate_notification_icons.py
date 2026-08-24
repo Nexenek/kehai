@@ -175,6 +175,44 @@ def grid_from_cells(cells):
 
 
 # ---------------------------------------------------------------------------
+# The Kehai badge — a tiny heart in the top-right corner of every glyph
+# that isn't already a heart, so a glance at the status bar says "that's
+# Kehai" and not some other app that also uses a music note. The badge is
+# stamped over the base glyph with a 1px transparent moat around it
+# (dilate-and-subtract), the standard badge trick: whatever the glyph had
+# in that corner yields to the heart instead of touching it.
+#
+# `ic_stat_heart` and `ic_stat_away` are exempt on purpose — they already
+# ARE the heart, and a heart wearing a heart badge is one heart too many.
+# ---------------------------------------------------------------------------
+
+_BADGE_HEART = {
+    (0, 12), (0, 14),
+    (1, 11), (1, 12), (1, 13), (1, 14), (1, 15),
+    (2, 12), (2, 13), (2, 14),
+    (3, 13),
+}
+
+
+def _dilate(cells):
+    """The cell-set grown by one in all 8 directions — the badge's moat."""
+    return {
+        (r + dr, c + dc)
+        for r, c in cells
+        for dr in (-1, 0, 1)
+        for dc in (-1, 0, 1)
+    }
+
+
+def badged(build):
+    """Wraps a glyph builder: base glyph, minus the badge's moat, plus the
+    badge heart."""
+    def build_badged():
+        return (build() - _dilate(_BADGE_HEART)) | _BADGE_HEART
+    return build_badged
+
+
+# ---------------------------------------------------------------------------
 # The ten glyphs.
 # ---------------------------------------------------------------------------
 
@@ -212,10 +250,12 @@ def _heart_cells():
 
 
 def _music_cells():
-    notehead = ellipse(10, 6, 3.2, 2.4)
-    stem = rect(2, 10, 9, 10)
+    # Nudged down-left of where it originally sat so the note's flag lives
+    # below the corner badge's moat instead of being eaten by it.
+    notehead = ellipse(11, 4, 3.0, 2.4)
+    stem = rect(3, 11, 7, 8)
     # A downward-tapering flag off the top of the stem.
-    flag = rect(2, 2, 9, 13) | rect(3, 3, 9, 13) | rect(4, 4, 9, 12) | rect(5, 5, 9, 11)
+    flag = rect(3, 3, 7, 11) | rect(4, 4, 7, 11) | rect(5, 5, 7, 10) | rect(6, 6, 7, 9)
     return notehead | stem | flag
 
 
@@ -282,14 +322,14 @@ def _away_cells():
 
 ICONS = {
     "ic_stat_heart": _heart_cells,
-    "ic_stat_music": _music_cells,
-    "ic_stat_code": _code_cells,
-    "ic_stat_scroll": _scroll_cells,
-    "ic_stat_watch": _watch_cells,
-    "ic_stat_game": _game_cells,
-    "ic_stat_chat": _chat_cells,
-    "ic_stat_photo": _photo_cells,
-    "ic_stat_sleep": _sleep_cells,
+    "ic_stat_music": badged(_music_cells),
+    "ic_stat_code": badged(_code_cells),
+    "ic_stat_scroll": badged(_scroll_cells),
+    "ic_stat_watch": badged(_watch_cells),
+    "ic_stat_game": badged(_game_cells),
+    "ic_stat_chat": badged(_chat_cells),
+    "ic_stat_photo": badged(_photo_cells),
+    "ic_stat_sleep": badged(_sleep_cells),
     "ic_stat_away": _away_cells,
 }
 

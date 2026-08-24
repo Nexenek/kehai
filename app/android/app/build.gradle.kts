@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     // Kotlin 2.x split the Compose compiler out of kotlin-android into its
@@ -9,6 +12,19 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose") version "2.4.0"
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// Release signing: loaded from android/key.properties, which is gitignored
+// and points at a keystore generated OUTSIDE the repo (~/.kehai/kehai-release.jks).
+// See README.md "Installing releases" for how to regenerate it and why it
+// must be backed up. If the file is absent (fresh clone, no keystore), the
+// release build falls back to the debug signing config below so
+// `flutter build apk --release` still works for contributors.
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties()
+val hasKeystoreProperties = keystorePropertiesFile.exists()
+if (hasKeystoreProperties) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
 android {
@@ -42,11 +58,36 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasKeystoreProperties) {
+            create("release") {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Real release signing when key.properties + the keystore exist
+            // (see the top of this file); otherwise fall back to the debug
+            // key so a fresh clone without ~/.kehai/kehai-release.jks can
+            // still `flutter build apk --release`.
+            signingConfig = if (hasKeystoreProperties) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
+
+            // R8/minify deliberately OFF for v1: this app is sideloaded by
+            // exactly two people, so the APK size win doesn't matter, and
+            // shrinking risks stripping things flutter_local_notifications,
+            // Health Connect, and flutter_foreground_task rely on via
+            // reflection without carefully maintained keep rules.
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }
