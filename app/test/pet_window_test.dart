@@ -5,6 +5,7 @@ import 'package:pocketbase/pocketbase.dart';
 import 'package:couples_app/data/repositories/auth_repository.dart';
 import 'package:couples_app/data/repositories/pet_repository.dart';
 import 'package:couples_app/domain/models/pet.dart';
+import 'package:couples_app/domain/models/pet_event.dart';
 import 'package:couples_app/ui/core/strings/app_strings.dart';
 import 'package:couples_app/ui/core/theme/app_colors.dart';
 import 'package:couples_app/ui/core/theme/app_theme.dart';
@@ -248,5 +249,92 @@ void main() {
       tester.widget<TextField>(find.byType(TextField)).controller?.text,
       'mochi',
     );
+  });
+
+  group('the story', () {
+    testWidgets('lists events newest-first with a friendly line and time', (
+      tester,
+    ) async {
+      final viewModel = _viewModel()
+        ..isLoading = false
+        ..pet = _pet()
+        ..historyLoaded = true
+        ..history = [
+          PetEvent(
+            id: 'ev3',
+            coupleId: 'couple1',
+            userId: 'userA',
+            type: 'pet',
+            created: _afternoon,
+          ),
+          PetEvent(
+            id: 'ev2',
+            coupleId: 'couple1',
+            userId: 'userA',
+            type: 'dress',
+            created: _afternoon.subtract(const Duration(minutes: 2)),
+          ),
+          PetEvent(
+            id: 'ev1',
+            coupleId: 'couple1',
+            userId: 'userB',
+            type: 'feed',
+            created: _afternoon.subtract(const Duration(days: 3)),
+          ),
+        ];
+
+      await _pumpWindow(tester, viewModel);
+      await tester.tap(find.text(AppStrings.petHistoryButton));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text(AppStrings.petHistoryTitle), findsOneWidget);
+      expect(find.text('gave them a cuddle'), findsOneWidget);
+      expect(find.text('changed how they look'), findsOneWidget);
+      expect(find.text('gave them a snack ♡︎'), findsOneWidget);
+      expect(find.text('just now'), findsOneWidget);
+      expect(find.text('2m ago'), findsOneWidget);
+      expect(find.text('aug 20'), findsOneWidget);
+    });
+
+    testWidgets('an unknown event type still gets a friendly fallback line', (
+      tester,
+    ) async {
+      final viewModel = _viewModel()
+        ..isLoading = false
+        ..pet = _pet()
+        ..historyLoaded = true
+        ..history = [
+          PetEvent(
+            id: 'ev1',
+            coupleId: 'couple1',
+            userId: 'userA',
+            type: 'hatched',
+            created: _afternoon,
+          ),
+        ];
+
+      await _pumpWindow(tester, viewModel);
+      await tester.tap(find.text(AppStrings.petHistoryButton));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text('did something sweet for them ⋆'), findsOneWidget);
+    });
+
+    testWidgets('an empty story says so gently', (tester) async {
+      final viewModel = _viewModel()
+        ..isLoading = false
+        ..pet = _pet()
+        ..historyLoaded = true
+        ..history = [];
+
+      await _pumpWindow(tester, viewModel);
+      await tester.tap(find.text(AppStrings.petHistoryButton));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text(AppStrings.petHistoryEmpty), findsOneWidget);
+    });
   });
 }

@@ -14,6 +14,7 @@ import 'data/repositories/shared_file_repository.dart';
 import 'data/repositories/event_repository.dart';
 import 'data/repositories/instant_repository.dart';
 import 'data/repositories/location_repository.dart';
+import 'data/repositories/mood_jar_repository.dart';
 import 'data/repositories/note_repository.dart';
 import 'data/repositories/pet_repository.dart';
 import 'data/repositories/ping_repository.dart';
@@ -96,6 +97,7 @@ class AppController extends ChangeNotifier {
   ArtRepository? artRepository;
   SharedFileRepository? sharedFileRepository;
   EventRepository? eventRepository;
+  MoodJarRepository? moodJarRepository;
   HeartbeatService? heartbeatService;
 
   /// The app's own OwnTracks-compatible tracker (kb/contracts.md
@@ -205,6 +207,7 @@ class AppController extends ChangeNotifier {
       artRepository = ArtRepository(pb);
       sharedFileRepository = SharedFileRepository(pb);
       eventRepository = EventRepository(pb);
+      moodJarRepository = MoodJarRepository(pb);
       heartbeatService = HeartbeatService(
         deviceRepository!,
         deviceInfoService,

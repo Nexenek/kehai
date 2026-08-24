@@ -7,6 +7,7 @@ import '../../core/theme/app_text_styles.dart';
 import '../../core/widgets/pixel_button.dart';
 import '../../core/widgets/retro_window.dart';
 import 'pet_dress_dialog.dart';
+import 'pet_history_dialog.dart';
 import 'pet_rename_dialog.dart';
 import 'pet_sprite_view.dart';
 import 'pet_view_model.dart';
@@ -48,6 +49,10 @@ class PetWindow extends StatelessWidget {
 
   void _openRename(BuildContext context, Pet pet) {
     showPetRenameDialog(context, name: pet.name, onSave: viewModel.rename);
+  }
+
+  void _openHistory(BuildContext context) {
+    showPetHistoryDialog(context, viewModel: viewModel);
   }
 
   @override
@@ -157,6 +162,10 @@ class PetWindow extends StatelessWidget {
               label: AppStrings.petRename,
               onPressed: () => _openRename(context, pet),
             ),
+          ),
+          PixelButton(
+            label: AppStrings.petHistoryButton,
+            onPressed: () => _openHistory(context),
           ),
         ],
       ),

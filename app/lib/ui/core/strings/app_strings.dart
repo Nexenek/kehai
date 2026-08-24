@@ -859,6 +859,23 @@ class AppStrings {
     return '$b steps';
   }
 
+  // --- the mood jar (leftovers wave) ---
+
+  static const trayJar = 'jar';
+  static const jarTitle = 'mood jar ⚱︎';
+  static const jarEmpty =
+      'the jar is empty so far — every mood you two set drops a little '
+      'bead in here (´｡• ᵕ •｡`)';
+  static const jarDayToday = 'today';
+  static const jarDayYesterday = 'yesterday';
+
+  // --- pet story (the append-only event log, finally readable) ---
+
+  static const petHistoryButton = 'story';
+  static const petHistoryTitle = 'the story so far';
+  static const petHistoryEmpty =
+      'nothing written yet — go say hi to the little one ヾ(＾-＾)ノ';
+
   // --- vitals grant fallbacks (appended: on-device hardening pass) -----
   //
   // Two honest failure modes the first build hid. Health Connect's

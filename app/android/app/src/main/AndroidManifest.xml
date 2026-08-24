@@ -189,6 +189,29 @@
             </intent-filter>
         </activity-alias>
 
+        <!-- Activity-aware status-bar icon set (Wave 6, kb/roadmap.md) —
+             the ongoing notification's small icon changes with what the
+             partner is doing (music/coding/scrolling/... — see
+             lib/domain/notification_icon.dart). flutter_foreground_task's
+             `NotificationIcon(metaDataName: ...)` resolves through
+             `PackageManager.getApplicationInfo(..., GET_META_DATA)`, i.e. a
+             manifest meta-data *int* keyed by name — not an arbitrary
+             runtime resource-name lookup — so every drawable this app can
+             pick at runtime needs its own entry here. The ten names below
+             must stay in lockstep with
+             `notification_icon.dart`'s `notificationIconNames` and
+             `tool/generate_notification_icons.py`'s `ICONS` map. -->
+        <meta-data android:name="ic_stat_heart" android:resource="@drawable/ic_stat_heart"/>
+        <meta-data android:name="ic_stat_music" android:resource="@drawable/ic_stat_music"/>
+        <meta-data android:name="ic_stat_code" android:resource="@drawable/ic_stat_code"/>
+        <meta-data android:name="ic_stat_scroll" android:resource="@drawable/ic_stat_scroll"/>
+        <meta-data android:name="ic_stat_watch" android:resource="@drawable/ic_stat_watch"/>
+        <meta-data android:name="ic_stat_game" android:resource="@drawable/ic_stat_game"/>
+        <meta-data android:name="ic_stat_chat" android:resource="@drawable/ic_stat_chat"/>
+        <meta-data android:name="ic_stat_photo" android:resource="@drawable/ic_stat_photo"/>
+        <meta-data android:name="ic_stat_sleep" android:resource="@drawable/ic_stat_sleep"/>
+        <meta-data android:name="ic_stat_away" android:resource="@drawable/ic_stat_away"/>
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

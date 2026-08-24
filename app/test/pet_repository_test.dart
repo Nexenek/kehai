@@ -70,6 +70,35 @@ void main() {
     });
   });
 
+  group('petEventFromRecord', () {
+    RecordModel eventRecord(Map<String, dynamic> overrides) => RecordModel({
+      'id': 'ev1',
+      'collectionId': 'pet_events_col',
+      'collectionName': 'pet_events',
+      'couple': 'couple1',
+      'user': 'userA',
+      'type': 'feed',
+      'created': '2026-08-23 12:00:00.000Z',
+      ...overrides,
+    });
+
+    test('maps every field, created coming back local', () {
+      final event = petEventFromRecord(eventRecord({}));
+
+      expect(event.id, 'ev1');
+      expect(event.coupleId, 'couple1');
+      expect(event.userId, 'userA');
+      expect(event.type, 'feed');
+      expect(event.created.toUtc(), DateTime.utc(2026, 8, 23, 12));
+      expect(event.created.isUtc, isFalse);
+    });
+
+    test('carries an unrecognised type through as-is (UI decides the fallback)', () {
+      final event = petEventFromRecord(eventRecord({'type': 'mystery'}));
+      expect(event.type, 'mystery');
+    });
+  });
+
   group('enums', () {
     test('every variant and outfit has a label', () {
       for (final variant in PetVariant.values) {

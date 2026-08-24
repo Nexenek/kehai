@@ -11,7 +11,7 @@ import (
 )
 
 // questionLookback bounds how much of a couple's question_days history we
-// scan to avoid repeating a recently-used prompt. The pack is small (~60
+// scan to avoid repeating a recently-used prompt. The pack is small (~120
 // entries) — once a couple has answered more days than that, some repeat is
 // inevitable and that's fine.
 const questionLookback = 45

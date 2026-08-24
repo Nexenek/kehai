@@ -154,6 +154,13 @@ class KehaiForegroundTask {
         ],
         notificationTitle: AppStrings.notificationStartingTitle,
         notificationText: AppStrings.notificationStartingText,
+        // The default/fallback glyph — see `render`'s doc comment on why
+        // this is a manifest meta-data name rather than a raw resource id.
+        // Set explicitly so the very first notification (before any
+        // partner data has arrived to drive [render]'s icon choice) uses
+        // Kehai's dedicated status-bar icon set rather than falling back to
+        // the full-color launcher mipmap.
+        notificationIcon: const NotificationIcon(metaDataName: 'ic_stat_heart'),
         notificationInitialRoute: '/',
         callback: kehaiTaskCallback,
       );
@@ -235,14 +242,50 @@ class KehaiForegroundTask {
     }
   }
 
-  /// Pushes finished strings into the notification. Called from the
-  /// background isolate; the Kotlin side just renders them.
-  static Future<void> render(PartnerNotificationContent content) async {
+  /// Pushes finished strings (and, optionally, a new status-bar icon) into
+  /// the notification. Called from the background isolate; the Kotlin side
+  /// just renders them.
+  ///
+  /// [iconKey] is one of `notification_icon.dart`'s
+  /// `notificationIconNames` (e.g. `ic_stat_music`), or `null` to leave the
+  /// icon exactly as it is. Passing `null` isn't a "reset to default" —
+  /// verified by reading `NotificationContent.updateData`/`update()` on the
+  /// Kotlin side (`android/.../models/NotificationContent.kt`,
+  /// `ForegroundServiceManager.update`): an update is a *merge* keyed on
+  /// non-null fields, so an omitted icon leaves whatever the last real
+  /// value was untouched instead of falling back to the app icon. That's
+  /// what makes the caller's "only pass this when the icon key actually
+  /// changed" dedup (`KehaiTaskHandler._render`) safe: skipping the icon on
+  /// an unrelated text-only update (a new mood note, say) can't
+  /// accidentally blank it.
+  ///
+  /// [NotificationIcon.metaDataName] is a manifest meta-data *key*, not a
+  /// raw resource id/name flutter_foreground_task resolves at runtime —
+  /// confirmed by reading `ForegroundService.getIconResId`, which does
+  /// `applicationInfo.metaData.getInt(icon.metaDataName)`. So every value
+  /// [iconKey] can take must have a matching
+  /// `<meta-data android:resource="@drawable/...">` entry under
+  /// `<application>` in AndroidManifest.xml (see the block there) — a
+  /// name with no manifest entry resolves to icon id 0, which
+  /// `Notification.Builder.setSmallIcon`/`NotificationCompat.Builder`
+  /// silently treats as "no icon" rather than crashing, so a drift between
+  /// this set and the manifest degrades gracefully instead of taking the
+  /// service down. `notification_icon.dart`'s `notificationIconFor` only
+  /// ever returns names from its own `notificationIconNames` set (asserted
+  /// internally), which is kept in lockstep with the manifest entries and
+  /// `tool/generate_notification_icons.py`'s `ICONS` map by hand.
+  static Future<void> render(
+    PartnerNotificationContent content, {
+    String? iconKey,
+  }) async {
     if (!isSupported) return;
     try {
       await FlutterForegroundTask.updateService(
         notificationTitle: content.title,
         notificationText: content.text,
+        notificationIcon: iconKey == null
+            ? null
+            : NotificationIcon(metaDataName: iconKey),
       );
     } catch (_) {
       // Service stopped underneath us — the next start rebuilds it.

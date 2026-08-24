@@ -387,3 +387,28 @@ func TestPickQuestionDeterministicAndAvoidsRecent(t *testing.T) {
 		t.Fatalf("expected pickQuestion to avoid every recently-used entry but the spared one, got %q want %q", got.EN, spared)
 	}
 }
+
+// TestQuestionPackWellFormed: the pack grew from ~60 to ~120 entries in one
+// batch — guard against the easy mistakes that come with hand-editing a
+// long literal (a pasted duplicate, a forgotten translation).
+func TestQuestionPackWellFormed(t *testing.T) {
+	if len(questionPack) < 100 {
+		t.Fatalf("expected the pack to hold roughly 120 entries, got %d", len(questionPack))
+	}
+
+	seenEN := make(map[string]bool, len(questionPack))
+	seenPL := make(map[string]bool, len(questionPack))
+	for i, q := range questionPack {
+		if q.EN == "" || q.PL == "" {
+			t.Fatalf("entry %d has an empty EN or PL string: %+v", i, q)
+		}
+		if seenEN[q.EN] {
+			t.Fatalf("duplicate EN entry: %q", q.EN)
+		}
+		if seenPL[q.PL] {
+			t.Fatalf("duplicate PL entry: %q", q.PL)
+		}
+		seenEN[q.EN] = true
+		seenPL[q.PL] = true
+	}
+}

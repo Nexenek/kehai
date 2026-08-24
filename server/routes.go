@@ -44,6 +44,7 @@ func bindRoutes(app core.App) {
 	// app rather than inside OnServe since they're plain record hooks, not
 	// HTTP routes. No-op when KEHAI_WEBHOOK_URLS is unset.
 	bindWebhooks(app)
+	bindMoodJar(app)
 
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
 		g := se.Router.Group("/api/couple")
@@ -79,6 +80,13 @@ func bindRoutes(app core.App) {
 		se.App.Cron().MustAdd("pings_purge", "0 4 * * *", func() {
 			if err := purgeOldPings(se.App); err != nil {
 				se.App.Logger().Error("pings purge failed", "error", err)
+			}
+		})
+
+		// Mood-jar beads keep a season (90d, see moodjar.go) — daily sweep.
+		se.App.Cron().MustAdd("mood_entries_purge", "0 4 * * *", func() {
+			if err := purgeOldMoodEntries(se.App); err != nil {
+				se.App.Logger().Error("mood entries purge failed", "error", err)
 			}
 		})
 

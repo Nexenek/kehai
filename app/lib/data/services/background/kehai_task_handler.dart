@@ -5,8 +5,10 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:pocketbase/pocketbase.dart';
 
+import '../../../domain/models/ambient_line.dart';
 import '../../../domain/models/device_status.dart';
 import '../../../domain/models/partner_status.dart';
+import '../../../domain/notification_icon.dart';
 import '../../repositories/auth_repository.dart';
 import '../../repositories/couple_repository.dart';
 import '../../repositories/device_repository.dart';
@@ -108,6 +110,11 @@ class KehaiTaskHandler extends TaskHandler {
   PartnerStatus? _partnerStatus;
   List<DeviceStatus> _partnerDevices = const [];
   PartnerNotificationContent? _lastRendered;
+
+  /// The status-bar icon key last actually pushed to the notification —
+  /// see [_render]'s doc comment on why this is tracked separately from
+  /// [_lastRendered] (title/text) instead of folded into it.
+  String? _lastIconKey;
 
   /// Whether today's daily question was already revealed the last time we
   /// looked. Only the *transition* to revealed is worth a notification — a
@@ -445,12 +452,34 @@ class KehaiTaskHandler extends TaskHandler {
       status: _partnerStatus,
       partnerDevices: _partnerDevices,
     );
+
+    // The activity-aware status-bar icon (kb/roadmap.md Wave 6): the same
+    // ambient-line precedence `buildPartnerNotification` already resolved
+    // internally, recomputed here (pure + cheap) so this isolate has the
+    // `AmbientLine` itself rather than only its rendered text.
+    // `notificationIconFor` never returns anything outside
+    // `notificationIconNames`, so this can only ever hand
+    // [KehaiForegroundTask.render] a name with a matching manifest entry.
+    final iconKey = notificationIconFor(resolveAmbientLine(_partnerDevices));
+    // Only worth pushing when it actually changed — see `render`'s doc
+    // comment on why passing it unconditionally would be safe but wasteful
+    // (an update is a merge, not a reset), and [KehaiForegroundTask.render]
+    // treats a `null` iconKey as "leave it alone".
+    final iconChanged = iconKey != _lastIconKey;
+
     // Android re-posts (and on some OEM skins, re-animates) the
     // notification on every update, so skip no-op renders — the 60s
-    // repeat tick would otherwise churn it constantly.
-    if (content == _lastRendered) return;
+    // repeat tick would otherwise churn it constantly. The icon is checked
+    // separately from `content` (title/text) so an icon-only change can
+    // still go out even on a tick where the rendered strings happen to be
+    // identical to last time.
+    if (content == _lastRendered && !iconChanged) return;
     _lastRendered = content;
-    await KehaiForegroundTask.render(content);
+    if (iconChanged) _lastIconKey = iconKey;
+    await KehaiForegroundTask.render(
+      content,
+      iconKey: iconChanged ? iconKey : null,
+    );
   }
 
   @override

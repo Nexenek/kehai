@@ -137,8 +137,11 @@ void main() {
       expect(find.text(stubBoardText), findsOneWidget);
       expect(find.text(stubQuestionText), findsOneWidget);
       expect(find.text(stubInstantsText), findsOneWidget);
-      // The map is the spread's rightmost content column.
+      // The map is the spread's rightmost content column, alongside files
+      // and the jar.
       expect(find.text(stubMapText), findsOneWidget);
+      expect(find.text(stubFilesText), findsOneWidget);
+      expect(find.text(stubJarText), findsOneWidget);
       expect(find.byKey(const Key('tray-mood')), findsNothing);
     });
 
@@ -228,6 +231,7 @@ void main() {
         'board': stubBoardText,
         'art': stubArtText,
         'map': stubMapText,
+        'jar': stubJarText,
       }.entries) {
         expect(
           find.byKey(Key('home-collapsed-${entry.key}')),

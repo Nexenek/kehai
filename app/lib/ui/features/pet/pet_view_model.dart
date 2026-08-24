@@ -4,6 +4,7 @@ import 'package:pocketbase/pocketbase.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/pet_repository.dart';
 import '../../../domain/models/pet.dart';
+import '../../../domain/models/pet_event.dart';
 import '../../core/strings/app_strings.dart';
 import 'pet_state.dart';
 
@@ -39,12 +40,30 @@ class PetViewModel extends ChangeNotifier {
 
   UnsubscribeFunc? _unsub;
 
+  /// The care-log "story" — empty until [loadHistory] is called (the story
+  /// dialog opens it), so a window that never opens the story never pays
+  /// for the fetch.
+  List<PetEvent> history = const [];
+
+  /// True while [loadHistory]'s fetch is in flight.
+  bool historyLoading = false;
+
+  /// True once [history] holds a successful fetch, so re-opening the story
+  /// doesn't refetch every time. Left false after a failed fetch, so the
+  /// next open retries instead of getting stuck empty forever.
+  bool historyLoaded = false;
+
   String? get _coupleId => _authRepository.coupleId;
 
   /// The pet's mood right now. Recomputed on every read (it's pure and
   /// cheap), so it stays honest as the hours pass without any timer.
   PetState get state =>
       derivePetState(fedAt: pet?.fedAt, petAt: pet?.petAt, now: _clock());
+
+  /// Injectable "now", exposed for the story dialog's relative-time labels
+  /// so they share the same clock as [state] rather than reaching for
+  /// `DateTime.now()` directly.
+  DateTime get clockNow => _clock();
 
   Future<void> init() async {
     final coupleId = _coupleId;
@@ -64,6 +83,29 @@ class PetViewModel extends ChangeNotifier {
       pet = updated;
       notifyListeners();
     });
+  }
+
+  /// Loads the care-log "story" the first time it's asked for, and is a
+  /// no-op after that (or while a fetch is already in flight) — the story
+  /// dialog calls this on open, so opening it twice doesn't double-fetch.
+  Future<void> loadHistory() async {
+    if (historyLoaded || historyLoading) return;
+    final coupleId = _coupleId;
+    if (coupleId == null) return;
+
+    historyLoading = true;
+    notifyListeners();
+
+    try {
+      history = await _petRepository.fetchEvents(coupleId);
+      historyLoaded = true;
+    } catch (_) {
+      // Leave history as-is (likely still empty) — see [historyLoaded]'s
+      // doc comment for why this stays false on failure.
+    }
+
+    historyLoading = false;
+    notifyListeners();
   }
 
   Future<void> feed() => _act(

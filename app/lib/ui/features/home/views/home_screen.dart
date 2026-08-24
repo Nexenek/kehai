@@ -21,6 +21,8 @@ import '../../files/files_view_model.dart';
 import '../../files/files_window.dart';
 import '../../instants/instants_view_model.dart';
 import '../../instants/instants_window.dart';
+import '../../jar/mood_jar_view_model.dart';
+import '../../jar/mood_jar_window.dart';
 import '../../location/view_models/location_view_model.dart';
 import '../../location/views/location_window.dart';
 import '../../pet/pet_view_model.dart';
@@ -67,6 +69,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late final PingViewModel _pingViewModel;
   late final ArtViewModel _artViewModel;
   late final FilesViewModel _filesViewModel;
+  late final MoodJarViewModel _moodJarViewModel;
   final _noteController = TextEditingController();
   String _lastSyncedNote = '';
 
@@ -156,6 +159,11 @@ class _HomeScreenState extends State<HomeScreen> {
       authRepository: controller.authRepository!,
       fileRepository: controller.sharedFileRepository!,
     )..init();
+
+    _moodJarViewModel = MoodJarViewModel(
+      authRepository: controller.authRepository!,
+      moodJarRepository: controller.moodJarRepository!,
+    )..init();
   }
 
   void _syncFromHomeViewModel() {
@@ -199,6 +207,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _pingViewModel.dispose();
     _artViewModel.dispose();
     _filesViewModel.dispose();
+    _moodJarViewModel.dispose();
     super.dispose();
   }
 
@@ -300,6 +309,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ArtWindow(viewModel: _artViewModel, onClose: onClose),
       files: (context, onClose) =>
           FilesWindow(viewModel: _filesViewModel, onClose: onClose),
+      jar: (context, onClose) =>
+          MoodJarWindow(viewModel: _moodJarViewModel, onClose: onClose),
       onOpenDoodle: _openDoodleCanvas,
       onLogOut: () => AppScope.of(context, listen: false).logOut(),
       extras: [

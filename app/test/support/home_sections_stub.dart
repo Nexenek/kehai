@@ -18,6 +18,7 @@ const stubArtText = 'art-section';
 const stubFilesText = 'files-section';
 const stubBoardText = 'board-section';
 const stubQuestionText = 'question-section';
+const stubJarText = 'jar-section';
 
 /// Records what the tray asked for, so tests can assert on the doodle button
 /// opening the canvas rather than a drawer.
@@ -49,6 +50,7 @@ HomeSections stubSections({SectionTaps? taps, HomeSectionBuilder? mood}) {
     question: (context, onClose) => section(stubQuestionText, onClose),
     art: (context, onClose) => section(stubArtText, onClose),
     files: (context, onClose) => section(stubFilesText, onClose),
+    jar: (context, onClose) => section(stubJarText, onClose),
     onOpenDoodle: () => recorded.doodle++,
     onLogOut: () => recorded.logOut++,
   );

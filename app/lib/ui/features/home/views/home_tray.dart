@@ -28,6 +28,7 @@ enum TraySection {
   question,
   art,
   files,
+  jar,
 }
 
 /// Sections that get their own primary tray button. Anything not in here
@@ -102,6 +103,14 @@ final Map<TraySection, TraySectionArt> traySectionArt = {
   TraySection.files: TraySectionArt(
     glyph: _textGlyph('▤'),
     label: AppStrings.trayFiles,
+  ),
+  TraySection.jar: TraySectionArt(
+    // ⚱ (U+26B1, "funeral urn") is Unicode's only stock vessel/jar glyph
+    // with a real text-presentation form — read by shape, not name, same
+    // as ✿ standing in for art or ◉ for a camera lens. ︎ keeps it
+    // from rendering as Android's colour emoji.
+    glyph: _textGlyph('⚱︎'),
+    label: AppStrings.trayJar,
   ),
 };
 
@@ -204,6 +213,7 @@ class _CompanionHomeState extends State<CompanionHome> {
     TraySection.question => widget.sections.question,
     TraySection.art => widget.sections.art,
     TraySection.files => widget.sections.files,
+    TraySection.jar => widget.sections.jar,
   };
 
   Widget _drawerContent(BuildContext context) {
@@ -419,6 +429,7 @@ const List<TraySection> _gridSections = [
   TraySection.question,
   TraySection.art,
   TraySection.files,
+  TraySection.jar,
 ];
 
 /// The grid the ✚ button opens: a labeled pixel button per section that no

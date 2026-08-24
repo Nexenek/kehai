@@ -66,7 +66,14 @@ Future<void> pumpTray(
 Future<void> openGridSection(WidgetTester tester, String suffix) async {
   await tester.tap(find.byKey(const Key('tray-more')));
   await tester.pumpAndSettle();
-  await tester.tap(find.byKey(Key('tray-grid-$suffix')));
+  // Ten tiles at 3-per-row is four rows — more than fits the drawer's
+  // capped height at the sizes these tests pump, so the target tile may
+  // start out scrolled past the visible area. `ensureVisible` is a no-op
+  // when it's already on screen.
+  final tile = find.byKey(Key('tray-grid-$suffix'));
+  await tester.ensureVisible(tile);
+  await tester.pumpAndSettle();
+  await tester.tap(tile);
   await tester.pumpAndSettle();
 }
 
@@ -125,6 +132,9 @@ void main() {
     expect(find.byKey(const Key('tray-grid-map')), findsOneWidget);
     expect(find.byKey(const Key('tray-grid-board')), findsOneWidget);
     expect(find.byKey(const Key('tray-grid-question')), findsOneWidget);
+    expect(find.byKey(const Key('tray-grid-art')), findsOneWidget);
+    expect(find.byKey(const Key('tray-grid-files')), findsOneWidget);
+    expect(find.byKey(const Key('tray-grid-jar')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -150,6 +160,16 @@ void main() {
 
     expect(drawerOffset(tester), Offset.zero);
     expect(find.text(stubCalendarText), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the jar grid tile opens the mood jar section', (tester) async {
+    await pumpTray(tester);
+
+    await openGridSection(tester, 'jar');
+
+    expect(drawerOffset(tester), Offset.zero);
+    expect(find.text(stubJarText), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

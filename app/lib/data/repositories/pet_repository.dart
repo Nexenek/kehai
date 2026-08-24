@@ -1,6 +1,7 @@
 import 'package:pocketbase/pocketbase.dart';
 
 import '../../domain/models/pet.dart';
+import '../../domain/models/pet_event.dart';
 
 /// Maps a raw `pets` [RecordModel] to a [Pet]. Top-level (like
 /// `instantFromRecord`) so the mapping is unit-testable without a server.
@@ -12,6 +13,17 @@ Pet petFromRecord(RecordModel r) => Pet(
   outfit: PetOutfit.fromString(r.get<String>('outfit')),
   fedAt: _parseDate(r.get<String>('fed_at')),
   petAt: _parseDate(r.get<String>('pet_at')),
+);
+
+/// Maps a raw `pet_events` [RecordModel] to a [PetEvent]. Same
+/// top-level-for-testability shape as [petFromRecord].
+PetEvent petEventFromRecord(RecordModel r) => PetEvent(
+  id: r.id,
+  coupleId: r.get<String>('couple'),
+  userId: r.get<String>('user'),
+  type: r.get<String>('type'),
+  created:
+      DateTime.tryParse(r.get<String>('created'))?.toLocal() ?? DateTime.now(),
 );
 
 DateTime? _parseDate(String raw) =>
@@ -133,6 +145,29 @@ class PetRepository {
     final record = await _pb.collection('pets').update(pet.id, body: body);
     await _logEvent(coupleId: pet.coupleId, userId: userId, type: type);
     return petFromRecord(record);
+  }
+
+  /// The couple's care-log events, newest first — the "story" behind the
+  /// pet (server/migrations/6_pet.go doc comment: "the raw material for a
+  /// future 'pet history' view"). [limit] defaults to a generous single
+  /// page rather than real pagination; this is a glanceable recap, not a
+  /// feed to scroll forever. Same "missing collection = nothing yet"
+  /// handling as [fetch].
+  Future<List<PetEvent>> fetchEvents(String coupleId, {int limit = 100}) async {
+    try {
+      final records = await _pb
+          .collection('pet_events')
+          .getList(
+            page: 1,
+            perPage: limit,
+            filter: 'couple = "$coupleId"',
+            sort: '-created',
+          );
+      return records.items.map(petEventFromRecord).toList();
+    } on ClientException catch (e) {
+      if (e.statusCode == 404) return [];
+      rethrow;
+    }
   }
 
   /// Appends to the care log. Deliberately swallowing failures: a lost log

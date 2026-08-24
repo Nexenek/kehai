@@ -4,6 +4,7 @@ import 'package:pocketbase/pocketbase.dart';
 import 'package:couples_app/data/repositories/auth_repository.dart';
 import 'package:couples_app/data/repositories/pet_repository.dart';
 import 'package:couples_app/domain/models/pet.dart';
+import 'package:couples_app/domain/models/pet_event.dart';
 import 'package:couples_app/ui/core/strings/app_strings.dart';
 import 'package:couples_app/ui/features/pet/pet_state.dart';
 import 'package:couples_app/ui/features/pet/pet_view_model.dart';
@@ -33,6 +34,16 @@ class _FakePets extends PetRepository {
   final calls = <String>[];
   bool failNextWrite = false;
   void Function(Pet pet)? _listener;
+
+  List<PetEvent> events = const [];
+  bool failEvents = false;
+
+  @override
+  Future<List<PetEvent>> fetchEvents(String coupleId, {int limit = 100}) async {
+    calls.add('fetchEvents');
+    if (failEvents) throw ClientException(statusCode: 500);
+    return events;
+  }
 
   @override
   Future<Pet?> getOrCreate(String coupleId, {DateTime? now}) async {
@@ -254,5 +265,66 @@ void main() {
 
     expect(pets.calls, ['getOrCreate']);
     expect(viewModel.error, isNull);
+  });
+
+  group('loadHistory (the "story")', () {
+    test('lazily fetches once, then reuses the cached list', () async {
+      final pets = _FakePets(initial: _pet())
+        ..events = [
+          PetEvent(
+            id: 'ev1',
+            coupleId: 'couple1',
+            userId: 'userA',
+            type: 'feed',
+            created: _now,
+          ),
+        ];
+      final viewModel = _viewModel(pets);
+      await viewModel.init();
+
+      expect(viewModel.historyLoaded, isFalse);
+      expect(viewModel.history, isEmpty);
+      expect(pets.calls, ['getOrCreate']);
+
+      await viewModel.loadHistory();
+
+      expect(viewModel.historyLoaded, isTrue);
+      expect(viewModel.historyLoading, isFalse);
+      expect(viewModel.history, hasLength(1));
+      expect(pets.calls, ['getOrCreate', 'fetchEvents']);
+
+      // Opening the story again does not refetch.
+      await viewModel.loadHistory();
+      expect(pets.calls, ['getOrCreate', 'fetchEvents']);
+    });
+
+    test('a failed fetch leaves history empty and retryable', () async {
+      final pets = _FakePets(initial: _pet())..failEvents = true;
+      final viewModel = _viewModel(pets);
+      await viewModel.init();
+
+      await viewModel.loadHistory();
+
+      expect(viewModel.historyLoaded, isFalse);
+      expect(viewModel.historyLoading, isFalse);
+      expect(viewModel.history, isEmpty);
+
+      // A later retry (e.g. reopening the dialog) can still succeed.
+      pets.failEvents = false;
+      await viewModel.loadHistory();
+      expect(viewModel.historyLoaded, isTrue);
+    });
+
+    test('an unpaired user gets no history and no fetch attempt', () async {
+      final pets = _FakePets(initial: _pet());
+      final viewModel = _viewModel(pets, couple: null);
+      await viewModel.init();
+
+      await viewModel.loadHistory();
+
+      expect(pets.calls, isEmpty);
+      expect(viewModel.historyLoaded, isFalse);
+      expect(viewModel.history, isEmpty);
+    });
   });
 }

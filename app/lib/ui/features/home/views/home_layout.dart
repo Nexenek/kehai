@@ -67,6 +67,7 @@ class HomeSections {
     required this.question,
     required this.art,
     required this.files,
+    required this.jar,
     required this.onOpenDoodle,
     required this.onLogOut,
     this.extras = const <Widget>[],
@@ -111,6 +112,9 @@ class HomeSections {
 
   /// The shared file shelf (kb/features.md "Shared file storage").
   final HomeSectionBuilder files;
+
+  /// The mood jar (kb/features.md "Mood jar / mood history").
+  final HomeSectionBuilder jar;
 
   /// Doodles have no drawer: the tray's ✎ opens the canvas dialog directly.
   final VoidCallback onOpenDoodle;
@@ -209,6 +213,7 @@ List<_ColumnEntry> _columnEntries(HomeSections sections) => [
   (section: TraySection.board, builder: sections.board),
   (section: TraySection.art, builder: sections.art),
   (section: TraySection.map, builder: sections.map),
+  (section: TraySection.jar, builder: sections.jar),
 ];
 
 /// Sections collapsed on first run — everything except mood, the one
@@ -433,8 +438,10 @@ class HomeSpread extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
-          // Map and instants share the rightmost column — five columns
-          // would cramp the grid, and photos read fine under the map.
+          // Map, instants, files and the jar share the rightmost column —
+          // five columns would cramp the grid, and this one reads as "the
+          // couple's memory" columns: where we are, what we've shared, and
+          // what we've felt.
           Expanded(
             child: SingleChildScrollView(
               child: Column(
@@ -445,6 +452,8 @@ class HomeSpread extends StatelessWidget {
                   sections.instants(context, null),
                   const SizedBox(height: 16),
                   sections.files(context, null),
+                  const SizedBox(height: 16),
+                  sections.jar(context, null),
                 ],
               ),
             ),
