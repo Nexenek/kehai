@@ -8,18 +8,31 @@ A self-hosted little world for two. Kehai is a private couples app — built for
 
 Y2K pastel-pixel aesthetic — chunky retro windows, pixel fonts, soft pinks and lavenders, kaomoji everywhere.
 
-## What works today
+![the desktop, spread wide](docs/screenshots/desktop-spread.png)
 
-- **Pairing**: two accounts, one invite code, your own server — nobody else's cloud
-- **Live mood statuses** with kaomoji, synced in realtime between all devices
-- **Presence**: see whether your person is on their phone, at their computer, or both; "at their computer", "away", now-playing from Linux media players (MPRIS), battery + charging state
-- **Doodles**: draw something small and it shows up on their home screen
-- **Countdowns** to reunions & a "together N days" counter
-- **Shared sticky notes** in pastel colors
+## The little window
 
-## Planned
+On desktop, Kehai mostly lives as a tiny always-there card in the corner of your screen: their mood as a kaomoji, what they're listening to, a pixel heart beating at their **real pulse** (from their watch, if they share it), and a ♥ to tap when you're thinking of them. Click it and the whole pastel desktop above unfolds.
 
-Location sharing with honest privacy toggles · Android always-on status notification + home widget · desktop floating partner window · Windows/Android now-playing · shared calendar (CalDAV) · photo "instants" · a shared pet to take care of together · always-on video portal for an old tablet · smart-home hooks (webhooks/MQTT) · watch-together via Jellyfin SyncPlay
+![the mini card](docs/screenshots/mini-card.png)
+
+## What's inside
+
+- **Presence, gently** — on their phone / at their computer / away / probably asleep zzZ; now-playing from Spotify & friends (Windows, Linux, Android); which app they're in ("coding", "scrolling tiktok") — every signal an explicit opt-in, off by default
+- **Smartwatch vitals** — steps today and a heart that beats at their actual BPM, via Health Connect
+- **Moods** — kaomoji statuses with little notes, dropped as beads into a shared **mood jar** you can tip out together
+- **The portal** — a video window between your homes: a drawn pixel curtain by default (camera provably *off* — watch your OS camera light), knock, and it opens only when both of you say so. Peer-to-peer, end-to-end encrypted, optional self-hosted TURN relay
+- **Location** — built-in sharing or OwnTracks, with an honest ghost mode; distance-apart on a map
+- **Together things** — a shared pet you both look after (it never dies, and it keeps a little story of everything you did), thumb-kiss (touch the same spot, feel a buzz), doodles onto each other's screens, photo instants, a daily question with a blind reveal (120 handwritten), calendar, countdowns, sticky notes, a freeform corkboard, shared files
+- **Little rituals** — one-tap "thinking of you" pings (they show up everywhere, even the mini card), chiptune notification sounds you pick per event, dual clocks when you're in different timezones
+- **Android, properly** — always-on status notification whose *status-bar icon changes with what they're doing* (a note for music, a keyboard for coding — each wearing a tiny heart), home-screen widget, background service that survives the app being closed
+- **Smart home** — webhooks fire on mood/presence changes, ready for Home Assistant (turn the lamp pink when they're sad, obviously)
+
+## The curtain
+
+![the portal curtain](docs/screenshots/portal-curtain.png)
+
+*The portal's resting state. The camera is not on behind this curtain — the connection doesn't exist until you knock and they answer.*
 
 ## Stack
 

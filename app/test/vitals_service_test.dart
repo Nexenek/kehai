@@ -45,8 +45,14 @@ VitalsService _service(
   bool enabled = true,
   bool isSupported = true,
 }) =>
-    VitalsService(channel: channel, isSupported: isSupported)
-      ..enabled = enabled;
+    VitalsService(
+      channel: channel,
+      isSupported: isSupported,
+      // Pinned rather than defaulted: these tests assert cadence
+      // *semantics* (cache reuse, expiry), and the default interval is a
+      // product decision that has already changed once (5 → 2 minutes).
+      refreshInterval: const Duration(minutes: 5),
+    )..enabled = enabled;
 
 void main() {
   group('VitalsService — the off switch', () {

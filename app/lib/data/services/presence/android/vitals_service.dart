@@ -33,7 +33,12 @@ class VitalsService {
   VitalsService({
     VitalsChannel channel = const VitalsChannel(),
     @visibleForTesting bool? isSupported,
-    @visibleForTesting this.refreshInterval = const Duration(minutes: 5),
+    // Two minutes, down from the original five after real-world use ("the
+    // heart pulling is still slow"): a Health Connect read is one cheap
+    // IPC, so the polling leg might as well be snappy — the slow leg is
+    // the watch's own batch-sync into Health Connect, which no app-side
+    // interval can hurry.
+    @visibleForTesting this.refreshInterval = const Duration(minutes: 2),
   }) : _channel = channel,
        _isSupported = isSupported ?? Platform.isAndroid;
 
