@@ -4,6 +4,7 @@ kb/
 # Secrets / local config
 .env
 .env.*
+!.env.example
 *.local
 
 # Server / deploy runtime state

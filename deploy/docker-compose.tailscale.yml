@@ -1,0 +1,62 @@
+# Tailscale-in-the-stack override (kb/decisions.md ADR-10: tailnet by
+# default, zero exposed ports). Layer it on top of the base file:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.tailscale.yml up -d
+#
+# What it does: runs an official Tailscale node in a sidecar container and
+# moves the server + ntfy INTO that node's network namespace. The box then
+# appears on your tailnet as `kehai` (TS_HOSTNAME), and thanks to Tailscale
+# Serve it also gets a real HTTPS certificate — so the app's server address
+# is simply
+#
+#   https://kehai.<your-tailnet>.ts.net           (the Kehai server)
+#   https://kehai.<your-tailnet>.ts.net:8443      (ntfy)
+#
+# with no host-side Tailscale install, no port forwarding, no Caddy, and
+# nothing listening on the LAN or the internet. Plain http://kehai:8090 /
+# http://kehai over MagicDNS works too (still WireGuard-encrypted).
+#
+# Userspace networking mode is used on purpose: no /dev/net/tun, no
+# NET_ADMIN, works on any Docker host including rootless — inbound tailnet
+# connections are proxied into the shared namespace by Tailscale itself.
+#
+# Setup (once): see deploy/README.md "Tailscale, built in".
+services:
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: kehai-tailscale
+    hostname: ${TS_HOSTNAME:-kehai}
+    restart: unless-stopped
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=true
+      - TS_SERVE_CONFIG=/config/serve.json
+    volumes:
+      - ./data/tailscale:/var/lib/tailscale
+      - ./tailscale-serve.json:/config/serve.json:ro
+
+  server:
+    network_mode: service:tailscale
+    # A container sharing another's network can't publish ports of its own
+    # — and doesn't need to: it's reachable through the tailscale node.
+    ports: !reset []
+    depends_on:
+      - tailscale
+
+  ntfy:
+    network_mode: service:tailscale
+    ports: !reset []
+    depends_on:
+      - tailscale
+    environment:
+      # ntfy needs to know the URL clients reach it at. Fill NTFY_PUBLIC_URL
+      # in .env once you know your tailnet name, e.g.
+      #   NTFY_PUBLIC_URL=https://kehai.tail1a2b3c.ts.net:8443
+      - NTFY_BASE_URL=${NTFY_PUBLIC_URL:-http://localhost:8091}
+      - NTFY_CACHE_FILE=/var/cache/ntfy/cache.db
+      - NTFY_AUTH_FILE=/var/lib/ntfy/auth.db
+      - NTFY_AUTH_DEFAULT_ACCESS=deny-all
+      - NTFY_ENABLE_SIGNUP=false
+      - NTFY_ENABLE_LOGIN=true
+      - NTFY_BEHIND_PROXY=true

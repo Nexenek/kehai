@@ -315,6 +315,45 @@ curl -s -H "Title: Mood update" -H "Tags: mood" \
   https://ntfy.example.ts.net/kehai
 ```
 
+## Tailscale, built in
+
+The base stack publishes ports on the host and leaves reaching them to you.
+The Tailscale override makes the box itself a node on your tailnet — no
+Tailscale install on the host, no port forwarding, nothing on the LAN or the
+internet — with a real HTTPS certificate on top:
+
+```
+https://kehai.<your-tailnet>.ts.net        → the Kehai server
+https://kehai.<your-tailnet>.ts.net:8443   → ntfy
+```
+
+One-time setup:
+
+1. In the [Tailscale admin console](https://login.tailscale.com/admin/dns),
+   enable **MagicDNS** and **HTTPS Certificates**.
+2. Create an auth key at *Settings → Keys* (reusable: no, ephemeral: no).
+3. `cp .env.example .env` and fill in `TS_AUTHKEY` (and `TS_HOSTNAME` if
+   you want something other than `kehai`).
+4. Start the stack with both files:
+
+   ```sh
+   docker compose -f docker-compose.yml -f docker-compose.tailscale.yml up -d
+   docker compose logs tailscale        # shows the node coming up + its name
+   ```
+
+5. Install Tailscale on your phones/laptops (same tailnet), and in the app
+   enter `https://kehai.<your-tailnet>.ts.net` as the server address.
+6. Once you know the tailnet name, set `NTFY_PUBLIC_URL` in `.env` to the
+   `:8443` URL above and `docker compose ... up -d` again so ntfy knows its
+   own address.
+
+Notes: the node runs in userspace networking mode (works on rootless Docker
+and needs no capabilities); its identity persists in `./data/tailscale`, so
+the auth key is only used once. Sharing the tailnet with your partner is a
+matter of inviting them to it (or [sharing the node](https://tailscale.com/kb/1084/sharing)).
+The plain base file keeps working exactly as before — the override only
+adds, never changes, the default.
+
 ## Portal mode: TURN relay (optional)
 
 The portal (video window between your homes) streams **peer-to-peer** —
