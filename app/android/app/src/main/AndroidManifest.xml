@@ -43,6 +43,32 @@
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
 
+    <!-- Portal mode (kb/decisions.md ADR-9) — the "window between two
+         homes": a raw WebRTC peer-to-peer video call between exactly the
+         two paired devices, DTLS-SRTP encrypted end to end, with the
+         self-hosted server only ever carrying the handshake.
+
+         Both are asked for at runtime, and ONLY at the moment both people
+         have consented to a call — flutter_webrtc raises the system prompt
+         from getUserMedia, which PortalEngine calls exactly once, after a
+         knock AND an accept exist (lib/data/services/portal/portal_media.dart).
+         Never at app start, never on a knock alone: the camera not opening
+         before someone says yes is the product rule the whole feature rests
+         on. Deny either and the call simply fails into "the camera or mic
+         said no" — nothing else in the app changes.
+
+         MODIFY_AUDIO_SETTINGS is what lets the call route audio to the
+         earpiece/speaker and manage audio focus for the duration.
+         BLUETOOTH_CONNECT (12+) would additionally allow routing to a
+         paired headset; deliberately NOT declared — one more permission
+         prompt for a convenience, and without it the call simply uses the
+         phone's own speaker. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
+
     <!-- "Focused-app status" (kb/features.md) — UsageStatsManager reads for
          the foreground-app signal. This permission is declared for
          documentation only: it's a signature/privileged permission normal

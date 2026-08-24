@@ -49,12 +49,15 @@ void main() {
 
     test('mood is deliberately not an event kind', () {
       // Ambient stays ambient — see KehaiEventKind's doc comment. This test
-      // exists so adding one has to be a decision, not a slip.
+      // exists so adding one has to be a decision, not a slip. ('knock' was
+      // such a decision — a portal knock is the one event that's genuinely
+      // time-critical, Phase 7.)
       expect(KehaiEventKind.values.map((k) => k.id), <String>[
         'ping',
         'doodle',
         'instant',
         'reveal',
+        'knock',
       ]);
     });
 

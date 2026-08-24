@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../app_controller.dart';
 import '../../../../data/services/background/kehai_foreground_task.dart';
 import '../../../../data/services/desktop_window_service.dart';
+import '../../../../data/services/portal/portal_knock_bridge.dart';
+import '../../../../domain/models/ambient_line.dart';
 import '../../../core/strings/app_strings.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -28,6 +32,7 @@ import '../../location/views/location_window.dart';
 import '../../pet/pet_view_model.dart';
 import '../../pet/pet_window.dart';
 import '../../pings/ping_view_model.dart';
+import '../../portal/portal_call_screen.dart';
 import '../../questions/daily_question_window.dart';
 import '../../questions/questions_view_model.dart';
 import '../../settings/views/phone_superpowers_screen.dart';
@@ -72,6 +77,19 @@ class _HomeScreenState extends State<HomeScreen> {
   late final MoodJarViewModel _moodJarViewModel;
   final _noteController = TextEditingController();
   String _lastSyncedNote = '';
+
+  /// Notifies + maybe auto-accepts a knock while this isolate is the one
+  /// showing the app — "wherever pings do it": built here exactly like
+  /// [_pingViewModel], for the same reason (kb/roadmap.md Phase 7). Null
+  /// only if the controller somehow has no engine yet, which shouldn't
+  /// happen — [AppController._connect] builds one before [AppStage.home]
+  /// is ever reachable.
+  PortalKnockBridge? _portalKnockBridge;
+
+  /// Guards against pushing the curtain route twice — once from a manual
+  /// tray/grid tap, once from an auto-accept that fires while the first
+  /// push is still on screen.
+  bool _portalScreenOpen = false;
 
   @override
   void initState() {
@@ -164,6 +182,20 @@ class _HomeScreenState extends State<HomeScreen> {
       authRepository: controller.authRepository!,
       moodJarRepository: controller.moodJarRepository!,
     )..init();
+
+    final portalEngine = controller.portalEngine;
+    if (portalEngine != null) {
+      _portalKnockBridge =
+          PortalKnockBridge(
+              engine: portalEngine,
+              notifications: controller.notifications,
+              prefs: controller.prefs,
+              isDesktop: () => DesktopWindowService.isSupported,
+              isAppForeground: () => controller.appFocus.isForeground.value,
+            )
+            ..bringToFront = _bringPortalToFront
+            ..start();
+    }
   }
 
   void _syncFromHomeViewModel() {
@@ -189,8 +221,61 @@ class _HomeScreenState extends State<HomeScreen> {
     return showDoodleCanvasDialog(context, onSend: _doodleViewModel.send);
   }
 
+  /// The curtain's one entry point, reached from the tray tile (desktop),
+  /// the phone column's strip, or a quiet-hours auto-accept bringing itself
+  /// forward. The engine is owned by [AppController] and lives for the
+  /// whole session, so leaving this screen doesn't tear a call down —
+  /// closing the app does. That's deliberate: a portal is meant to behave
+  /// like an always-on window, not a call screen you have to stay glued to.
+  Future<void> _openPortal() async {
+    if (_portalScreenOpen) return;
+    final controller = AppScope.of(context, listen: false);
+    final engine = controller.portalEngine;
+    if (engine == null) return;
+    _portalScreenOpen = true;
+    try {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => PortalCallScreen(
+            engine: engine,
+            prefs: controller.prefs,
+            partnerDark: _partnerIsDark,
+            partnerDarkListenable: _viewModel,
+          ),
+        ),
+      );
+    } finally {
+      _portalScreenOpen = false;
+    }
+  }
+
+  /// The idle curtain's "their window is dark" case: their ambient state
+  /// reads as asleep, or every device of theirs is offline — see
+  /// PortalCallScreen's [PortalCallScreen.partnerDark] doc.
+  bool _partnerIsDark() {
+    if (_viewModel.partnerAmbientLine?.kind == AmbientLineKind.asleep) {
+      return true;
+    }
+    return !_viewModel.partnerPhoneOnline && !_viewModel.partnerDesktopOnline;
+  }
+
+  /// [PortalKnockBridge.bringToFront]: expand the desktop window (a
+  /// no-op off desktop) and push the curtain if it isn't already the thing
+  /// on screen. Android only ever calls this while already foregrounded —
+  /// see the bridge's own doc — so there's no attempt here to start an
+  /// activity from the background; this is purely "bring what's already
+  /// showing to the top of it".
+  void _bringPortalToFront() {
+    if (DesktopWindowService.isSupported) {
+      DesktopWindowService.instance.windowMode.expand();
+    }
+    if (!mounted) return;
+    unawaited(_openPortal());
+  }
+
   @override
   void dispose() {
+    _portalKnockBridge?.dispose();
     _viewModel.removeListener(_syncFromHomeViewModel);
     _noteController.dispose();
     _viewModel.dispose();
@@ -312,6 +397,7 @@ class _HomeScreenState extends State<HomeScreen> {
       jar: (context, onClose) =>
           MoodJarWindow(viewModel: _moodJarViewModel, onClose: onClose),
       onOpenDoodle: _openDoodleCanvas,
+      onOpenPortal: _openPortal,
       onLogOut: () => AppScope.of(context, listen: false).logOut(),
       extras: [
         if (KehaiForegroundTask.isSupported)

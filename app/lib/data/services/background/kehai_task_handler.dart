@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:pocketbase/pocketbase.dart';
@@ -8,6 +9,7 @@ import 'package:pocketbase/pocketbase.dart';
 import '../../../domain/models/ambient_line.dart';
 import '../../../domain/models/device_status.dart';
 import '../../../domain/models/partner_status.dart';
+import '../../../domain/models/portal_signal.dart';
 import '../../../domain/notification_icon.dart';
 import '../../repositories/auth_repository.dart';
 import '../../repositories/couple_repository.dart';
@@ -15,6 +17,7 @@ import '../../repositories/device_repository.dart';
 import '../../repositories/doodle_repository.dart';
 import '../../repositories/instant_repository.dart';
 import '../../repositories/ping_repository.dart';
+import '../../repositories/portal_signal_repository.dart';
 import '../../repositories/question_repository.dart';
 import '../../repositories/status_repository.dart';
 import '../device_info_service.dart';
@@ -22,6 +25,7 @@ import '../heartbeat_service.dart';
 import '../notifications/kehai_notifier.dart';
 import '../notifications/notification_hub.dart';
 import '../pocketbase_client.dart';
+import '../portal/portal_engine.dart' show isPortalSignalFresh;
 import '../prefs_service.dart';
 import '../presence/android/android_presence_service.dart';
 import '../presence/android/vitals_service.dart';
@@ -50,11 +54,15 @@ void kehaiTaskCallback() {
 ///    isolate runs (battery, charging, screen-derived idle, now-playing),
 /// 3. subscribes to the partner's `statuses` + `devices` records,
 /// 4. pushes rendered notification strings down to the service,
-/// 5. subscribes to `pings`, `doodles`, `instants` and `answers` and raises
-///    a real local notification for each partner-authored event — the
-///    Android half of kb/roadmap.md's client-side notifications, and the
-///    reason a ping reaches the phone with Kehai closed and no push service
-///    anywhere in the picture, and
+/// 5. subscribes to `pings`, `doodles`, `instants`, `answers` and
+///    `portal_signals` and raises a real local notification for each
+///    partner-authored event — the Android half of kb/roadmap.md's
+///    client-side notifications, and the reason a ping (or a knock — Phase
+///    7's curtain) reaches the phone with Kehai closed and no push service
+///    anywhere in the picture. `portal_signals` gets a raw subscription of
+///    its own rather than a [PortalEngine] — accepting a knock means
+///    opening the camera, and this isolate has no window to show it in;
+///    all it's allowed to do is ring the bell, and
 /// 6. — when `shareLocation` is on — runs [LocationPublisher], the app's
 ///    own OwnTracks-compatible tracker (kb/contracts.md "Location"), and
 ///    keeps [PresenceService]'s `shareFocusedApp`/`shareUnknownApps`
@@ -90,6 +98,7 @@ class KehaiTaskHandler extends TaskHandler {
   DoodleRepository? _doodleRepository;
   InstantRepository? _instantRepository;
   QuestionRepository? _questionRepository;
+  PortalSignalRepository? _portalSignalRepository;
   HeartbeatService? _heartbeatService;
   PresenceService? _presenceService;
   VitalsService? _vitalsService;
@@ -103,6 +112,7 @@ class KehaiTaskHandler extends TaskHandler {
   UnsubscribeFunc? _doodleUnsub;
   UnsubscribeFunc? _instantUnsub;
   UnsubscribeFunc? _answerUnsub;
+  UnsubscribeFunc? _portalUnsub;
 
   String? _partnerName;
   String? _partnerId;
@@ -173,6 +183,7 @@ class KehaiTaskHandler extends TaskHandler {
     _doodleRepository = DoodleRepository(pb);
     _instantRepository = InstantRepository(pb);
     _questionRepository = QuestionRepository(pb);
+    _portalSignalRepository = PortalSignalRepository(pb);
 
     // The notifier lives in THIS isolate: a plugin instance never crosses an
     // isolate boundary, and neither does SharedPreferences' cache — which is
@@ -400,7 +411,45 @@ class KehaiTaskHandler extends TaskHandler {
     _answerUnsub = await _questionRepository?.subscribe(() {
       unawaited(_checkReveal());
     });
+
+    // Not a [PortalEngine] on purpose — see the class doc's item 5. The
+    // repository already drops our own echo (including knocks/accepts sent
+    // from this very account's other devices), so anything that reaches
+    // here is genuinely the partner's.
+    _portalUnsub = await _portalSignalRepository?.subscribe(_onPortalSignal);
   }
+
+  /// A knock arrived. Only knocks (the human "someone's at the window"
+  /// moment) are worth a notification here — offer/answer/ice are pure
+  /// machinery this isolate never touches, and hangup/decline/accept have
+  /// nothing left to tell someone who wasn't already watching the curtain.
+  void _onPortalSignal(PortalSignal signal) {
+    if (signal.kind != PortalSignalKind.knock) return;
+    // Same staleness window the engine itself uses (see
+    // [isPortalSignalFresh]'s doc): a redelivered knock from a reconnected
+    // subscription must not buzz the phone about something that lapsed
+    // minutes ago.
+    if (!isPortalSignalFresh(signal.created, clock.now())) return;
+    final notifications = _notifications;
+    if (notifications == null) return;
+    notifications.report(
+      () => notifications.reportKnock(fromId: signal.fromId),
+    );
+  }
+
+  /// Test-only seam: lets a unit test hand this handler a recording
+  /// [KehaiNotifications] without going through [_connect]'s real
+  /// PocketBase wiring — see [handlePortalSignalForTest].
+  @visibleForTesting
+  set notificationsForTest(KehaiNotifications? notifications) =>
+      _notifications = notifications;
+
+  /// Test-only seam: exercises the exact handler [_subscribeNotifiables]
+  /// wires to the real `portal_signals` subscription, without needing a
+  /// live PocketBase realtime connection to drive it.
+  @visibleForTesting
+  void handlePortalSignalForTest(PortalSignal signal) =>
+      _onPortalSignal(signal);
 
   Future<void> _checkReveal() async {
     final questions = _questionRepository;
@@ -505,12 +554,14 @@ class KehaiTaskHandler extends TaskHandler {
     _doodleUnsub?.call();
     _instantUnsub?.call();
     _answerUnsub?.call();
+    _portalUnsub?.call();
     _statusUnsub = null;
     _deviceUnsub = null;
     _pingUnsub = null;
     _doodleUnsub = null;
     _instantUnsub = null;
     _answerUnsub = null;
+    _portalUnsub = null;
     _notifications = null;
     _notifier = null;
     _heartbeatService?.stop();

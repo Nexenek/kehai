@@ -135,8 +135,31 @@ void main() {
     expect(find.byKey(const Key('tray-grid-art')), findsOneWidget);
     expect(find.byKey(const Key('tray-grid-files')), findsOneWidget);
     expect(find.byKey(const Key('tray-grid-jar')), findsOneWidget);
+    expect(find.byKey(const Key('tray-grid-portal')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'the portal grid tile opens the curtain route instead of a drawer '
+    'section, and leaves the drawer exactly where it was',
+    (tester) async {
+      final taps = SectionTaps();
+      await pumpTray(tester, taps: taps);
+
+      await tester.tap(find.byKey(const Key('tray-more')));
+      await tester.pumpAndSettle();
+      final tile = find.byKey(const Key('tray-grid-portal'));
+      await tester.ensureVisible(tile);
+      await tester.pumpAndSettle();
+      await tester.tap(tile);
+      await tester.pumpAndSettle();
+
+      expect(taps.portal, 1);
+      // Still open, still on the grid — portal never became `_showing`.
+      expect(drawerOffset(tester), Offset.zero);
+      expect(find.byKey(const Key('tray-more-grid')), findsOneWidget);
+    },
+  );
 
   testWidgets('picking a grid tile swaps the drawer to that section', (
     tester,

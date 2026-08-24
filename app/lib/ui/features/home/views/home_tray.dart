@@ -29,6 +29,15 @@ enum TraySection {
   art,
   files,
   jar,
+
+  /// The portal curtain — deliberately last, and deliberately unlike every
+  /// other grid section: it opens a full-screen route rather than drawer
+  /// content, so [_CompanionHomeState] and [HomeColumn] both special-case
+  /// it instead of resolving it through [HomeSectionBuilder]. It still
+  /// lives in this enum (for its glyph/label/tile) rather than sitting
+  /// outside it the way doodle does, since — unlike doodle — it belongs in
+  /// the ✚ grid alongside the sections it visually matches.
+  portal,
 }
 
 /// Sections that get their own primary tray button. Anything not in here
@@ -112,6 +121,12 @@ final Map<TraySection, TraySectionArt> traySectionArt = {
     glyph: _textGlyph('⚱︎'),
     label: AppStrings.trayJar,
   ),
+  TraySection.portal: TraySectionArt(
+    // ⌂ (U+2302, "house") is already text-presentation by default — no
+    // FE0E needed, unlike ♥/☆ elsewhere in this app's chrome.
+    glyph: _textGlyph('⌂'),
+    label: AppStrings.trayPortal,
+  ),
 };
 
 /// Slide-up timing for the drawer. One short, well-behaved move, per
@@ -187,6 +202,14 @@ class _CompanionHomeState extends State<CompanionHome> {
   }
 
   void _selectFromGrid(TraySection section) {
+    // Portal has no drawer content — see [TraySection.portal]'s doc — so
+    // picking its tile pushes the full-screen route instead of swapping the
+    // drawer to a section, and the drawer itself is left exactly as it was
+    // (still open, still on the grid) rather than closing under the user.
+    if (section == TraySection.portal) {
+      widget.sections.onOpenPortal();
+      return;
+    }
     setState(() {
       _isOpen = true;
       _content = _DrawerContent.section;
@@ -214,6 +237,10 @@ class _CompanionHomeState extends State<CompanionHome> {
     TraySection.art => widget.sections.art,
     TraySection.files => widget.sections.files,
     TraySection.jar => widget.sections.jar,
+    // Never actually reached — [_selectFromGrid] intercepts portal before
+    // `_showing` is ever set to it. Kept here only so this switch stays
+    // exhaustive over [TraySection].
+    TraySection.portal => (context, onClose) => const SizedBox.shrink(),
   };
 
   Widget _drawerContent(BuildContext context) {
@@ -430,6 +457,7 @@ const List<TraySection> _gridSections = [
   TraySection.art,
   TraySection.files,
   TraySection.jar,
+  TraySection.portal,
 ];
 
 /// The grid the ✚ button opens: a labeled pixel button per section that no

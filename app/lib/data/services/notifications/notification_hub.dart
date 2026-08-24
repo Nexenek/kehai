@@ -110,6 +110,19 @@ class KehaiNotifications {
     ),
   );
 
+  /// Someone's at the window. [fromId] is the knock signal's `from`, which
+  /// both the FGS-isolate subscription and [PortalKnockBridge] only ever
+  /// hand over after dropping their own account's echo — see
+  /// [PortalSignalRepository.subscribe] — so by the time this is called it
+  /// is already known to be the partner's.
+  Future<void> reportKnock({required String fromId}) => _report(
+    KehaiEvent(
+      kind: KehaiEventKind.knock,
+      authorId: fromId,
+      partnerName: partnerName,
+    ),
+  );
+
   Future<void> _report(KehaiEvent event) async {
     if (!enabled) return;
     final request = decideNotification(

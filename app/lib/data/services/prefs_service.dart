@@ -23,6 +23,9 @@ class PrefsService {
   static const _autostartEnabledKey = 'autostart_enabled';
   static const _shareVitalsKey = 'share_vitals';
   static const _notificationSoundKeyPrefix = 'notification_sound_';
+  static const _portalAutoAcceptEnabledKey = 'portal_auto_accept_enabled';
+  static const _portalAutoAcceptFromKey = 'portal_auto_accept_from_hour';
+  static const _portalAutoAcceptToKey = 'portal_auto_accept_to_hour';
 
   final SharedPreferences _prefs;
 
@@ -173,6 +176,29 @@ class PrefsService {
 
   Future<void> setShareVitals(bool value) =>
       _prefs.setBool(_shareVitalsKey, value);
+
+  /// Portal quiet-hours auto-accept (kb: Phase 7): when on, a knock from
+  /// the partner during [portalAutoAcceptFromHour]..[portalAutoAcceptToHour]
+  /// (local hours, 0-23; the range may wrap midnight) opens the curtain by
+  /// itself — the shelf-tablet mode. OFF by default like every opt-in: a
+  /// camera that can open itself is the single most sensitive switch in
+  /// this app, so it never flips itself.
+  bool get portalAutoAcceptEnabled =>
+      _prefs.getBool(_portalAutoAcceptEnabledKey) ?? false;
+
+  Future<void> setPortalAutoAcceptEnabled(bool value) =>
+      _prefs.setBool(_portalAutoAcceptEnabledKey, value);
+
+  int get portalAutoAcceptFromHour =>
+      _prefs.getInt(_portalAutoAcceptFromKey) ?? 17;
+
+  Future<void> setPortalAutoAcceptFromHour(int hour) =>
+      _prefs.setInt(_portalAutoAcceptFromKey, hour);
+
+  int get portalAutoAcceptToHour => _prefs.getInt(_portalAutoAcceptToKey) ?? 22;
+
+  Future<void> setPortalAutoAcceptToHour(int hour) =>
+      _prefs.setInt(_portalAutoAcceptToKey, hour);
 
   /// Which bundled sound plays for one notification event type
   /// (kb/features.md "Custom notification sounds"). [eventId] is a

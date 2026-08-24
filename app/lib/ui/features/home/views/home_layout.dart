@@ -69,6 +69,7 @@ class HomeSections {
     required this.files,
     required this.jar,
     required this.onOpenDoodle,
+    required this.onOpenPortal,
     required this.onLogOut,
     this.extras = const <Widget>[],
   });
@@ -118,6 +119,11 @@ class HomeSections {
 
   /// Doodles have no drawer: the tray's ✎ opens the canvas dialog directly.
   final VoidCallback onOpenDoodle;
+
+  /// The portal curtain: a full-screen route, not drawer content — so like
+  /// [onOpenDoodle] this is a plain callback rather than a
+  /// [HomeSectionBuilder]. See [TraySection.portal]'s doc.
+  final VoidCallback onOpenPortal;
 
   /// Only the phone column shows a log-out button of its own; on desktop it
   /// lives in the window title bar with the rest of the chrome.
@@ -217,10 +223,11 @@ List<_ColumnEntry> _columnEntries(HomeSections sections) => [
 ];
 
 /// Sections collapsed on first run — everything except mood, the one
-/// section worth seeing at a glance every time.
+/// section worth seeing at a glance every time. Portal isn't in here at
+/// all: it never collapses/expands, see [_PortalEntryStrip].
 final Set<TraySection> _defaultCollapsedSections = {
   for (final section in TraySection.values)
-    if (section != TraySection.mood) section,
+    if (section != TraySection.mood && section != TraySection.portal) section,
 };
 
 /// The original phone layout: one centred, scrolling column — now with
@@ -303,6 +310,8 @@ class _HomeColumnState extends State<HomeColumn> {
                       : entry.builder(context, () => _toggle(entry.section)),
                 ),
               ],
+              const SizedBox(height: 20),
+              _PortalEntryStrip(onTap: widget.sections.onOpenPortal),
             ],
           ),
         ),
@@ -333,6 +342,65 @@ class _CollapsedSectionStrip extends StatelessWidget {
         label: art.label,
         child: GestureDetector(
           key: Key('home-collapsed-${section.name}'),
+          onTap: onTap,
+          behavior: HitTestBehavior.opaque,
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 44),
+              decoration: BoxDecoration(
+                color: colors.chrome,
+                border: Border.all(color: colors.ink, width: 2),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: Row(
+                children: [
+                  art.glyph(colors.ink),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      art.label,
+                      style: AppTextStyles.titleBar.copyWith(color: colors.ink),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Text(
+                    '▸',
+                    style: AppTextStyles.titleBar.copyWith(color: colors.ink),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The phone column's way into the portal curtain — the same slim
+/// title-bar-style strip [_CollapsedSectionStrip] uses (same glyph/label
+/// table, same 44px target, same ▸ "open me" cue), but it never expands in
+/// place: a tap always pushes the full-screen curtain route. This is how a
+/// phone reaches every other tray-grid section too (a strip in this same
+/// column); portal just never toggles back into inline content, because it
+/// has none — see [TraySection.portal]'s doc.
+class _PortalEntryStrip extends StatelessWidget {
+  const _PortalEntryStrip({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final art = traySectionArt[TraySection.portal]!;
+    return Tooltip(
+      message: AppStrings.trayOpenTooltip(art.label),
+      child: Semantics(
+        button: true,
+        label: art.label,
+        child: GestureDetector(
+          key: const Key('home-portal-entry'),
           onTap: onTap,
           behavior: HitTestBehavior.opaque,
           child: MouseRegion(

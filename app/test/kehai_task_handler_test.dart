@@ -1,9 +1,21 @@
+import 'package:clock/clock.dart';
 import 'package:couples_app/data/services/background/kehai_task_handler.dart';
+import 'package:couples_app/data/services/notifications/kehai_sound.dart';
+import 'package:couples_app/data/services/notifications/notification_decision.dart';
+import 'package:couples_app/data/services/notifications/notification_hub.dart';
 import 'package:couples_app/data/services/presence/android/android_presence_service.dart';
 import 'package:couples_app/data/services/presence/android/vitals_service.dart';
 import 'package:couples_app/data/services/prefs_service.dart';
+import 'package:couples_app/domain/models/portal_signal.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+class _Recorder implements NotificationSink {
+  final List<NotificationRequest> raised = [];
+
+  @override
+  Future<void> notify(NotificationRequest request) async => raised.add(request);
+}
 
 /// Regression coverage for the bug this pass fixes (kb/features.md
 /// "Focused-app status"): `KehaiTaskHandler` re-applied `shareLocation` on
@@ -156,6 +168,87 @@ void main() {
       await handler.applySharingPrefsForTest(prefs);
 
       expect(vitals.enabled, isFalse);
+    });
+  });
+
+  /// Portal knocks (kb/roadmap.md Phase 7 curtain): exercised through
+  /// [KehaiTaskHandler.handlePortalSignalForTest] — the exact handler the
+  /// real `portal_signals` subscription wires to — rather than
+  /// [KehaiTaskHandler.onStart], which needs the live PocketBase/realtime
+  /// wiring this test has no business standing up (same reasoning as every
+  /// other group in this file).
+  group('KehaiTaskHandler — portal knock notifications', () {
+    PortalSignal knock({DateTime? created, String from = 'partner'}) =>
+        PortalSignal(
+          id: 'sig1',
+          fromId: from,
+          kind: PortalSignalKind.knock,
+          payload: const {},
+          created: created ?? clock.now(),
+        );
+
+    test('a fresh knock is reported as KehaiEventKind.knock', () {
+      final handler = KehaiTaskHandler();
+      final sink = _Recorder();
+      handler.notificationsForTest = KehaiNotifications(notifier: sink)
+        ..myUserId = 'me'
+        ..partnerName = 'kai'
+        ..foregroundOverride = false;
+
+      handler.handlePortalSignalForTest(knock());
+
+      expect(sink.raised, hasLength(1));
+      expect(sink.raised.single.eventKind, KehaiEventKind.knock);
+    });
+
+    test('a stale knock (redelivered on reconnect) is not reported', () {
+      final handler = KehaiTaskHandler();
+      final sink = _Recorder();
+      handler.notificationsForTest = KehaiNotifications(notifier: sink)
+        ..myUserId = 'me'
+        ..foregroundOverride = false;
+
+      handler.handlePortalSignalForTest(
+        knock(created: clock.now().subtract(const Duration(minutes: 20))),
+      );
+
+      expect(sink.raised, isEmpty);
+    });
+
+    test('non-knock signals (offer/answer/ice/accept/…) are ignored', () {
+      final handler = KehaiTaskHandler();
+      final sink = _Recorder();
+      handler.notificationsForTest = KehaiNotifications(notifier: sink)
+        ..myUserId = 'me'
+        ..foregroundOverride = false;
+
+      for (final kind in [
+        PortalSignalKind.accept,
+        PortalSignalKind.decline,
+        PortalSignalKind.offer,
+        PortalSignalKind.answer,
+        PortalSignalKind.ice,
+        PortalSignalKind.hangup,
+      ]) {
+        handler.handlePortalSignalForTest(
+          PortalSignal(
+            id: 'sig',
+            fromId: 'partner',
+            kind: kind,
+            payload: const {},
+            created: clock.now(),
+          ),
+        );
+      }
+
+      expect(sink.raised, isEmpty);
+    });
+
+    test('with no notifications set yet, handling a knock does not crash', () {
+      final handler = KehaiTaskHandler();
+      // No notificationsForTest — mirrors a signal arriving before
+      // [KehaiTaskHandler._connect] finished building the notifier.
+      handler.handlePortalSignalForTest(knock());
     });
   });
 }

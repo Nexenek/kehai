@@ -25,6 +25,7 @@ const stubJarText = 'jar-section';
 class SectionTaps {
   int doodle = 0;
   int logOut = 0;
+  int portal = 0;
 }
 
 HomeSections stubSections({SectionTaps? taps, HomeSectionBuilder? mood}) {
@@ -52,6 +53,7 @@ HomeSections stubSections({SectionTaps? taps, HomeSectionBuilder? mood}) {
     files: (context, onClose) => section(stubFilesText, onClose),
     jar: (context, onClose) => section(stubJarText, onClose),
     onOpenDoodle: () => recorded.doodle++,
+    onOpenPortal: () => recorded.portal++,
     onLogOut: () => recorded.logOut++,
   );
 }

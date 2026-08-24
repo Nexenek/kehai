@@ -74,6 +74,25 @@ dependencies:
   # graph. AutostartService only calls into this on Windows and implements
   # Linux's XDG autostart .desktop file itself (dart:io, no package needed).
   launch_at_startup: ^0.0.1
+  # Portal mode's transport (kb/decisions.md ADR-9: raw WebRTC P2P for
+  # exactly two peers, no SFU — LiveKit only if hand-rolled signaling gets
+  # painful). Signaling rides the existing PocketBase realtime subscription
+  # (portal_signals), so this package supplies media only.
+  #
+  # Per platform:
+  #   Android — the maintained libwebrtc AAR; needs CAMERA + RECORD_AUDIO,
+  #             which the plugin itself requests at getUserMedia time (see
+  #             AndroidManifest.xml). Its minSdk 21 is under ours.
+  #   Linux   — bundles its OWN prebuilt libwebrtc.so, downloaded from the
+  #             webrtc-sdk GitHub release by CMake on the first build (so
+  #             the first `flutter build linux` needs network) and shipped
+  #             in bundle/lib/. System deps beyond what Flutter already
+  #             needs: none required — GTK is already there, and libpulse
+  #             dev headers are OPTIONAL (their absence only disables
+  #             getDisplayMedia system-audio loopback, which portal mode
+  #             doesn't use; the build prints a warning and carries on).
+  #   Windows — same prebuilt-libwebrtc arrangement; nothing to install.
+  flutter_webrtc: ^1.6.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -126,5 +126,10 @@ NotificationRequest? decideNotification({
       title: AppStrings.notifyRevealTitle,
       body: AppStrings.notifyRevealBody(name),
     ),
+    KehaiEventKind.knock => NotificationRequest(
+      eventKind: KehaiEventKind.knock,
+      title: AppStrings.notifyKnockTitle(name),
+      body: AppStrings.notifyKnockBody,
+    ),
   };
 }

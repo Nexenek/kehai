@@ -779,6 +779,7 @@ class AppStrings {
     KehaiEventKind.doodle => 'doodles ✎',
     KehaiEventKind.instant => 'instants ◉',
     KehaiEventKind.reveal => 'daily question ✧',
+    KehaiEventKind.knock => 'portal knocks ⌂',
   };
 
   static String notifyChannelDescription(KehaiEventKind kind) => switch (kind) {
@@ -788,6 +789,8 @@ class AppStrings {
     KehaiEventKind.instant => 'when they send a photo from their day',
     KehaiEventKind.reveal =>
       "when they answer today's question and the reveal opens",
+    KehaiEventKind.knock =>
+      'when they knock on the portal — someone is at the window',
   };
 
   // --- the sounds window ---
@@ -804,6 +807,7 @@ class AppStrings {
     KehaiEventKind.doodle => 'a doodle arrives',
     KehaiEventKind.instant => 'an instant arrives',
     KehaiEventKind.reveal => "today's question opens",
+    KehaiEventKind.knock => 'a knock at the window',
   };
 
   /// Shown under the picker on Android, where "preview" can't be anything
@@ -875,6 +879,41 @@ class AppStrings {
   static const petHistoryTitle = 'the story so far';
   static const petHistoryEmpty =
       'nothing written yet — go say hi to the little one ヾ(＾-＾)ノ';
+
+  // --- portal mode (Phase 7 — the window between your homes) ---
+
+  static const trayPortal = 'portal';
+  static const portalTitle = 'the window ⌂';
+
+  /// Knock notification (KehaiEventKind.knock).
+  static String notifyKnockTitle(String name) => '$name is at the window ⌂';
+  static const notifyKnockBody = 'knock knock — open the portal? ♡︎';
+
+  /// The curtain (idle) state. The camera line is a promise, and it's kept
+  /// by the engine releasing the device — see PortalEngine's teardown doc.
+  static const portalCurtainHint = 'the curtain is drawn — camera is off';
+  static const portalKnockButton = 'knock ⌂';
+  static const portalKnocking = 'knocking… hold on ♡︎';
+  static const portalKnockedTitle = "someone's at the window ⌂";
+  static const portalAccept = 'open the curtain';
+  static const portalDecline = 'not right now';
+  static const portalHangUp = 'draw the curtain';
+  static const portalConnecting = 'opening the window…';
+  static const portalDarkWindow =
+      'their window is dark right now ( ᴗ˳ᴗ ) — try later?';
+  static const portalNoAnswer = "no answer — they'll see you knocked ♡︎";
+  static const portalErrorGeneric =
+      "the window couldn't open (・_・;) — check the connection and try again";
+
+  /// Quiet-hours auto-accept: the curtain opens by itself when they knock
+  /// during hours you chose. Off by default like every opt-in.
+  static const portalAutoAcceptTitle = 'open automatically ✧';
+  static const portalAutoAcceptBody =
+      'during these hours, a knock from them opens the curtain on its own '
+      '— for the tablet on the shelf. off by default, never at night '
+      'unless you say so.';
+  static String portalAutoAcceptRange(String from, String to) =>
+      'auto-open between $from and $to';
 
   // --- vitals grant fallbacks (appended: on-device hardening pass) -----
   //

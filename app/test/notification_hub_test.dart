@@ -38,6 +38,12 @@ void main() {
     expect(sink.raised, isEmpty);
   });
 
+  test('a knock reaches the sink as KehaiEventKind.knock', () async {
+    await hub.reportKnock(fromId: 'them');
+    expect(sink.raised, hasLength(1));
+    expect(sink.raised.single.eventKind, KehaiEventKind.knock);
+  });
+
   test('nothing is raised while the app is on screen', () async {
     hub.foregroundOverride = true;
     await hub.reportDoodle(authorId: 'them');

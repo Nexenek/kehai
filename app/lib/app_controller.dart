@@ -18,9 +18,11 @@ import 'data/repositories/mood_jar_repository.dart';
 import 'data/repositories/note_repository.dart';
 import 'data/repositories/pet_repository.dart';
 import 'data/repositories/ping_repository.dart';
+import 'data/repositories/portal_signal_repository.dart';
 import 'data/repositories/question_repository.dart';
 import 'data/repositories/status_repository.dart';
 import 'data/repositories/touch_repository.dart';
+import 'data/repositories/turn_repository.dart';
 import 'data/services/background/kehai_foreground_task.dart';
 import 'data/services/background/location_publisher.dart';
 import 'data/services/device_info_service.dart';
@@ -29,6 +31,7 @@ import 'data/services/notifications/app_focus.dart';
 import 'data/services/notifications/kehai_notifier.dart';
 import 'data/services/notifications/notification_hub.dart';
 import 'data/services/pocketbase_client.dart';
+import 'data/services/portal/portal_engine.dart';
 import 'data/services/presence/android/android_presence_service.dart';
 import 'data/services/presence/android/vitals_service.dart';
 import 'data/services/presence/linux_presence_service.dart';
@@ -98,7 +101,20 @@ class AppController extends ChangeNotifier {
   SharedFileRepository? sharedFileRepository;
   EventRepository? eventRepository;
   MoodJarRepository? moodJarRepository;
+  PortalSignalRepository? portalSignalRepository;
+  TurnRepository? turnRepository;
   HeartbeatService? heartbeatService;
+
+  PortalEngine? _portalEngine;
+
+  /// Portal mode's engine — built and subscribed in [_connect], alongside
+  /// every other repository, so a knock can arrive while the app sits on
+  /// home (or anywhere else) rather than only while someone happens to have
+  /// the curtain screen open. [PortalKnockBridge] is what actually does
+  /// something with that: notify, and maybe auto-accept.
+  ///
+  /// Null until a portal-capable session exists (logged in, paired).
+  PortalEngine? get portalEngine => _portalEngine;
 
   /// The app's own OwnTracks-compatible tracker (kb/contracts.md
   /// "Location"). Android-only — see [LocationPublisher]'s doc comment;
@@ -208,6 +224,22 @@ class AppController extends ChangeNotifier {
       sharedFileRepository = SharedFileRepository(pb);
       eventRepository = EventRepository(pb);
       moodJarRepository = MoodJarRepository(pb);
+      portalSignalRepository = PortalSignalRepository(pb);
+      turnRepository = TurnRepository(pb);
+      // A reconnect builds fresh repositories, so an engine holding the old
+      // ones has to go — and it must go the safe way, which is the one that
+      // releases the camera.
+      _disposePortalEngine();
+      _portalEngine = PortalEngine(
+        auth: authRepository!,
+        signals: portalSignalRepository!,
+        turn: turnRepository!,
+      );
+      // Not subscribed yet — see [_startPortalEngineIfReady]'s doc. This is
+      // the same "isLoggedIn gate" [KehaiTaskHandler._connect] uses before
+      // it subscribes to anything: a knock subscription opened while the
+      // client has no session yet is a socket for nothing.
+      _startPortalEngineIfReady();
       heartbeatService = HeartbeatService(
         deviceRepository!,
         deviceInfoService,
@@ -244,6 +276,21 @@ class AppController extends ChangeNotifier {
       return;
     }
     stage = auth.coupleId == null ? AppStage.coupleSetup : AppStage.home;
+    _startPortalEngineIfReady();
+  }
+
+  /// Subscribes the portal engine, once — the same "built at connect time,
+  /// subscribed only once logged in" split [KehaiTaskHandler] follows,
+  /// so a knock can arrive while the app sits anywhere past onboarding
+  /// (home, calendar, wherever), not only while the curtain happens to be
+  /// open. [PortalEngine.init] is idempotent, so calling this from every
+  /// place login state can become true — right after connecting (an
+  /// already-logged-in session), and after [onAuthenticated]/
+  /// [onCoupleReady] (a session that just became one) — costs nothing extra
+  /// on whichever paths turn out not to be the one that mattered.
+  void _startPortalEngineIfReady() {
+    if (authRepository?.isLoggedIn != true) return;
+    unawaited(_portalEngine?.init());
   }
 
   /// The `shareFocusedApp`/`shareUnknownApps` opt-ins (kb/features.md
@@ -298,12 +345,14 @@ class AppController extends ChangeNotifier {
   void onAuthenticated() {
     final coupleId = authRepository?.coupleId;
     stage = coupleId == null ? AppStage.coupleSetup : AppStage.home;
+    _startPortalEngineIfReady();
     notifyListeners();
   }
 
   /// Called after creating/joining a couple.
   void onCoupleReady() {
     stage = AppStage.home;
+    _startPortalEngineIfReady();
     notifyListeners();
   }
 
@@ -402,6 +451,10 @@ class AppController extends ChangeNotifier {
   void logOut() {
     heartbeatService?.stop();
     locationPublisher?.stop();
+    // Before the token goes away, and unconditionally: [PortalEngine.dispose]
+    // is the path that stops every capture track. Logging out with a live
+    // portal must not leave a camera on.
+    _disposePortalEngine();
     // The background isolate holds this user's session; stop it before the
     // token goes away rather than leaving a notification about a partner
     // we're no longer logged in to see.
@@ -409,6 +462,12 @@ class AppController extends ChangeNotifier {
     authRepository?.logout();
     stage = AppStage.auth;
     notifyListeners();
+  }
+
+  void _disposePortalEngine() {
+    final engine = _portalEngine;
+    _portalEngine = null;
+    engine?.dispose();
   }
 
   String _normalize(String url) {

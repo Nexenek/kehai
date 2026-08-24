@@ -77,7 +77,12 @@ enum KehaiEventKind {
   instant('instant'),
 
   /// Both of you have now answered today's question, so it just opened up.
-  reveal('reveal');
+  reveal('reveal'),
+
+  /// Someone's at the window — a portal knock (Phase 7). The one event
+  /// that's time-critical: a knock unheard for a minute is a knock missed,
+  /// which is why it defaults to the most audible sound.
+  knock('knock');
 
   const KehaiEventKind(this.id);
 
@@ -94,6 +99,7 @@ enum KehaiEventKind {
     KehaiEventKind.doodle => KehaiSound.pop,
     KehaiEventKind.instant => KehaiSound.chime,
     KehaiEventKind.reveal => KehaiSound.chime,
+    KehaiEventKind.knock => KehaiSound.sparkle,
   };
 
   static KehaiEventKind? byId(String id) {

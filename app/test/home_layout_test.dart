@@ -316,5 +316,40 @@ void main() {
       expect(find.byKey(const Key('home-collapsed-mood')), findsOneWidget);
       expect(find.text(stubMoodText), findsNothing);
     });
+
+    testWidgets(
+      'the portal strip always shows (it never collapses) and reaches the '
+      'curtain directly, not a drawer',
+      (tester) async {
+        final taps = SectionTaps();
+        tester.view.devicePixelRatio = 1.0;
+        tester.view.physicalSize = const Size(400, 800);
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.light(),
+            home: Scaffold(
+              body: HomeBody(
+                sections: stubSections(taps: taps),
+                desktop: false,
+                prefs: await fakePrefs(),
+              ),
+            ),
+          ),
+        );
+
+        final strip = find.byKey(const Key('home-portal-entry'));
+        expect(strip, findsOneWidget);
+        await tester.ensureVisible(strip);
+        await tester.pumpAndSettle();
+
+        await tester.tap(strip);
+        await tester.pumpAndSettle();
+
+        expect(taps.portal, 1);
+        // Still there, still itself — nothing expanded in its place.
+        expect(find.byKey(const Key('home-portal-entry')), findsOneWidget);
+      },
+    );
   });
 }
