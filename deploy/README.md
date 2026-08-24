@@ -347,6 +347,16 @@ One-time setup:
    `:8443` URL above and `docker compose ... up -d` again so ntfy knows its
    own address.
 
+**Make it stick.** Compose only applies the override when both `-f` flags
+are present — a plain `docker compose up -d` later would recreate the
+server *outside* the node's network (symptom: the node is online, HTTPS
+answers, but `proxy error: dial tcp 127.0.0.1:8090: connection refused` in
+the tailscale logs). Put this in `.env` once and the flags become implicit:
+
+```sh
+COMPOSE_FILE=docker-compose.yml:docker-compose.tailscale.yml
+```
+
 Notes: the node runs in userspace networking mode (works on rootless Docker
 and needs no capabilities); its identity persists in `./data/tailscale`, so
 the auth key is only used once. Sharing the tailnet with your partner is a
