@@ -4,6 +4,10 @@
 >
 > **czuję, że tam jesteś (´-ω-`) ♡**
 
+[![release](https://img.shields.io/github/v/release/Nexenek/kehai?color=b24d89&labelColor=362d3b)](https://github.com/Nexenek/kehai/releases/latest)
+[![license](https://img.shields.io/badge/license-MIT-b24d89?labelColor=362d3b)](LICENSE)
+![platforms](https://img.shields.io/badge/android%20·%20windows%20·%20linux-af87ba?label=runs%20on&labelColor=362d3b)
+
 A self-hosted little world for two. Kehai is a private couples app — built for long-distance, lovely for any couple — that runs entirely on your own server and makes two people feel close all day: not through more messages, but through ambient signs of each other. What they're listening to. Whether they're at their computer or asleep. Their mood as a kaomoji. A doodle that appears on your screen because they were thinking of you.
 
 Y2K pastel-pixel aesthetic — chunky retro windows, pixel fonts, soft pinks and lavenders, kaomoji everywhere.
@@ -34,6 +38,13 @@ On desktop, Kehai mostly lives as a tiny always-there card in the corner of your
 
 *The portal's resting state. The camera is not on behind this curtain — the connection doesn't exist until you knock and they answer.*
 
+## Privacy, actually
+
+- Everything lives on **your** server — there is no company, no cloud, no account anywhere but your own box
+- Every sharing signal (location, focused app, vitals, music…) is an **individual opt-in, off by default**, with a visible indicator while it's on and an honest off switch that also clears what the other side sees
+- The portal streams **peer-to-peer, end-to-end encrypted** (WebRTC/DTLS-SRTP); video never touches the server, and the camera is closed — OS indicator dark — whenever the curtain is drawn
+- No telemetry, no analytics, no third-party APIs required; server-side rules make each couple's data invisible to anyone else, even on a shared server
+
 ## Stack
 
 - **Server**: single Go binary built on [PocketBase](https://pocketbase.io) (auth, SQLite, realtime, file storage) — ~50 MB RAM
@@ -44,16 +55,13 @@ On desktop, Kehai mostly lives as a tiny always-there card in the corner of your
 ## Quickstart
 
 ```bash
+git clone https://github.com/Nexenek/kehai.git && cd kehai
+
 # server (any box with Docker — a Pi is plenty)
 cd deploy && docker compose up -d       # API on :8090, ntfy on :8091
-
-# desktop client
-cd app && flutter run -d linux          # or -d windows on Windows
 ```
 
-Open the app, point it at your server address, register, create your couple, send the invite code to your person ♡
-
-Windows note: build from a Windows-side checkout (not a WSL share) — Flutter toolchains fight over shared state. Android: `flutter build apk`.
+Then install a client from the [latest release](https://github.com/Nexenek/kehai/releases/latest) (details below), point it at your server address, register, create your couple, and send the invite code to your person ♡
 
 ## Self-hosting notes
 
@@ -61,7 +69,7 @@ Everything private-by-default: couple-scoped API rules, locked-down ntfy, no tel
 
 ## Installing releases
 
-Kehai isn't on any store — it's sideloaded by the two of you, straight from a build. No update channel either: a new release just means "grab the new file, install it over the old one."
+Grab the files from the [Releases page](https://github.com/Nexenek/kehai/releases). Kehai isn't on any store — it's sideloaded by the two of you, straight from a build. No update channel either: a new release just means "grab the new file, install it over the old one."
 
 **Android**
 
@@ -88,4 +96,25 @@ cd kehai-linux-x64-<version>
 
 No sudo, nothing outside `$HOME`. `scripts/package-linux.sh` builds this tarball from a `flutter build linux --release` bundle, if you're producing your own.
 
-**⚠️ Back up the Android signing key.** Release builds are signed with a keystore generated at `~/.kehai/kehai-release.jks` (paired with `app/android/key.properties`) — deliberately kept outside the repo, since a keystore is a secret, not source. **If you lose it, you lose the ability to install updates over the existing app** — Android will require a full uninstall (and losing whatever that build didn't sync to the server) before it'll accept a re-signed APK. Copy both files somewhere safe (your backup drive, a password manager's file storage) the same day you generate them.
+## Building from source
+
+```bash
+cd app
+flutter test                              # 1000+ of them
+flutter build linux --release             # or: windows / apk
+```
+
+Notes for builders:
+- **Windows**: build from a Windows-side checkout, not a WSL share — the two Flutter toolchains fight over shared state
+- **Android release signing**: `flutter build apk --release` falls back to debug signing unless you create your own keystore and `app/android/key.properties` (both deliberately outside the repo — a keystore is a secret, not source). **Back yours up the day you make it**: lose it and Android refuses to update over the installed app without a full uninstall
+- **Server**: `cd server && go test ./...` runs the full HTTP test suite against a real in-process instance
+
+## A note on scope
+
+Kehai was built by one couple, for one couple, and is shared in that spirit — it's genuinely self-hostable and the code is MIT, but it isn't a product: no roadmap promises, no support SLA, and design decisions optimize for *two people who trust each other*, not for teams or communities. Issues and forks are welcome ♡
+
+---
+
+MIT — see [LICENSE](LICENSE). Made with love, pixels, and a slightly excessive test suite.
+
+**czuję, że tam jesteś ♡**
