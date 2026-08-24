@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 
 import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart';
@@ -197,11 +198,42 @@ class PortalEngine extends ChangeNotifier implements PortalCallSurface {
   bool _restarting = false;
   Timer? _restartTimer;
 
+  /// We have an offer out and no answer back yet — the offering side's
+  /// half of "is this SDP expected, or is somebody repeating themselves".
+  bool _awaitingAnswer = false;
+
+  /// The SDP of the offer this side has already accepted and answered.
+  /// Compared verbatim: a redelivery is byte-identical, a real
+  /// renegotiation never is (a fresh ICE ufrag alone guarantees that).
+  String? _acceptedOfferSdp;
+
   /// Serializes everything that mutates the machine. Signals arrive from a
   /// realtime callback while the UI is calling methods and the peer
   /// connection is firing state changes; without one queue, an `ice` signal
   /// could be handled halfway through the `offer` that makes it legal.
   Future<void> _tail = Future<void>.value();
+
+  /// The in-flight [init], held so a second call joins the first instead of
+  /// starting a rival subscription. See [init] for why a plain "is `_unsub`
+  /// set yet" flag was not enough.
+  Future<void>? _initializing;
+
+  /// Ids of signals already handled, newest last, capped at
+  /// [_seenSignalCapacity].
+  ///
+  /// The engine must be robust to being told the same thing twice. It has
+  /// happened for a boring local reason (two subscriptions — see [init]),
+  /// and it can happen for a remote one nothing here controls: a realtime
+  /// socket that reconnects mid-handshake may redeliver. Either way the
+  /// damage is the same and it is severe — a redelivered offer reads as a
+  /// renegotiation, the answering side sends a second answer, and the
+  /// offering side (long since stable) throws on it and drops a call that
+  /// was working perfectly. Record ids are unique and free; dropping a
+  /// repeat before it reaches the switch kills every version of this bug at
+  /// once.
+  static const _seenSignalCapacity = 64;
+  final Set<String> _seenSignalIds = {};
+  final Queue<String> _seenSignalOrder = Queue<String>();
 
   @override
   PortalState get state => _state;
@@ -234,11 +266,40 @@ class PortalEngine extends ChangeNotifier implements PortalCallSurface {
 
   /// Starts listening for the partner's signals — the engine is useless
   /// before it (a knock would go out with nobody listening for the reply).
-  /// Idempotent, so the debug entry point can call it on every open without
-  /// stacking subscriptions.
-  Future<void> init() async {
-    if (_unsub != null || _disposed) return;
-    _unsub = await _signals.subscribe(_onSignal, onOwnSignal: _onOwnSignal);
+  ///
+  /// Idempotent, and idempotent *across the await*, which is the part that
+  /// matters and the part the first version got wrong. It guarded on
+  /// `_unsub != null`, but `_unsub` is only assigned once `subscribe`
+  /// resolves — so two synchronous back-to-back calls both saw null, both
+  /// subscribed, and every signal thereafter arrived twice. [AppController]
+  /// legitimately calls this from several places (right after connecting,
+  /// and again after login/pairing make a session real), so "called twice
+  /// in the same tick" is the normal case, not an edge one. Holding the
+  /// in-flight future means the second caller joins the first.
+  Future<void> init() {
+    if (_disposed) return Future<void>.value();
+    return _initializing ??= _subscribe();
+  }
+
+  Future<void> _subscribe() async {
+    try {
+      final unsub = await _signals.subscribe(
+        _onSignal,
+        onOwnSignal: _onOwnSignal,
+      );
+      // Disposed while the subscription was being set up: honour it here
+      // rather than leaving a live socket nobody holds a handle to.
+      if (_disposed) {
+        await unsub();
+        return;
+      }
+      _unsub = unsub;
+      portalLog('listening for signals');
+    } catch (_) {
+      // Let a later call try again rather than latching a failed future.
+      _initializing = null;
+      rethrow;
+    }
   }
 
   // ---------------------------------------------------------------- intent
@@ -294,7 +355,31 @@ class PortalEngine extends ChangeNotifier implements PortalCallSurface {
   void _onSignal(PortalSignal signal) {
     // The repository already dropped my own echo, so anything arriving here
     // is the partner's.
+    //
+    // Deduped synchronously, before it can even take a slot in the queue:
+    // a repeat must not be *ordered*, it must be gone.
+    if (_isRepeat(signal.id)) {
+      portalLog('duplicate ${signal.kind.id} signal — dropped');
+      return;
+    }
     unawaited(_act(() => _handle(signal)));
+  }
+
+  /// True if this record id has already been handled. A ring buffer rather
+  /// than an unbounded set: a signal older than the last
+  /// [_seenSignalCapacity] cannot still be in flight, and an engine left
+  /// open for a week shouldn't grow a list of every knock it ever saw.
+  ///
+  /// An empty id (a hand-built record in a test) is never treated as a
+  /// repeat — better to process one twice than to swallow everything.
+  bool _isRepeat(String id) {
+    if (id.isEmpty) return false;
+    if (!_seenSignalIds.add(id)) return true;
+    _seenSignalOrder.addLast(id);
+    if (_seenSignalOrder.length > _seenSignalCapacity) {
+      _seenSignalIds.remove(_seenSignalOrder.removeFirst());
+    }
+    return false;
   }
 
   Future<void> _handle(PortalSignal signal) async {
@@ -355,9 +440,20 @@ class PortalEngine extends ChangeNotifier implements PortalCallSurface {
         }
         final media = _media;
         if (media == null) return;
-        // A second offer, after we already have a remote description, can
-        // only be a renegotiation — the ICE restart. Half-close the curtain
-        // and give it the same window the offering side gave itself.
+        final offerSdp = signal.payload['sdp'] as String?;
+        // The same offer, delivered again. Not a renegotiation — answering
+        // it a second time is what killed a perfectly good call: the
+        // offering side was already stable, threw on the duplicate answer,
+        // and hung up. Identical SDP means there is nothing new to agree
+        // to, so there is nothing to do.
+        if (_acceptedOfferSdp != null && _acceptedOfferSdp == offerSdp) {
+          portalLog('offer we already answered — ignoring');
+          return;
+        }
+        // A *different* offer, after we already have a remote description,
+        // is a genuine renegotiation — the ICE restart. Half-close the
+        // curtain and give it the same window the offering side gave
+        // itself.
         if (_remoteReady) {
           portalLog('restart offer arrived — reconnecting');
           _restartAttempted = true;
@@ -365,6 +461,7 @@ class PortalEngine extends ChangeNotifier implements PortalCallSurface {
         }
         try {
           await media.acceptRemoteDescription(signal.payload);
+          _acceptedOfferSdp = offerSdp;
           await _flushCandidates(media);
           final answer = await media.createAnswer();
           if (_media != media) return;
@@ -382,8 +479,20 @@ class PortalEngine extends ChangeNotifier implements PortalCallSurface {
             _state != PortalState.connected) {
           return;
         }
+        // Only take an answer when there is an outstanding offer to answer.
+        // Tracked here rather than read off the peer connection's
+        // signalling state: this is the engine's own dance and the engine
+        // knows exactly when it started one, whereas asking the pc means
+        // trusting a value that has already changed by the time a duplicate
+        // arrives. Feeding a second answer into a stable connection is what
+        // the native side throws on.
+        if (!_awaitingAnswer) {
+          portalLog('answer with no outstanding offer — ignoring');
+          return;
+        }
         final media = _media;
         if (media == null) return;
+        _awaitingAnswer = false;
         try {
           await media.acceptRemoteDescription(signal.payload);
           await _flushCandidates(media);
@@ -428,6 +537,11 @@ class PortalEngine extends ChangeNotifier implements PortalCallSurface {
   /// signal (my own knock, my own offer/answer/ice echoing back) is just
   /// noise this device already knows about first-hand.
   void _onOwnSignal(PortalSignal signal) {
+    // Same dedupe as the partner path, and the same reason: a record is a
+    // record. A given id only ever travels one of the two routes (the
+    // repository splits on `fromId`), so the one set serves both without
+    // them treading on each other.
+    if (_isRepeat(signal.id)) return;
     unawaited(_act(() => _handleOwnSignal(signal)));
   }
 
@@ -482,6 +596,8 @@ class PortalEngine extends ChangeNotifier implements PortalCallSurface {
     _remoteReady = false;
     _restartAttempted = false;
     _restarting = false;
+    _awaitingAnswer = false;
+    _acceptedOfferSdp = null;
     _pendingCandidates.clear();
     portalLog('both consented — role: ${_offerer ? 'offerer' : 'answerer'}');
     _setState(PortalState.connecting);
@@ -546,6 +662,7 @@ class PortalEngine extends ChangeNotifier implements PortalCallSurface {
       if (_offerer) {
         final offer = await media.createOffer();
         if (_media != media) return;
+        _awaitingAnswer = true;
         await _signals.create(PortalSignalKind.offer, payload: offer);
       }
       // The answering side does nothing here — it waits for their offer,
@@ -593,6 +710,7 @@ class PortalEngine extends ChangeNotifier implements PortalCallSurface {
       await media.restartIce();
       final offer = await media.createOffer(iceRestart: true);
       if (_media != media) return;
+      _awaitingAnswer = true;
       await _signals.create(PortalSignalKind.offer, payload: offer);
     } catch (_) {
       await _teardown(sendHangup: true, error: _errLostPartner);
@@ -660,8 +778,13 @@ class PortalEngine extends ChangeNotifier implements PortalCallSurface {
     _media = null;
     _pendingCandidates.clear();
     _remoteReady = false;
+    _awaitingAnswer = false;
+    _acceptedOfferSdp = null;
     _partnerId = null;
     _offerer = false;
+    // NB: the seen-signal ids deliberately survive a teardown. A duplicate
+    // can arrive *after* the call it belongs to has ended, and it must
+    // still be recognised as one rather than reopening anything.
     if (media != null) {
       media.onLocalCandidate = null;
       media.onConnected = null;

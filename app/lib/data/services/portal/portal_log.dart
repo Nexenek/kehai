@@ -28,9 +28,13 @@ const _prefix = '[KehaiPortal]';
 void portalLog(String message) => debugPrint('$_prefix $message');
 
 /// Debug-only detail. The closure defers building the string so a release
-/// build doesn't pay for messages it will never print.
+/// build doesn't pay for messages it will never print — which means it has
+/// to be *called*, not interpolated. Interpolating it compiles perfectly
+/// well and prints `Closure: () => String` — which is exactly what shipped
+/// in the first diagnostics build, and what portal_log_test.dart now
+/// guards against by capturing `debugPrint` and asserting on the text.
 void portalTrace(String Function() message) {
-  if (kDebugMode) debugPrint('$_prefix $message');
+  if (kDebugMode) debugPrint('$_prefix ${message()}');
 }
 
 /// The `typ` field out of an ICE candidate line, and nothing else.

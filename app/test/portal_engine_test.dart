@@ -34,11 +34,23 @@ class _FakeSignals extends PortalSignalRepository {
     payloads.add(payload);
   }
 
+  /// How many live subscriptions this repository has handed out. The
+  /// double-subscribe bug was invisible to every other assertion in this
+  /// file — the engine behaved perfectly, it was just told everything
+  /// twice — so the count is the thing worth asserting on.
+  int subscribeCalls = 0;
+
+  /// Set to make `subscribe` take a turn of the event loop, which is what
+  /// let two synchronous callers race past the old idempotence guard.
+  bool slowSubscribe = false;
+
   @override
   Future<UnsubscribeFunc> subscribe(
     void Function(PortalSignal signal) onSignal, {
     void Function(PortalSignal signal)? onOwnSignal,
   }) async {
+    subscribeCalls++;
+    if (slowSubscribe) await Future<void>.delayed(Duration.zero);
     _onSignal = onSignal;
     _onOwnSignal = onOwnSignal;
     return () async => unsubscribed++;
@@ -159,13 +171,20 @@ AuthRepository _loggedIn(String id) {
   return AuthRepository(pb);
 }
 
+int _signalSeq = 0;
+
+/// Builds a signal with a unique record id by default — the server gives
+/// every record its own, and the engine now dedupes on it, so a helper that
+/// reused one id would make every multi-signal test look like a redelivery.
+/// Pass [id] explicitly to model an actual duplicate delivery.
 PortalSignal _signal(
   PortalSignalKind kind, {
   Map<String, dynamic> payload = const {},
   DateTime? created,
   String from = 'partner',
+  String? id,
 }) => PortalSignal(
-  id: 'sig',
+  id: id ?? 'sig${_signalSeq++}',
   fromId: from,
   kind: kind,
   payload: payload,
@@ -563,6 +582,185 @@ void main() {
       expect(engine.state, PortalState.idle);
       expect(signals.sent, isEmpty);
       expect(engine.lastError, isNull);
+      engine.dispose();
+    });
+  });
+
+  group('being told the same thing twice', () {
+    test('two init calls in one tick make exactly one subscription', () async {
+      // The shipped bug, in one line: `init` guarded on a field that is
+      // only assigned after its own await, so two synchronous callers both
+      // sailed past it. AppController legitimately calls init from several
+      // places on the same connect path, so this is the normal case.
+      signals.slowSubscribe = true;
+      final engine = PortalEngine(
+        auth: _loggedIn('aaa'),
+        signals: signals,
+        turn: turn,
+        createMedia: () => media,
+      );
+
+      await Future.wait([engine.init(), engine.init()]);
+
+      expect(signals.subscribeCalls, 1);
+      engine.dispose();
+    });
+
+    test('init is idempotent when awaited in sequence too', () async {
+      final engine = await build();
+      await engine.init();
+      await engine.init();
+
+      expect(signals.subscribeCalls, 1);
+      engine.dispose();
+    });
+
+    test('one delivered signal, twice, is handled once', () async {
+      final engine = await build();
+      final knock = _signal(PortalSignalKind.knock);
+      signals.emit(knock);
+      signals.emit(knock); // same record id — a redelivery
+      await _settle();
+
+      expect(engine.state, PortalState.knocked);
+      await engine.accept();
+      await _settle();
+      // One accept, not two.
+      expect(
+        signals.sent.where((k) => k == PortalSignalKind.accept).length,
+        1,
+      );
+      engine.dispose();
+    });
+
+    test('a redelivered offer mid-call answers once and stays connected', () async {
+      // The exact on-device failure: the answering side got the same offer
+      // twice 25ms apart, treated the second as a renegotiation, sent a
+      // second answer, and the stable offering side threw and hung up.
+      final engine = await build(me: 'zzz');
+      signals.emit(_signal(PortalSignalKind.knock));
+      await _settle();
+      await engine.accept();
+      await _settle();
+
+      final offer = _signal(
+        PortalSignalKind.offer,
+        payload: {'sdp': 'THEIRS', 'type': 'offer'},
+      );
+      signals.emit(offer);
+      await _settle();
+      signals.emit(offer);
+      await _settle();
+
+      expect(
+        signals.sent.where((k) => k == PortalSignalKind.answer).length,
+        1,
+        reason: 'a duplicate offer must not produce a second answer',
+      );
+      expect(engine.state, PortalState.connecting);
+      expect(engine.isReconnecting, isFalse, reason: 'not a renegotiation');
+      expect(media.closed, isFalse);
+      engine.dispose();
+    });
+
+    test('an identical offer with a fresh id is still a no-op', () async {
+      // Belt and braces: even if dedupe misses (a genuinely new record
+      // carrying the same SDP), identical SDP means nothing new to agree to.
+      final engine = await build(me: 'zzz');
+      signals.emit(_signal(PortalSignalKind.knock));
+      await _settle();
+      await engine.accept();
+      await _settle();
+
+      const payload = {'sdp': 'THEIRS', 'type': 'offer'};
+      signals.emit(_signal(PortalSignalKind.offer, payload: payload));
+      await _settle();
+      signals.emit(_signal(PortalSignalKind.offer, payload: payload));
+      await _settle();
+
+      expect(
+        signals.sent.where((k) => k == PortalSignalKind.answer).length,
+        1,
+      );
+      expect(engine.isReconnecting, isFalse);
+      expect(media.calls.where((c) => c == 'createAnswer').length, 1);
+      engine.dispose();
+    });
+
+    test('a duplicate answer is ignored rather than fed to the pc', () async {
+      final engine = await build(me: 'aaa'); // offerer
+      signals.emit(_signal(PortalSignalKind.knock));
+      await _settle();
+      await engine.accept();
+      await _settle();
+      expect(engine.isOfferer, isTrue);
+
+      const payload = {'sdp': 'THEIR-ANSWER', 'type': 'answer'};
+      signals.emit(_signal(PortalSignalKind.answer, payload: payload));
+      await _settle();
+      signals.emit(_signal(PortalSignalKind.answer, payload: payload));
+      await _settle();
+
+      // Exactly one setRemoteDescription: the second answer never reached
+      // the peer connection, so there was nothing for it to throw on.
+      expect(media.calls.where((c) => c == 'remoteDescription').length, 1);
+      expect(engine.state, PortalState.connecting);
+      expect(media.closed, isFalse);
+      engine.dispose();
+    });
+
+    test('an answer arriving before any offer went out is ignored', () async {
+      final engine = await build(me: 'zzz'); // answerer: never offers
+      signals.emit(_signal(PortalSignalKind.knock));
+      await _settle();
+      await engine.accept();
+      await _settle();
+
+      signals.emit(
+        _signal(
+          PortalSignalKind.answer,
+          payload: {'sdp': 'STRAY', 'type': 'answer'},
+        ),
+      );
+      await _settle();
+
+      expect(media.calls, isNot(contains('remoteDescription')));
+      expect(engine.state, PortalState.connecting);
+      engine.dispose();
+    });
+
+    test('a restart offer still renegotiates — dedupe is not a gag', () async {
+      final engine = await build(me: 'zzz');
+      signals.emit(_signal(PortalSignalKind.knock));
+      await _settle();
+      await engine.accept();
+      await _settle();
+      signals.emit(
+        _signal(
+          PortalSignalKind.offer,
+          payload: {'sdp': 'THEIRS', 'type': 'offer'},
+        ),
+      );
+      await _settle();
+      media.onConnected!();
+      await _settle();
+      expect(engine.state, PortalState.connected);
+
+      // Genuinely different SDP: a real ICE restart must still get through.
+      signals.emit(
+        _signal(
+          PortalSignalKind.offer,
+          payload: {'sdp': 'THEIRS-RESTARTED', 'type': 'offer'},
+        ),
+      );
+      await _settle();
+
+      expect(engine.state, PortalState.connecting);
+      expect(engine.isReconnecting, isTrue);
+      expect(
+        signals.sent.where((k) => k == PortalSignalKind.answer).length,
+        2,
+      );
       engine.dispose();
     });
   });

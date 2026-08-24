@@ -1,6 +1,23 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:couples_app/data/services/portal/portal_log.dart';
+
+/// Captures what actually reaches `debugPrint` — the only way to catch a
+/// message that is built correctly and then printed wrong.
+List<String> _capture(void Function() body) {
+  final lines = <String>[];
+  final original = debugPrint;
+  debugPrint = (String? message, {int? wrapWidth}) {
+    if (message != null) lines.add(message);
+  };
+  try {
+    body();
+  } finally {
+    debugPrint = original;
+  }
+  return lines;
+}
 
 /// A real candidate line, of the shape libwebrtc emits. The address in it
 /// is the whole reason [portalCandidateType] exists: none of it may reach a
@@ -16,6 +33,34 @@ const _relay =
     'raddr 203.0.113.7 rport 55555 generation 0';
 
 void main() {
+  group('what actually gets printed', () {
+    test('portalLog prints the message under the prefix', () {
+      final lines = _capture(() => portalLog('connecting → connected'));
+      expect(lines, ['[KehaiPortal] connecting → connected']);
+    });
+
+    test('portalTrace calls its closure instead of printing it', () {
+      // The shipped bug: `'$_prefix $message'` on a `String Function()`
+      // compiles fine and prints `Closure: () => String`, so every trace
+      // line in the first on-device capture was useless.
+      final lines = _capture(() => portalTrace(() => 'local candidate host'));
+
+      expect(lines, ['[KehaiPortal] local candidate host']);
+      expect(lines.single, isNot(contains('Closure')));
+      expect(lines.single, isNot(contains('=>')));
+    });
+
+    test('no log line ever prints a closure', () {
+      final lines = _capture(() {
+        portalLog('peer connection: failed');
+        portalTrace(() => 'remote candidate srflx 0badc0de');
+      });
+      for (final line in lines) {
+        expect(line, isNot(contains('Closure')));
+      }
+    });
+  });
+
   group('portalCandidateType', () {
     test('reads the typ field of each candidate flavour', () {
       expect(portalCandidateType(_host), 'host');
