@@ -781,15 +781,14 @@ class AppStrings {
     KehaiEventKind.reveal => 'daily question ✧',
   };
 
-  static String notifyChannelDescription(KehaiEventKind kind) =>
-      switch (kind) {
-        KehaiEventKind.ping =>
-          'when they tap "thinking of you" (or send a kiss or a hug)',
-        KehaiEventKind.doodle => 'when they draw you something',
-        KehaiEventKind.instant => 'when they send a photo from their day',
-        KehaiEventKind.reveal =>
-          "when they answer today's question and the reveal opens",
-      };
+  static String notifyChannelDescription(KehaiEventKind kind) => switch (kind) {
+    KehaiEventKind.ping =>
+      'when they tap "thinking of you" (or send a kiss or a hug)',
+    KehaiEventKind.doodle => 'when they draw you something',
+    KehaiEventKind.instant => 'when they send a photo from their day',
+    KehaiEventKind.reveal =>
+      "when they answer today's question and the reveal opens",
+  };
 
   // --- the sounds window ---
 
@@ -819,8 +818,7 @@ class AppStrings {
       'will still show up, just quietly';
 
   static const soundsPreviewTitle = 'kehai ♪';
-  static String soundsPreviewBody(String soundLabel) =>
-      'this is "$soundLabel"';
+  static String soundsPreviewBody(String soundLabel) => 'this is "$soundLabel"';
 
   // --- mood changes deliberately do NOT notify ---
   //
@@ -860,4 +858,31 @@ class AppStrings {
     }
     return '$b steps';
   }
+
+  // --- vitals grant fallbacks (appended: on-device hardening pass) -----
+  //
+  // Two honest failure modes the first build hid. Health Connect's
+  // permission sheet doesn't always open (already-denied permissions stop
+  // prompting; some ROMs skip it), and even when reads are granted the
+  // separate "background" grant usually isn't — which quietly means vitals
+  // only move while Kehai is on screen. Both now say so and offer the way
+  // out rather than looking broken.
+
+  /// Shown after a permission request came back with nothing granted; we
+  /// deep-link to Health Connect's own settings at the same time.
+  static const vitalsGrantFallback =
+      "couldn't open the permission sheet — allow kehai's steps & heart "
+      'rate in health connect, then come back ♡︎';
+
+  /// Shown when the deep-link itself has nowhere to go.
+  static const vitalsSettingsUnavailable =
+      "couldn't find health connect's settings on this phone (´•ω•`)";
+
+  /// The degraded-but-working state: reads granted, background reads not.
+  static const vitalsForegroundOnly =
+      'updates only while kehai is open — allow background access in health '
+      'connect to keep it flowing ♡︎';
+
+  /// Button on the two rows above.
+  static const vitalsOpenSettings = 'open health connect ⚙︎';
 }

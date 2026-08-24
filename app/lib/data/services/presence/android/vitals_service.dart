@@ -68,14 +68,27 @@ class VitalsService {
     _enabled = value;
     // Turning it back on shouldn't hand out a reading from before it was
     // turned off.
-    if (!value) {
-      _cached = null;
-      _lastReadAt = null;
-    }
+    if (!value) invalidateCache();
   }
 
   VitalsReading? _cached;
   DateTime? _lastReadAt;
+
+  /// Drops the cached reading so the next [telemetry] goes back to the
+  /// channel, whatever the 5-minute cadence would otherwise say.
+  ///
+  /// Called when the app comes to the foreground (see
+  /// `KehaiTaskHandler.onReceiveData`). Without
+  /// READ_HEALTH_DATA_IN_BACKGROUND every read from the backgrounded
+  /// service throws and the cache holds nothing but nulls — so the moment
+  /// the app IS on screen is the one moment a read is guaranteed to work,
+  /// and it would be a waste to spend it re-sending a stale cache. This is
+  /// what the user was doing by hand when they toggled the row off and on
+  /// to force an update through.
+  void invalidateCache() {
+    _cached = null;
+    _lastReadAt = null;
+  }
 
   /// Whether a heart-rate sample was actually put on the wire — the state
   /// the one-shot clearing null needs.

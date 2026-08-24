@@ -31,7 +31,13 @@ class PhoneSuperpowersViewModel extends ChangeNotifier {
     required Future<void> Function(bool value) onSetShareVitals,
     @visibleForTesting
     Duration activityPreviewInterval = const Duration(seconds: 3),
+    // Everything on this screen is Android-only, so off Android the whole
+    // view model short-circuits — which would leave the vitals states below
+    // untestable anywhere CI runs. This is the seam that lets a test pretend
+    // it's on a phone; nothing else ever passes it.
+    @visibleForTesting bool? isSupportedOverride,
   }) : _presenceChannel = presenceChannel,
+       _isSupportedOverride = isSupportedOverride,
        _vitalsChannel = vitalsChannel,
        _onSetShareFocusedApp = onSetShareFocusedApp,
        _onSetShareUnknownApps = onSetShareUnknownApps,
@@ -57,6 +63,7 @@ class PhoneSuperpowersViewModel extends ChangeNotifier {
 
   final AndroidPresenceChannel _presenceChannel;
   final VitalsChannel _vitalsChannel;
+  final bool? _isSupportedOverride;
 
   /// Persistence + pushing the value into the live presence service both
   /// live on `AppController` (the one place that owns the presence
@@ -75,7 +82,8 @@ class PhoneSuperpowersViewModel extends ChangeNotifier {
   /// isolate.
   final Future<void> Function(bool value) _onSetShareVitals;
 
-  bool get isSupported => KehaiForegroundTask.isSupported;
+  bool get isSupported =>
+      _isSupportedOverride ?? KehaiForegroundTask.isSupported;
 
   bool isLoading = true;
   bool notificationsGranted = false;
@@ -127,6 +135,19 @@ class PhoneSuperpowersViewModel extends ChangeNotifier {
   /// .vitalsNoData]) beats the partner card just never mentioning a heart.
   bool vitalsHasData = false;
 
+  /// READ_HEALTH_DATA_IN_BACKGROUND, tracked separately from [vitalsGranted]
+  /// because it's the difference between a feature that works and one that
+  /// only works while you're looking at it — and the user has no way to
+  /// guess which they've got unless the row says so.
+  bool vitalsBackgroundGranted = false;
+
+  /// The row's own status line: the grant fallback after a request that
+  /// couldn't open a sheet, or the honest "foreground only" warning. Null
+  /// when there's nothing to explain. Separate from [message] (the screen's
+  /// shared one-liner) so it can sit inside the vitals window, next to the
+  /// thing it's about.
+  String? vitalsMessage;
+
   /// "There's nothing here to connect to" — [VitalsAvailability.needsUpdate]
   /// counts, since we can't do the updating for them either.
   bool get vitalsUnavailable =>
@@ -136,6 +157,18 @@ class PhoneSuperpowersViewModel extends ChangeNotifier {
   /// [AppStrings.vitalsNoData] state.
   bool get vitalsWaitingForData =>
       shareVitals && vitalsGranted && !vitalsHasData;
+
+  /// Working, but only while the app is on screen. The row shows this with
+  /// a way to fix it rather than letting the partner's card quietly go
+  /// stale for hours (the reported "updates super rarely if at all").
+  bool get vitalsForegroundOnly =>
+      shareVitals && vitalsGranted && !vitalsBackgroundGranted;
+
+  /// Whether the row should offer its "open health connect ⚙︎" button —
+  /// for either fixable state: a grant we couldn't ask for, or background
+  /// access we didn't get.
+  bool get vitalsCanOpenSettings =>
+      !vitalsUnavailable && (!vitalsGranted || vitalsForegroundOnly);
 
   Timer? _activityPreviewTimer;
 
@@ -272,10 +305,18 @@ class PhoneSuperpowersViewModel extends ChangeNotifier {
   /// would be a lie, and this is the one row where the grant is askable
   /// in-app rather than a walk to a settings screen.
   Future<void> setShareVitals(bool value) async {
-    if (value && vitalsAvailability != VitalsAvailability.available) return;
-    if (value && !vitalsGranted) {
-      final granted = await requestVitalsPermissions();
-      if (!granted) return;
+    if (value) {
+      // Re-probe rather than trusting whatever the last [refresh] left
+      // behind. That refresh is async and fired from initState, so a quick
+      // tap can land while `vitalsAvailability` is still its initial
+      // "unavailable" — and the old code answered that by returning
+      // silently, which is indistinguishable from the button being broken.
+      await _refreshVitals();
+      if (vitalsUnavailable) return;
+      if (!vitalsGranted) {
+        final granted = await requestVitalsPermissions();
+        if (!granted) return;
+      }
     }
     shareVitals = value;
     await _onSetShareVitals(value);
@@ -283,34 +324,75 @@ class PhoneSuperpowersViewModel extends ChangeNotifier {
     await _refreshVitals();
   }
 
-  /// Opens Health Connect's own permission sheet. Returns whether the two
-  /// reads ended up granted, so [setShareVitals] can decline to flip a
-  /// toggle the user just said no to.
+  /// Opens the permission flow, and — when that round-trip comes back with
+  /// nothing granted — falls straight through to Health Connect's settings
+  /// instead of leaving a button that appears to do nothing.
+  ///
+  /// That fallback is the fix for a real on-device failure: the request can
+  /// come back false without ever showing the user anything (permissions
+  /// already denied twice, so Android stops prompting; a ROM that doesn't
+  /// surface the sheet). From the user's side the difference between "you
+  /// said no" and "nothing happened" is invisible, so the recovery path is
+  /// the same either way: put them where they CAN say yes, and say so.
   Future<bool> requestVitalsPermissions() async {
     if (!isSupported) return false;
     await _vitalsChannel.requestPermissions();
-    // Trust the re-read, not the sheet's own answer — same reason the
+    // Trust the re-read, not the request's own answer — same reason the
     // native side re-queries: what's granted is Health Connect's fact.
     await _refreshVitals();
-    return vitalsGranted;
+    if (vitalsGranted) return true;
+
+    final opened = await _vitalsChannel.openSettings();
+    vitalsMessage = opened
+        ? AppStrings.vitalsGrantFallback
+        : AppStrings.vitalsSettingsUnavailable;
+    notifyListeners();
+    return false;
   }
 
-  /// Re-reads availability, the grant, and (only when both are in place and
-  /// the user has opted in) whether there's actually any data behind them.
-  /// The data probe is deliberately skipped while the toggle is off: this
-  /// row's preview is about the state of a feature that's ON, and reading
-  /// someone's heart rate to decide what label to draw would be exactly the
-  /// thing the opt-in exists to prevent.
+  /// The "open health connect ⚙︎" button. Used for the background-access
+  /// warning as well as the grant fallback — same destination, and the
+  /// screen calls [refresh] when the user comes back.
+  Future<void> openVitalsSettings() async {
+    if (!isSupported) return;
+    final opened = await _vitalsChannel.openSettings();
+    if (!opened) {
+      vitalsMessage = AppStrings.vitalsSettingsUnavailable;
+      notifyListeners();
+    }
+  }
+
+  /// Test-only seam onto [_refreshVitals] — the production callers are
+  /// [refresh] (which also probes half a dozen unrelated platform channels)
+  /// and the grant flow.
+  @visibleForTesting
+  Future<void> refreshVitalsForTest() => _refreshVitals();
+
+  /// Re-reads availability, both grants, and (only when reads are in place
+  /// and the user has opted in) whether there's actually any data behind
+  /// them. The data probe is deliberately skipped while the toggle is off:
+  /// this row's preview is about the state of a feature that's ON, and
+  /// reading someone's heart rate to decide what label to draw would be
+  /// exactly the thing the opt-in exists to prevent.
   Future<void> _refreshVitals() async {
     if (!isSupported) return;
     vitalsAvailability = await _vitalsChannel.availability();
-    vitalsGranted =
-        vitalsAvailability == VitalsAvailability.available &&
-        await _vitalsChannel.hasPermissions();
+    final available = vitalsAvailability == VitalsAvailability.available;
+    vitalsGranted = available && await _vitalsChannel.hasPermissions();
+    vitalsBackgroundGranted =
+        vitalsGranted && await _vitalsChannel.hasBackgroundPermission();
     if (shareVitals && vitalsGranted) {
       vitalsHasData = !(await _vitalsChannel.read()).isEmpty;
     } else {
       vitalsHasData = false;
+    }
+    // The grant-fallback line is about one failed attempt, not a lasting
+    // state — once reads are granted it has nothing left to say. The
+    // foreground-only warning replaces it, and clears itself the same way.
+    if (vitalsGranted) {
+      vitalsMessage = vitalsForegroundOnly
+          ? AppStrings.vitalsForegroundOnly
+          : null;
     }
     notifyListeners();
   }

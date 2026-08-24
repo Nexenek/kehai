@@ -92,11 +92,27 @@ class VitalsChannel {
   Future<bool> hasPermissions() async =>
       await _invoke<bool>('hasPermissions') ?? false;
 
+  /// Whether READ_HEALTH_DATA_IN_BACKGROUND is granted — the difference
+  /// between vitals that update all day and vitals that only move when the
+  /// app is opened. Reported separately from [hasPermissions] precisely so
+  /// the superpowers row can say which of the two the user is getting.
+  Future<bool> hasBackgroundPermission() async =>
+      await _invoke<bool>('hasBackgroundPermission') ?? false;
+
   /// Opens Health Connect's own permission sheet and answers with whether
   /// the reads ended up granted. False from the background isolate (no
   /// Activity there) and on every non-Android platform.
   Future<bool> requestPermissions() async =>
       await _invoke<bool>('requestPermissions') ?? false;
+
+  /// Deep-links to Health Connect's own settings — the escape hatch for
+  /// every case the sheet can't cover: permissions already denied twice
+  /// (Android stops prompting), an OEM build that skips the sheet, and
+  /// background access, which the request flow often comes back without.
+  /// False when nothing on this phone can handle the intent, so the caller
+  /// can say so instead of appearing to work.
+  Future<bool> openSettings() async =>
+      await _invoke<bool>('openHealthConnectSettings') ?? false;
 
   Future<VitalsReading> read() async =>
       VitalsReading.fromChannel(await _invoke<Object?>('readVitals'));

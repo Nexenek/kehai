@@ -253,9 +253,22 @@ class _PhoneSuperpowersScreenState extends State<PhoneSuperpowersScreen>
                           // No Health Connect on this phone: the toggle is
                           // hidden rather than offered-and-failing.
                           actionEnabled: !_viewModel.vitalsUnavailable,
-                          preview: _viewModel.vitalsWaitingForData
-                              ? AppStrings.vitalsNoData
+                          // Three things can want this line, in order of
+                          // "what's actually stopping you": a grant we
+                          // couldn't ask for, background access we didn't
+                          // get, or a watch that simply hasn't synced.
+                          preview:
+                              _viewModel.vitalsMessage ??
+                              (_viewModel.vitalsWaitingForData
+                                  ? AppStrings.vitalsNoData
+                                  : null),
+                          // The escape hatch for both grant problems — the
+                          // sheet is not always reachable, and background
+                          // access is never in it on some providers.
+                          secondaryActionLabel: _viewModel.vitalsCanOpenSettings
+                              ? AppStrings.vitalsOpenSettings
                               : null,
+                          onSecondaryAction: _viewModel.openVitalsSettings,
                           onAction: () => _viewModel.setShareVitals(
                             !_viewModel.shareVitals,
                           ),
@@ -321,6 +334,8 @@ class _SuperpowerWindow extends StatelessWidget {
     this.alwaysActionable = false,
     this.actionEnabled = true,
     this.preview,
+    this.secondaryActionLabel,
+    this.onSecondaryAction,
     super.key,
   });
 
@@ -338,10 +353,17 @@ class _SuperpowerWindow extends StatelessWidget {
   /// story and a button could only fail.
   final bool actionEnabled;
 
-  /// "What we'd share right now" (kb/features.md "Focused-app status") —
-  /// only the `shareFocusedApp` window passes this; every other window
-  /// leaves it null and skips the line entirely.
+  /// "What we'd share right now" (kb/features.md "Focused-app status"), or
+  /// — on the vitals row — whatever is standing between the user and the
+  /// feature working. Null on every other window, which skips the line.
   final String? preview;
+
+  /// An optional second, quieter button beside the main one: a way out that
+  /// isn't the toggle itself (vitals uses it to reach Health Connect's
+  /// settings when a grant can't be asked for in-app). Rendered only when
+  /// both this and [onSecondaryAction] are given.
+  final String? secondaryActionLabel;
+  final VoidCallback? onSecondaryAction;
 
   @override
   Widget build(BuildContext context) {
@@ -363,6 +385,20 @@ class _SuperpowerWindow extends StatelessWidget {
               preview!,
               key: const Key('superpower-activity-preview'),
               style: AppTextStyles.caption.copyWith(color: colors.accent),
+            ),
+          ],
+          // Its own line rather than beside the toggle: it belongs to the
+          // explanation above it, and two buttons plus a status box in one
+          // Row overflows on a narrow phone.
+          if (secondaryActionLabel != null && onSecondaryAction != null) ...[
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: PixelButton(
+                key: const Key('superpower-secondary-action'),
+                label: secondaryActionLabel!,
+                onPressed: onSecondaryAction!,
+              ),
             ),
           ],
           const SizedBox(height: 12),

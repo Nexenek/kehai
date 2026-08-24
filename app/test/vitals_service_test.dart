@@ -27,7 +27,13 @@ class _FakeVitalsChannel implements VitalsChannel {
   Future<bool> hasPermissions() async => true;
 
   @override
+  Future<bool> hasBackgroundPermission() async => true;
+
+  @override
   Future<bool> requestPermissions() async => true;
+
+  @override
+  Future<bool> openSettings() async => true;
 }
 
 /// A fixed "now" every test runs against — real [DateTime.now] would make
@@ -297,6 +303,75 @@ void main() {
 
       expect(channel.reads, 2);
     });
+  });
+
+  /// The degraded mode that has to still feel alive: without
+  /// READ_HEALTH_DATA_IN_BACKGROUND every read from the backgrounded service
+  /// comes back all-null, so the cached "nothing" would sit there for five
+  /// minutes even though the app being opened is exactly the moment a read
+  /// would finally work.
+  group('VitalsService — invalidateCache', () {
+    test(
+      'the next telemetry reads again instead of reusing the cache',
+      () async {
+        final channel = _FakeVitalsChannel(
+          reading: const VitalsReading(stepsToday: 4231),
+        );
+        final service = _service(channel);
+
+        await withClock(Clock.fixed(_now), () async {
+          await service.telemetry();
+          // Same instant, so the cadence alone would never re-read.
+          await service.telemetry();
+          expect(channel.reads, 1);
+
+          service.invalidateCache();
+          channel.reading = const VitalsReading(stepsToday: 5117);
+          expect((await service.telemetry())!['steps_today'], 5117);
+        });
+
+        expect(channel.reads, 2);
+      },
+    );
+
+    test('a cache of nulls (the backgrounded-read failure) is replaced by a '
+        'real reading the moment the app is opened', () async {
+      // What a background read without the grant actually returns.
+      final channel = _FakeVitalsChannel(reading: VitalsReading.empty);
+      final service = _service(channel);
+
+      await withClock(Clock.fixed(_now), () async {
+        expect(await service.telemetry(), isNull);
+
+        // App comes to the foreground: cache dropped, and now the read works.
+        service.invalidateCache();
+        channel.reading = VitalsReading(
+          stepsToday: 4231,
+          bpm: 72,
+          bpmAt: _now.subtract(const Duration(minutes: 4)),
+        );
+
+        final fields = (await service.telemetry())!;
+        expect(fields['steps_today'], 4231);
+        expect(fields['heart_rate'], isNotNull);
+      });
+    });
+
+    test(
+      'invalidating while the opt-in is off still costs no channel call',
+      () async {
+        final channel = _FakeVitalsChannel(
+          reading: const VitalsReading(stepsToday: 4231),
+        );
+        final service = _service(channel, enabled: false);
+
+        await withClock(Clock.fixed(_now), () async {
+          service.invalidateCache();
+          expect(await service.telemetry(), isNull);
+        });
+        expect(channel.reads, 0);
+      },
+    );
   });
 
   group('VitalsReading.fromChannel', () {

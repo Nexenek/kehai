@@ -127,6 +127,17 @@ class AppController extends ChangeNotifier {
       if (KehaiForegroundTask.isSupported) {
         KehaiForegroundTask.notifyAppForeground(foreground);
       }
+      // Coming on screen is the one moment a Health Connect read is certain
+      // to be allowed (without READ_HEALTH_DATA_IN_BACKGROUND every read
+      // from a backgrounded process is refused), so spend it: drop the
+      // cached reading and beat. Only when THIS isolate is the heartbeat
+      // writer — when the service took over it does the same thing in
+      // [KehaiTaskHandler.onReceiveData], and both doing it would write the
+      // same device row twice.
+      if (foreground && _uiOwnsLocation) {
+        vitalsService.invalidateCache();
+        unawaited(heartbeatService?.pingNow() ?? Future<void>.value());
+      }
     };
     appFocus.start();
     _applyActivitySharingPrefs();

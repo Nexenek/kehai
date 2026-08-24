@@ -259,7 +259,8 @@ class KehaiTaskHandler extends TaskHandler {
   /// - `app_foreground:0|1` — the app went off/on screen. This isolate
   ///   raises the notifications on Android, and has no window of its own to
   ///   watch, so this is how it knows whether the person is already looking
-  ///   ([decideNotification]'s rule 2).
+  ///   ([decideNotification]'s rule 2). The transition TO foreground does
+  ///   double duty as the vitals refresh trigger — see [_onAppForeground].
   /// - anything else — the prefs nudge [KehaiForegroundTask.notifyPrefsChanged]
   ///   sends when a sharing toggle or a sound is changed in the app. Its
   ///   content carries nothing worth reading; receipt means "go re-read
@@ -270,10 +271,32 @@ class KehaiTaskHandler extends TaskHandler {
         data.startsWith(KehaiForegroundTask.foregroundSignalPrefix)) {
       final foreground = data.endsWith('1');
       _notifications?.foregroundOverride = foreground;
+      if (foreground) _onAppForeground();
       return;
     }
     unawaited(_applySharingPrefs());
   }
+
+  /// The app just came on screen. Health Connect only lets this isolate read
+  /// vitals in the background when READ_HEALTH_DATA_IN_BACKGROUND is
+  /// granted — and when it isn't, *this* is the one moment a read is
+  /// guaranteed to succeed. So drop the cached (probably all-null) reading
+  /// and beat immediately, which pushes fresh steps/bpm to the partner just
+  /// from opening the app.
+  ///
+  /// Cheap enough to do unconditionally: with the grant in place it costs
+  /// one extra read and one extra heartbeat per app open, and with the
+  /// opt-in off [VitalsService.telemetry] short-circuits before touching
+  /// the channel at all.
+  void _onAppForeground() {
+    _vitalsService?.invalidateCache();
+    unawaited(_heartbeatService?.pingNow() ?? Future<void>.value());
+  }
+
+  /// Test-only hook for the foreground transition above — the real path
+  /// arrives over `sendDataToTask`, which needs a live service.
+  @visibleForTesting
+  void appForegroundForTest() => _onAppForeground();
 
   /// Test-only hook: exercises the same prefs-reload-and-push path
   /// [_connect]/[onRepeatEvent]/[onReceiveData] all use, without spinning up
