@@ -41,6 +41,8 @@ import 'data/services/presence/presence_service.dart';
 import 'data/services/presence/presence_service_factory.dart';
 import 'data/services/presence/windows_presence_service.dart';
 import 'data/services/prefs_service.dart';
+import 'data/services/update_service.dart';
+import 'data/services/updates/update_installer.dart';
 import 'ui/core/strings/app_strings.dart';
 
 /// Which screen the app should currently show. This is intentionally a
@@ -89,6 +91,19 @@ class AppController extends ChangeNotifier {
   /// per-connection, so the `shareVitals` toggle has one stable thing to
   /// push onto; a no-op off Android, where the channel simply isn't there.
   final VitalsService vitalsService = VitalsService();
+
+  /// One-click in-app updates from GitHub Releases
+  /// (docs/superpowers/specs/2026-08-25-auto-updates-design.md). Owned here
+  /// like [presenceService] because it outlives every screen and has to
+  /// keep its 24 h loop across log-in/log-out; the home screen's chip and
+  /// the desktop tray both just listen to it.
+  ///
+  /// A no-op in an ordinary debug build (see [UpdateService.updatesEnabled])
+  /// and on any platform we don't ship a self-updating build for, where
+  /// [createUpdateInstaller] answers null.
+  final UpdateService updates = UpdateService(
+    installer: createUpdateInstaller(),
+  );
 
   AppStage stage = AppStage.loading;
   String? connectionError;
@@ -186,6 +201,11 @@ class AppController extends ChangeNotifier {
       }
     };
     appFocus.start();
+    // Arms the update loop and sweeps up whatever the *last* update left
+    // behind (Linux's `<dir>.old`, Android's spent APK) — we're running, so
+    // whatever we installed works. No check happens yet: the first one
+    // waits for the connectivity monitor's first successful probe, below.
+    updates.start();
     _applyActivitySharingPrefs();
     final savedUrl = prefs.serverUrl;
     if (savedUrl == null || savedUrl.isEmpty) {
@@ -290,6 +310,13 @@ class AppController extends ChangeNotifier {
         final pb = _pb;
         if (pb == null) throw StateError('no client to probe');
         await pb.health.check();
+        // A probe that came back IS "we're online" — and it's the signal
+        // the deferred launch update-check waits on. Hung off the probe
+        // rather than [_onConnectivityChanged] because that only fires on a
+        // *change*, and the common case (server reachable from the first
+        // probe) is not a change: [_online] starts optimistically true.
+        // Every call after the first is a no-op.
+        updates.reportOnline();
       },
       onChanged: _onConnectivityChanged,
       online: _online,
@@ -625,6 +652,7 @@ class AppController extends ChangeNotifier {
   void dispose() {
     _connectivity?.dispose();
     _connectivity = null;
+    updates.dispose();
     _disposePortalEngine();
     super.dispose();
   }

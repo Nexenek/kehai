@@ -29,6 +29,10 @@ Future<void> main() async {
   await KehaiTray.instance.bootstrap(DesktopWindowService.instance.windowMode);
 
   final controller = AppController();
+  // The tray is up before the composition root exists, so its "update to
+  // vX.Y.Z" / "check for updates" entries are wired in afterwards. No-op off
+  // Windows/Linux, where the tray never bootstrapped.
+  KehaiTray.instance.attachUpdates(controller.updates);
   // Show the panel while we work out where we stand, then tuck into the
   // little window if there's actually a partner to watch over. Onboarding
   // stays big — nobody types a server address into a 240×150 card.

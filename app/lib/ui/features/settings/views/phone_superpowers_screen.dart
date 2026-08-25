@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app_controller.dart';
+import '../../../../data/services/update_service.dart';
 import '../../../core/strings/app_strings.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/bevel_box.dart';
 import '../../../core/widgets/pixel_button.dart';
 import '../../../core/widgets/retro_window.dart';
+import '../../../core/widgets/update_chip.dart';
 import '../view_models/phone_superpowers_view_model.dart';
 import 'sound_settings_dialog.dart';
 
@@ -273,6 +275,14 @@ class _PhoneSuperpowersScreenState extends State<PhoneSuperpowersScreen>
                             !_viewModel.shareVitals,
                           ),
                         ),
+                        const SizedBox(height: 16),
+                        // Not a permission, but this screen is the only
+                        // settings surface the phone has — and the desktop's
+                        // "check for updates" lives in the tray menu, which
+                        // Android hasn't got. Everything else about updates
+                        // happens on its own (a check a day, the chip on
+                        // home); this is just the way to not wait for it.
+                        const _UpdatesWindow(),
                         const SizedBox(height: 18),
                         // Android's way in to the "sounds ♪" window — the
                         // desktop reaches it from the ✧ title-bar window
@@ -428,6 +438,58 @@ class _SuperpowerWindow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The manual "check for updates" row — Android's counterpart to the
+/// desktop tray entry (docs/superpowers/specs/2026-08-25-auto-updates-design.md).
+///
+/// Status only, in the same shape as every other row here: what the update
+/// service currently thinks, and one button. In a debug build (where the
+/// app must never replace itself — see [UpdateService.updatesEnabled]) it
+/// says so plainly rather than offering a button that does nothing.
+class _UpdatesWindow extends StatelessWidget {
+  const _UpdatesWindow();
+
+  @override
+  Widget build(BuildContext context) {
+    final updates = AppScope.of(context, listen: false).updates;
+    return ListenableBuilder(
+      listenable: updates,
+      builder: (context, _) {
+        final version = updates.availableVersion;
+        final status = switch (updates.stage) {
+          _ when !updates.isEnabled => AppStrings.updatesRowDisabled,
+          UpdateStage.checking => AppStrings.updatesRowChecking,
+          UpdateStage.idle => AppStrings.updatesUpToDate,
+          final stage =>
+            UpdateChip.labelFor(
+              stage,
+              version: version,
+              progress: updates.progress,
+            ) ??
+                AppStrings.updatesUpToDate,
+        };
+        return _SuperpowerWindow(
+          key: const Key('superpowers-updates'),
+          title: AppStrings.updatesRowTitle,
+          body: AppStrings.updatesRowBody,
+          // "granted" here just means "nothing to do" — it's what paints
+          // the status box mint rather than grey.
+          granted: updates.isEnabled && updates.stage == UpdateStage.idle,
+          grantedLabel: AppStrings.updatesUpToDate,
+          pendingLabel: status,
+          actionLabel: updates.hasUpdate
+              ? AppStrings.updatesInstall
+              : AppStrings.updatesCheckNow,
+          alwaysActionable: true,
+          actionEnabled: updates.isEnabled && !updates.isBusy,
+          onAction: () => updates.hasUpdate
+              ? updates.startUpdate()
+              : updates.checkNow(manual: true),
+        );
+      },
     );
   }
 }

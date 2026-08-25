@@ -8,6 +8,7 @@ import '../../ui/core/strings/app_strings.dart';
 import 'autostart_service.dart';
 import 'desktop_window_service.dart';
 import 'prefs_service.dart';
+import 'update_service.dart';
 import 'window_mode.dart';
 
 /// The little pixel heart in the system tray — Kehai's real home on desktop.
@@ -27,6 +28,8 @@ class KehaiTray with TrayListener {
   static const _miniKey = 'mini';
   static const _autostartKey = 'autostart';
   static const _oledCareKey = 'oled_care';
+  static const _updateKey = 'update';
+  static const _checkUpdatesKey = 'check_updates';
   static const _quitKey = 'quit';
 
   /// Windows wants a real .ico; GTK's status icon takes the PNG. Both are
@@ -38,7 +41,14 @@ class KehaiTray with TrayListener {
 
   WindowModeController? _mode;
   PrefsService? _prefs;
+  UpdateService? _updates;
   bool _ready = false;
+
+  /// The version the menu currently advertises, so the menu is only pushed
+  /// back to the OS when that actually changes — [UpdateService] notifies on
+  /// every download tick, and re-sending the whole menu 100 times during a
+  /// download would make the tray flicker for nothing.
+  String? _shownUpdateVersion;
 
   Future<void> bootstrap(WindowModeController mode) async {
     if (!DesktopWindowService.isSupported || _ready) return;
@@ -87,27 +97,75 @@ class KehaiTray with TrayListener {
     }
   }
 
-  Menu _menu() => Menu(
-    items: [
-      MenuItem(key: _expandKey, label: AppStrings.trayOpen),
-      MenuItem(key: _miniKey, label: AppStrings.trayMini),
-      MenuItem.separator(),
-      MenuItem.checkbox(
-        key: _autostartKey,
-        label: AppStrings.trayAutostart,
-        checked: _prefs?.autostartEnabled ?? false,
-      ),
-      MenuItem.checkbox(
-        key: _oledCareKey,
-        label: AppStrings.trayOledCare,
-        checked: _prefs?.oledCareEnabled ?? false,
-      ),
-      MenuItem(key: _quitKey, label: AppStrings.trayQuit),
-    ],
-  );
+  /// Points the menu at the app's [UpdateService] once the composition root
+  /// has one (the tray is bootstrapped before [AppController] exists — see
+  /// main.dart). Safe to call off desktop: without a bootstrap there is no
+  /// menu to refresh.
+  void attachUpdates(UpdateService updates) {
+    if (_updates != null) return;
+    _updates = updates;
+    updates.addListener(_onUpdatesChanged);
+    _shownUpdateVersion = updates.hasUpdate ? updates.availableVersion : null;
+    // Unconditional: the menu built during bootstrap had no service to ask,
+    // so it's missing "check for updates" even when nothing else changed.
+    _pushMenu();
+  }
+
+  void _onUpdatesChanged() {
+    final version = _updates?.hasUpdate == true
+        ? _updates?.availableVersion
+        : null;
+    if (version == _shownUpdateVersion) return;
+    _shownUpdateVersion = version;
+    _pushMenu();
+  }
+
+  void _pushMenu() {
+    if (!_ready) return;
+    unawaited(_attempt('menu', () => trayManager.setContextMenu(_menu())));
+  }
+
+  /// The update entry only exists while there *is* an update — a permanent
+  /// "you're up to date" line would be one more thing to read past every
+  /// time the menu opens. "check for updates" stays, because a manual check
+  /// is the only way to not wait up to 24 h.
+  @visibleForTesting
+  Menu buildMenu() => _menu();
+
+  Menu _menu() {
+    final updates = _updates;
+    final version = updates?.hasUpdate == true
+        ? updates?.availableVersion
+        : null;
+    return Menu(
+      items: [
+        MenuItem(key: _expandKey, label: AppStrings.trayOpen),
+        MenuItem(key: _miniKey, label: AppStrings.trayMini),
+        if (version != null) ...[
+          MenuItem.separator(),
+          MenuItem(key: _updateKey, label: AppStrings.trayUpdate(version)),
+        ],
+        MenuItem.separator(),
+        MenuItem.checkbox(
+          key: _autostartKey,
+          label: AppStrings.trayAutostart,
+          checked: _prefs?.autostartEnabled ?? false,
+        ),
+        MenuItem.checkbox(
+          key: _oledCareKey,
+          label: AppStrings.trayOledCare,
+          checked: _prefs?.oledCareEnabled ?? false,
+        ),
+        if (updates?.isEnabled ?? false)
+          MenuItem(key: _checkUpdatesKey, label: AppStrings.trayCheckUpdates),
+        MenuItem(key: _quitKey, label: AppStrings.trayQuit),
+      ],
+    );
+  }
 
   Future<void> _teardown() async {
     try {
+      _updates?.removeListener(_onUpdatesChanged);
       trayManager.removeListener(this);
       await trayManager.destroy();
     } catch (error) {
@@ -152,6 +210,14 @@ class KehaiTray with TrayListener {
         final enabled = !(menuItem.checked ?? false);
         menuItem.checked = enabled;
         unawaited(DesktopWindowService.instance.setOledCareEnabled(enabled));
+      case _updateKey:
+        // Downloads, verifies, swaps, relaunches — the app quits on its own
+        // partway through (see [DesktopUpdateInstaller.apply]).
+        unawaited(_updates?.startUpdate() ?? Future<void>.value());
+      case _checkUpdatesKey:
+        unawaited(
+          _updates?.checkNow(manual: true) ?? Future<void>.value(),
+        );
       case _quitKey:
         mode.quit();
     }

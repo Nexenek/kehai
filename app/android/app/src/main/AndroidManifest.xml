@@ -4,6 +4,17 @@
          WebSocket) over the couple's Tailscale tailnet or LAN. -->
     <uses-permission android:name="android.permission.INTERNET"/>
 
+    <!-- In-app updates (docs/superpowers/specs/2026-08-25-auto-updates-design.md).
+
+         Kehai is sideloaded, so an update is "download the release APK and
+         hand it to the system installer" — which is exactly what this
+         permission allows, and nothing more: it lets us *ask*, and the user
+         still confirms every install on Android's own sheet (plus a one-time
+         "allow Kehai to install apps" toggle the first time). Releases are
+         signed with the project keystore, so the install is an in-place
+         upgrade with the couple's data intact. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+
     <!-- Phase 2b presence.
 
          The foreground service keeps the background Dart isolate alive so
@@ -150,6 +161,28 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="companion_presence: continuously reports this phone's battery, charging, screen and now-playing state to the paired partner's self-hosted server, and keeps the ongoing notification showing the partner's live status. The notification IS the feature; there is no bounded task to finish."/>
         </service>
+
+        <!-- In-app updates: how the downloaded APK reaches the package
+             installer. Android has refused `file://` URIs across process
+             boundaries since Nougat, so the installer Intent carries a
+             `content://` URI minted here and a one-shot read grant
+             (FLAG_GRANT_READ_URI_PERMISSION — see MainActivity.installApk).
+
+             Own authority rather than reusing image_picker's
+             (`.flutter.image_provider`): a provider's authority owns its
+             whole path set, and these two want to expose different
+             directories. exported=false + grantUriPermissions=true is the
+             standard shape — nothing can query this provider, it can only
+             be handed a URI we granted. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"/>
+        </provider>
 
         <!-- Enabled by the user in Settings > Notification access. We never
              read notifications: this component exists only because Android

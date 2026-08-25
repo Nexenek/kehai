@@ -16,6 +16,7 @@ import '../../../core/widgets/bevel_box.dart';
 import '../../../core/widgets/offline_badge.dart';
 import '../../../core/widgets/pixel_button.dart';
 import '../../../core/widgets/retro_window.dart';
+import '../../../core/widgets/update_chip.dart';
 import '../../board/board_view_model.dart';
 import '../../board/board_window.dart';
 import '../../calendar/calendar_view_model.dart';
@@ -331,7 +332,7 @@ class _HomeScreenState extends State<HomeScreen> {
       // screen (see [HomeSections.partner]) — so the phone column, the
       // companion pane and the wide spread all get it from here, and none of
       // them has to know about connectivity.
-      partner: _OfflineAware(
+      partner: _StatusSlot(
         child: _viewModel.hasPartner
             ? PartnerCard(
                 partnerName: _viewModel.partner!.name,
@@ -521,28 +522,62 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-/// Puts the [OfflineBadge] above [child] while the server is out of reach,
-/// and nothing at all while it isn't.
+/// The quiet status slot above the partner card: the [OfflineBadge] while
+/// the server is out of reach, the [UpdateChip] while there's a newer Kehai
+/// to be had, and nothing at all the rest of the time — which is nearly
+/// always.
 ///
 /// A widget of its own rather than an `if` in [_HomeScreenState._buildSections]
 /// so the `AppScope.of(context)` dependency lands *here*: only this little
-/// row rebuilds when connectivity flips, not the whole set of sections.
-class _OfflineAware extends StatelessWidget {
-  const _OfflineAware({required this.child});
+/// row rebuilds when connectivity flips or a download ticks, not the whole
+/// set of sections.
+class _StatusSlot extends StatelessWidget {
+  const _StatusSlot({required this.child});
 
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    if (AppScope.of(context).online) return child;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Align(alignment: Alignment.centerLeft, child: OfflineBadge()),
-        const SizedBox(height: 6),
-        child,
-      ],
+    final controller = AppScope.of(context);
+    return ListenableBuilder(
+      // The update service is its own notifier, not part of the controller's
+      // — so this listens to both, and to nothing else.
+      listenable: controller.updates,
+      builder: (context, _) {
+        final updates = controller.updates;
+        final chipLabel = UpdateChip.labelFor(
+          updates.stage,
+          version: updates.availableVersion,
+          progress: updates.progress,
+        );
+        if (controller.online && chipLabel == null) return child;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!controller.online) ...[
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: OfflineBadge(),
+              ),
+              const SizedBox(height: 6),
+            ],
+            if (chipLabel != null) ...[
+              Align(
+                alignment: Alignment.centerLeft,
+                child: UpdateChip(
+                  stage: updates.stage,
+                  version: updates.availableVersion,
+                  progress: updates.progress,
+                  onTap: updates.onTap,
+                ),
+              ),
+              const SizedBox(height: 6),
+            ],
+            child,
+          ],
+        );
+      },
     );
   }
 }

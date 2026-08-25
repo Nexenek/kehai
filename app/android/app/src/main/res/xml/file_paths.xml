@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What the update FileProvider is allowed to hand out (see the provider
+     entry in AndroidManifest.xml).
+
+     Exactly one directory: `updates/` inside the app's own cache dir, which
+     is where UpdateService downloads the release APK and nowhere else. The
+     path is deliberately not the whole cache root — a content:// URI granted
+     to the package installer should reach the APK we just downloaded and
+     nothing else the app happens to have cached.
+
+     Kept in lockstep with AndroidUpdateInstaller.stage() in
+     lib/data/services/updates/update_installer.dart, which builds
+     `<cacheDir>/updates/<asset name>`. -->
+<paths>
+    <cache-path name="kehai_updates" path="updates/"/>
+</paths>

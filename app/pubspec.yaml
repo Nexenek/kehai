@@ -93,6 +93,14 @@ dependencies:
   #             doesn't use; the build prints a warning and carries on).
   #   Windows — same prebuilt-libwebrtc arrangement; nothing to install.
   flutter_webrtc: ^1.6.0
+  # The running app's own version string, for in-app auto-updates
+  # (docs/superpowers/specs/2026-08-25-auto-updates-design.md): what the
+  # GitHub `releases/latest` tag is compared against. Reads the platform's
+  # own package metadata (Android PackageInfo, the Windows/Linux bundle's
+  # generated version.json), so there is no second place to bump — the
+  # `version:` field above is still the only one.
+  package_info_plus: ^10.2.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

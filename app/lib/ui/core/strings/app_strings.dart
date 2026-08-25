@@ -91,6 +91,20 @@ class AppStrings {
   static const offlineBadgeTooltip =
       "can't reach your server right now — we'll keep trying";
 
+  // Home — the update chip. Same philosophy as the offline badge above: a
+  // status, not an alarm. No snooze, no "later", no dialog — one quiet line
+  // that is easy to ignore until you feel like tapping it.
+  static String updateAvailable(String version) =>
+      'v$version is here — tap to update';
+  static String updateDownloading(int percent) => 'updating… $percent%';
+  static const updateReady = 'got it — putting it in place';
+  // One line for both shapes of "apply": desktop restarts itself into the
+  // new bundle, android hands over to the system installer, and from where
+  // the user is sitting those are the same moment.
+  static const updateApplying = 'installing… hold on ♡︎';
+  static const updateFailed = 'update failed — tap to retry';
+  static const updateChipTooltip = 'a newer Kehai is on GitHub';
+
   // Home — partner card ambient line (kb/platform-desktop.md "Telemetry
   // contract": now_playing > activity > "at their computer"/"on their
   // phone" > "away" > nothing recent).
@@ -135,6 +149,10 @@ class AppStrings {
   static const trayAutostart = 'start with the computer';
   static const trayOledCare = 'oled care (nudge the little window)';
   static const trayQuit = 'quit for real';
+  // Shown only while there is actually something to update to — the menu
+  // has no permanent "you're up to date" line to ignore.
+  static String trayUpdate(String version) => 'update to v$version ✧';
+  static const trayCheckUpdates = 'check for updates';
 
   // The little window (mini state).
   static const miniExpandTooltip = 'open the big window ♡\uFE0E';
@@ -950,4 +968,21 @@ class AppStrings {
 
   /// Button on the two rows above.
   static const vitalsOpenSettings = 'open health connect ⚙︎';
+
+  // --- in-app updates (docs/superpowers/specs/2026-08-25-auto-updates-design.md) ---
+
+  /// The superpowers-screen row — Android's manual "check for updates",
+  /// the counterpart to the desktop tray entry. Not a permission, but this
+  /// screen is the only settings surface the phone has.
+  static const updatesRowTitle = 'updates';
+  static const updatesRowBody =
+      'kehai checks github for a newer version once a day and offers it on '
+      'the home screen. installing one is a single tap plus android\'s own '
+      '"install anyway" confirm.';
+  static const updatesCheckNow = 'check now';
+  static const updatesInstall = 'install it ✧';
+  static const updatesUpToDate = 'up to date ✓';
+  static const updatesRowChecking = 'looking…';
+  static const updatesRowDisabled =
+      'off in this build (debug builds never replace themselves)';
 }
