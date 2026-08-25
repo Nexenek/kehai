@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter/widgets.dart';
+import 'package:pocketbase/pocketbase.dart';
 
 import 'data/repositories/art_repository.dart';
 import 'data/repositories/auth_repository.dart';
@@ -25,6 +26,7 @@ import 'data/repositories/touch_repository.dart';
 import 'data/repositories/turn_repository.dart';
 import 'data/services/background/kehai_foreground_task.dart';
 import 'data/services/background/location_publisher.dart';
+import 'data/services/connectivity_monitor.dart';
 import 'data/services/device_info_service.dart';
 import 'data/services/heartbeat_service.dart';
 import 'data/services/notifications/app_focus.dart';
@@ -39,12 +41,20 @@ import 'data/services/presence/presence_service.dart';
 import 'data/services/presence/presence_service_factory.dart';
 import 'data/services/presence/windows_presence_service.dart';
 import 'data/services/prefs_service.dart';
+import 'ui/core/strings/app_strings.dart';
 
 /// Which screen the app should currently show. This is intentionally a
 /// flat state machine rather than a router — the onboarding flow is
 /// strictly linear and the whole app is one couple's home, so named routes
 /// would add ceremony without buying anything.
 enum AppStage { loading, serverSetup, auth, coupleSetup, home }
+
+/// How long a *gating* health check gets before it counts as a failure —
+/// the ones a person is waiting on ("test connection", "continue"). A
+/// server that has gone away rarely refuses the connection; it just never
+/// answers, and without this the loading screen would sit there for the
+/// whole of the platform's default socket timeout.
+const _healthCheckTimeout = Duration(seconds: 5);
 
 /// The composition root: owns the PocketBase client and every
 /// repository/service built on top of it, and tracks which [AppStage] the
@@ -82,6 +92,24 @@ class AppController extends ChangeNotifier {
 
   AppStage stage = AppStage.loading;
   String? connectionError;
+
+  /// The client every repository below is built on, kept so the
+  /// connectivity monitor has something to knock on without rebuilding
+  /// anything. Null until [_buildStack] has run once.
+  PocketBase? _pb;
+
+  ConnectivityMonitor? _connectivity;
+  bool _online = true;
+
+  /// Whether the server answered the last time we asked (see
+  /// [ConnectivityMonitor]). Optimistically true until the first probe
+  /// comes back, so a healthy launch never flashes an offline badge.
+  ///
+  /// Nothing in the app *waits* on this — the stack is built and the stage
+  /// resolved whether or not the server is reachable. It exists so the home
+  /// screen can say so quietly, and so the once-only things (the portal
+  /// subscription, the heartbeat) get a nudge the moment it flips back.
+  bool get online => _online;
 
   AuthRepository? authRepository;
   CoupleRepository? coupleRepository;
@@ -166,13 +194,33 @@ class AppController extends ChangeNotifier {
       return;
     }
 
-    final ok = await _connect(savedUrl);
-    if (!ok) {
+    // Startup is never gated on reachability. Kehai autostarts at login and
+    // the server is somebody's home machine over a tailnet, so "the network
+    // isn't up yet" is the *normal* first few seconds of a session — and
+    // answering it by dropping the user onto the server-setup screen (with
+    // an empty address field, no less) threw away a saved URL and a saved
+    // session for a condition that fixes itself.
+    //
+    // Everything [_buildStack] does is local construction: a [PocketBase]
+    // object, repositories around it, and a stage decision that reads
+    // [AuthRepository.isLoggedIn]/[AuthRepository.coupleId] — both of which
+    // come from the [AsyncAuthStore] seeded from shared_preferences in
+    // [PocketBaseClientFactory.create], never from the network. So build it
+    // all, land on the right screen, and let [ConnectivityMonitor] discover
+    // the server whenever it turns up.
+    try {
+      await _buildStack(savedUrl);
+    } catch (_) {
+      // Not a reachability failure — the only way to land here is a client
+      // that couldn't be constructed at all — and there is nothing to show
+      // for that but the setup screen.
+      connectionError = AppStrings.connectionFailed;
       stage = AppStage.serverSetup;
       notifyListeners();
       return;
     }
     _resolveStageAfterConnect();
+    _startConnectivityMonitor();
     notifyListeners();
   }
 
@@ -199,7 +247,10 @@ class AppController extends ChangeNotifier {
     for (final candidate in serverCandidates(url)) {
       try {
         final pb = await PocketBaseClientFactory.create(candidate);
-        await pb.health.check();
+        // Capped: somebody is watching a spinner while this runs, and an
+        // https guess against a plain-http server is exactly the case that
+        // hangs rather than refusing.
+        await pb.health.check().timeout(_healthCheckTimeout);
         return candidate;
       } catch (_) {
         // Try the next scheme.
@@ -220,77 +271,157 @@ class AppController extends ChangeNotifier {
     }
     await prefs.setServerUrl(normalized);
     _resolveStageAfterConnect();
+    // We just health-checked this address twice over; there is nothing left
+    // to discover. Restart the monitor rather than reuse it — the client it
+    // was knocking on has been replaced.
+    _online = true;
+    _startConnectivityMonitor();
     notifyListeners();
     return true;
   }
 
+  /// (Re)starts the "can we see the server" loop against the current
+  /// client. Always replaces whatever was running, so there is never more
+  /// than one loop and never one still knocking on a retired client.
+  void _startConnectivityMonitor() {
+    _connectivity?.dispose();
+    _connectivity = ConnectivityMonitor(
+      probe: () async {
+        final pb = _pb;
+        if (pb == null) throw StateError('no client to probe');
+        await pb.health.check();
+      },
+      onChanged: _onConnectivityChanged,
+      online: _online,
+    )..start();
+  }
+
+  /// The server came back (or went away). Going away needs nothing but the
+  /// repaint — every request already fails on its own, and the realtime
+  /// socket is busy reconnecting itself (see [_buildStack]).
+  ///
+  /// Coming back needs the two things that only ever happen once:
+  /// [PortalEngine.init]'s subscription (idempotent, and a no-op if the
+  /// in-flight one is still waiting for a socket) and a heartbeat, so the
+  /// partner sees this device light up now rather than up to 30s from now.
+  ///
+  /// The beat obeys the same single-writer rule as everything else that
+  /// touches the device row (see [appFocus]'s handler and
+  /// [handOffPresenceToBackground]): only when THIS isolate is the
+  /// heartbeat writer. When the Android service took over, it has its own
+  /// tick and its own client, and two writers means the row gets written
+  /// twice.
+  void _onConnectivityChanged(bool online) {
+    _online = online;
+    if (online) {
+      _startPortalEngineIfReady();
+      if (_uiOwnsLocation) {
+        unawaited(heartbeatService?.pingNow() ?? Future<void>.value());
+      }
+    }
+    notifyListeners();
+  }
+
+  /// The explicit-entry path: prove [url] answers *before* touching the
+  /// live stack, then build on it. Only [confirmServer] — somebody typing
+  /// an address and pressing continue — comes through here; [init]
+  /// deliberately doesn't (see its note). The check-first order matters
+  /// here too: a typo'd address entered from settings must not tear down
+  /// the repositories (and the portal engine, and its camera) that the
+  /// session is still using.
   Future<bool> _connect(String url) async {
     try {
-      final pb = await PocketBaseClientFactory.create(url);
-      await pb.health.check();
-      authRepository = AuthRepository(pb);
-      coupleRepository = CoupleRepository(pb, authRepository!);
-      statusRepository = StatusRepository(pb);
-      deviceRepository = DeviceRepository(pb);
-      countdownRepository = CountdownRepository(pb);
-      noteRepository = NoteRepository(pb);
-      doodleRepository = DoodleRepository(pb);
-      instantRepository = InstantRepository(pb);
-      locationRepository = LocationRepository(pb, authRepository!);
-      petRepository = PetRepository(pb);
-      pingRepository = PingRepository(pb);
-      touchRepository = TouchRepository(pb);
-      boardRepository = BoardRepository(pb);
-      questionRepository = QuestionRepository(pb);
-      artRepository = ArtRepository(pb);
-      sharedFileRepository = SharedFileRepository(pb);
-      eventRepository = EventRepository(pb);
-      moodJarRepository = MoodJarRepository(pb);
-      portalSignalRepository = PortalSignalRepository(pb);
-      turnRepository = TurnRepository(pb);
-      // A reconnect builds fresh repositories, so an engine holding the old
-      // ones has to go — and it must go the safe way, which is the one that
-      // releases the camera.
-      _disposePortalEngine();
-      _portalEngine = PortalEngine(
-        auth: authRepository!,
-        signals: portalSignalRepository!,
-        turn: turnRepository!,
-      );
-      // Not subscribed yet — see [_startPortalEngineIfReady]'s doc. This is
-      // the same "isLoggedIn gate" [KehaiTaskHandler._connect] uses before
-      // it subscribes to anything: a knock subscription opened while the
-      // client has no session yet is a socket for nothing.
-      _startPortalEngineIfReady();
-      heartbeatService = HeartbeatService(
-        deviceRepository!,
-        deviceInfoService,
-        presenceService: presenceService,
-        // Android only in practice — [VitalsService] short-circuits to null
-        // everywhere else, so this costs desktop nothing. It matters
-        // pre-hand-off (and whenever the hand-off fails): the UI isolate is
-        // the heartbeat writer then, so it has to carry vitals too.
-        extraTelemetry: vitalsService.telemetry,
-      );
-      // Desktop location is out of scope for now (geolocator_linux/windows
-      // exist but nothing consumes them yet) — only build the publisher on
-      // Android, so every other platform's `locationPublisher` stays null
-      // and every call below is naturally a no-op.
-      locationPublisher = Platform.isAndroid
-          ? LocationPublisher(
-              pb: pb,
-              batteryLevel: () => presenceService.current.battery,
-            )
-          : null;
-      connectionError = null;
+      final probe = await PocketBaseClientFactory.create(url);
+      await probe.health.check().timeout(_healthCheckTimeout);
+    } catch (_) {
+      connectionError = AppStrings.connectionFailed;
+      return false;
+    }
+    try {
+      await _buildStack(url);
       return true;
     } catch (_) {
-      connectionError =
-          "couldn't reach your server (・_・;) — check the address or Tailscale?";
+      connectionError = AppStrings.connectionFailed;
       return false;
     }
   }
 
+  /// Builds the client and everything hanging off it. Purely local — not
+  /// one line of this asks the server anything, which is exactly what lets
+  /// [init] run it while the server is still unreachable.
+  ///
+  /// The realtime subscriptions started from here are fine offline too: the
+  /// pocketbase SDK's [SseClient] reconnects on its own, forever, with a
+  /// stepped backoff, and [RealtimeService] re-submits the whole
+  /// subscription list on every (re)connect. A `subscribe` issued with no
+  /// server simply doesn't complete until one appears — it does not fail
+  /// permanently — so nothing here needs re-establishing by hand when the
+  /// network comes back.
+  Future<void> _buildStack(String url) async {
+    final pb = await PocketBaseClientFactory.create(url);
+    _pb = pb;
+    authRepository = AuthRepository(pb);
+    coupleRepository = CoupleRepository(pb, authRepository!);
+    statusRepository = StatusRepository(pb);
+    deviceRepository = DeviceRepository(pb);
+    countdownRepository = CountdownRepository(pb);
+    noteRepository = NoteRepository(pb);
+    doodleRepository = DoodleRepository(pb);
+    instantRepository = InstantRepository(pb);
+    locationRepository = LocationRepository(pb, authRepository!);
+    petRepository = PetRepository(pb);
+    pingRepository = PingRepository(pb);
+    touchRepository = TouchRepository(pb);
+    boardRepository = BoardRepository(pb);
+    questionRepository = QuestionRepository(pb);
+    artRepository = ArtRepository(pb);
+    sharedFileRepository = SharedFileRepository(pb);
+    eventRepository = EventRepository(pb);
+    moodJarRepository = MoodJarRepository(pb);
+    portalSignalRepository = PortalSignalRepository(pb);
+    turnRepository = TurnRepository(pb);
+    // A reconnect builds fresh repositories, so an engine holding the old
+    // ones has to go — and it must go the safe way, which is the one that
+    // releases the camera.
+    _disposePortalEngine();
+    _portalEngine = PortalEngine(
+      auth: authRepository!,
+      signals: portalSignalRepository!,
+      turn: turnRepository!,
+    );
+    // Not subscribed yet — see [_startPortalEngineIfReady]'s doc. This is
+    // the same "isLoggedIn gate" [KehaiTaskHandler._connect] uses before
+    // it subscribes to anything: a knock subscription opened while the
+    // client has no session yet is a socket for nothing.
+    _startPortalEngineIfReady();
+    heartbeatService = HeartbeatService(
+      deviceRepository!,
+      deviceInfoService,
+      presenceService: presenceService,
+      // Android only in practice — [VitalsService] short-circuits to null
+      // everywhere else, so this costs desktop nothing. It matters
+      // pre-hand-off (and whenever the hand-off fails): the UI isolate is
+      // the heartbeat writer then, so it has to carry vitals too.
+      extraTelemetry: vitalsService.telemetry,
+    );
+    // Desktop location is out of scope for now (geolocator_linux/windows
+    // exist but nothing consumes them yet) — only build the publisher on
+    // Android, so every other platform's `locationPublisher` stays null
+    // and every call below is naturally a no-op.
+    locationPublisher = Platform.isAndroid
+        ? LocationPublisher(
+            pb: pb,
+            batteryLevel: () => presenceService.current.battery,
+          )
+        : null;
+    connectionError = null;
+  }
+
+  /// Where a built stack lands: auth, couple setup, or home. Reads nothing
+  /// but the local auth store ([AuthRepository.isLoggedIn] is
+  /// `authStore.isValid`, [AuthRepository.coupleId] a field off the record
+  /// that store was seeded with), so it answers just as correctly with no
+  /// server in sight — which is what lets [init] call it unconditionally.
   void _resolveStageAfterConnect() {
     final auth = authRepository!;
     if (!auth.isLoggedIn) {
@@ -484,6 +615,18 @@ class AppController extends ChangeNotifier {
     authRepository?.logout();
     stage = AppStage.auth;
     notifyListeners();
+  }
+
+  /// The controller outlives every screen and is normally only let go of
+  /// when the process is, but the connectivity loop is a repeating timer —
+  /// it has to be cancelled here, or a test that builds a controller leaves
+  /// one ticking.
+  @override
+  void dispose() {
+    _connectivity?.dispose();
+    _connectivity = null;
+    _disposePortalEngine();
+    super.dispose();
   }
 
   void _disposePortalEngine() {

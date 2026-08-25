@@ -13,6 +13,7 @@ import '../../../core/strings/app_strings.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/bevel_box.dart';
+import '../../../core/widgets/offline_badge.dart';
 import '../../../core/widgets/pixel_button.dart';
 import '../../../core/widgets/retro_window.dart';
 import '../../board/board_view_model.dart';
@@ -325,28 +326,35 @@ class _HomeScreenState extends State<HomeScreen> {
   /// rebuild anything but the drawer.
   HomeSections _buildSections(BuildContext context) {
     return HomeSections(
-      partner: _viewModel.hasPartner
-          ? PartnerCard(
-              partnerName: _viewModel.partner!.name,
-              status: _viewModel.partnerStatus,
-              phoneOnline: _viewModel.partnerPhoneOnline,
-              desktopOnline: _viewModel.partnerDesktopOnline,
-              ambientLine: _viewModel.partnerAmbientLine,
-              batteryInfo: _viewModel.partnerBatteryInfo,
-              artScene: _viewModel.partnerArtScene,
-              distanceLine: _locationViewModel.distanceLine,
-              partnerDoodle: _doodleViewModel.partnerDoodle,
-              onSendDoodle: _openDoodleCanvas,
-              partnerDevices: _viewModel.partnerDevices,
-              onSendPing: _pingViewModel.send,
-              canSendPing: _pingViewModel.canSend,
-              pingJustSent: _pingViewModel.justSent,
-              receivedPing: _pingViewModel.lastReceived,
-            )
-          : _WaitingForPartner(
-              inviteCode: _viewModel.inviteCode,
-              onRefresh: _viewModel.checkForPartner,
-            ),
+      // The badge rides above the partner window rather than inside any one
+      // layout, because that slot is the one thing every layout puts on
+      // screen (see [HomeSections.partner]) — so the phone column, the
+      // companion pane and the wide spread all get it from here, and none of
+      // them has to know about connectivity.
+      partner: _OfflineAware(
+        child: _viewModel.hasPartner
+            ? PartnerCard(
+                partnerName: _viewModel.partner!.name,
+                status: _viewModel.partnerStatus,
+                phoneOnline: _viewModel.partnerPhoneOnline,
+                desktopOnline: _viewModel.partnerDesktopOnline,
+                ambientLine: _viewModel.partnerAmbientLine,
+                batteryInfo: _viewModel.partnerBatteryInfo,
+                artScene: _viewModel.partnerArtScene,
+                distanceLine: _locationViewModel.distanceLine,
+                partnerDoodle: _doodleViewModel.partnerDoodle,
+                onSendDoodle: _openDoodleCanvas,
+                partnerDevices: _viewModel.partnerDevices,
+                onSendPing: _pingViewModel.send,
+                canSendPing: _pingViewModel.canSend,
+                pingJustSent: _pingViewModel.justSent,
+                receivedPing: _pingViewModel.lastReceived,
+              )
+            : _WaitingForPartner(
+                inviteCode: _viewModel.inviteCode,
+                onRefresh: _viewModel.checkForPartner,
+              ),
+      ),
       mood: (context, onClose) => MyMoodWindow(
         selectedMoodId: _viewModel.myMoodId,
         onSelectMood: _viewModel.pickMood,
@@ -509,6 +517,32 @@ class _HomeScreenState extends State<HomeScreen> {
           prefs: AppScope.of(context, listen: false).prefs,
         ),
       ),
+    );
+  }
+}
+
+/// Puts the [OfflineBadge] above [child] while the server is out of reach,
+/// and nothing at all while it isn't.
+///
+/// A widget of its own rather than an `if` in [_HomeScreenState._buildSections]
+/// so the `AppScope.of(context)` dependency lands *here*: only this little
+/// row rebuilds when connectivity flips, not the whole set of sections.
+class _OfflineAware extends StatelessWidget {
+  const _OfflineAware({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (AppScope.of(context).online) return child;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Align(alignment: Alignment.centerLeft, child: OfflineBadge()),
+        const SizedBox(height: 6),
+        child,
+      ],
     );
   }
 }

@@ -83,6 +83,14 @@ class AppStrings {
   static const logOut = 'log out';
   static const inviteCodeShort = 'invite code';
 
+  // Home — server connectivity. Deliberately one quiet word: the app keeps
+  // working from what it already has while the server is away (the tailnet
+  // isn't up yet, the home machine is asleep), so this is a status, not an
+  // error, and it should read like one.
+  static const offlineBadge = 'offline';
+  static const offlineBadgeTooltip =
+      "can't reach your server right now — we'll keep trying";
+
   // Home — partner card ambient line (kb/platform-desktop.md "Telemetry
   // contract": now_playing > activity > "at their computer"/"on their
   // phone" > "away" > nothing recent).

@@ -22,7 +22,18 @@ class _ServerUrlScreenState extends State<ServerUrlScreen> {
   @override
   void initState() {
     super.initState();
-    _viewModel = ServerSetupViewModel(AppScope.of(context, listen: false));
+    final controller = AppScope.of(context, listen: false);
+    _viewModel = ServerSetupViewModel(controller);
+    // Whatever is already saved, shown. Landing here almost never means
+    // "you've never had a server" — it means the address needs a look
+    // (changing it from settings, or the rare boot that really couldn't
+    // build a client) — and an empty field made people retype an address
+    // the app was holding all along.
+    final saved = controller.serverUrl;
+    if (saved.isNotEmpty) {
+      _controller.text = saved;
+      _controller.selection = TextSelection.collapsed(offset: saved.length);
+    }
   }
 
   @override
